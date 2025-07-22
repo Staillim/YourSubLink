@@ -4,7 +4,8 @@
 import { useState, useTransition, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { auth } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
+import { collection, addDoc, query, where, getDocs, onSnapshot, deleteDoc, doc, updateDoc, increment } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -41,35 +42,57 @@ import { Skeleton } from '@/components/ui/skeleton';
 type LinkItem = {
   id: string;
   original: string;
+  shortId: string;
   short: string;
   clicks: number;
   date: string;
+  userId: string;
 };
-
-const mockLinksData: LinkItem[] = [
-  { id: '1a2b3c', original: 'https://github.com/shadcn-ui/ui', short: 'https://ys.link/gitui', clicks: 1204, date: '2024-05-20' },
-  { id: '4d5e6f', original: 'https://tailwindcss.com/docs/installation', short: 'https://ys.link/twdocs', clicks: 873, date: '2024-05-18' },
-  { id: '7g8h9i', original: 'https://vercel.com/docs/concepts/next.js/overview', short: 'https://ys.link/vnext', clicks: 541, date: '2024-05-15' },
-  { id: 'j1k2l3', original: 'https://react.dev/learn', short: 'https://ys.link/rlearn', clicks: 2198, date: '2024-05-12' },
-];
 
 export default function DashboardPage() {
   const [user, loading] = useAuthState(auth);
   const router = useRouter();
-  const [links, setLinks] = useState<LinkItem[]>(mockLinksData);
+  const [links, setLinks] = useState<LinkItem[]>([]);
   const [longUrl, setLongUrl] = useState('');
   const [shortenedUrl, setShortenedUrl] = useState<LinkItem | null>(null);
   const [isPending, startTransition] = useTransition();
   const [copied, setCopied] = useState('');
   const { toast } = useToast();
+  const [linksLoading, setLinksLoading] = useState(true);
 
   useEffect(() => {
     if (!loading && !user) {
       router.push('/');
     }
   }, [user, loading, router]);
+  
+  useEffect(() => {
+    if (user) {
+      setLinksLoading(true);
+      const q = query(collection(db, "links"), where("userId", "==", user.uid));
+      const unsubscribe = onSnapshot(q, (querySnapshot) => {
+        const linksData: LinkItem[] = [];
+        querySnapshot.forEach((doc) => {
+          const data = doc.data();
+          linksData.push({
+            id: doc.id,
+            original: data.original,
+            shortId: data.shortId,
+            short: `${window.location.origin}/${data.shortId}`,
+            clicks: data.clicks,
+            date: new Date(data.createdAt.seconds * 1000).toISOString().split('T')[0],
+            userId: data.userId,
+          });
+        });
+        setLinks(linksData.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+        setLinksLoading(false);
+      });
 
-  if (loading) {
+      return () => unsubscribe();
+    }
+  }, [user]);
+
+  if (loading || linksLoading) {
     return (
       <div className="flex min-h-screen w-full flex-col">
         <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b bg-background/80 px-4 backdrop-blur-md md:px-8">
@@ -98,25 +121,36 @@ export default function DashboardPage() {
     );
   }
 
-  const handleShorten = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleShorten = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!longUrl) return;
+    if (!longUrl || !user) return;
 
-    startTransition(() => {
+    startTransition(async () => {
       setShortenedUrl(null);
-      setTimeout(() => {
-        const newId = Math.random().toString(36).substring(2, 8);
-        const newLink: LinkItem = {
-          id: newId,
+      try {
+        const shortId = Math.random().toString(36).substring(2, 8);
+        const newLink = {
+          userId: user.uid,
           original: longUrl,
-          short: `https://ys.link/${newId}`,
+          shortId: shortId,
           clicks: 0,
-          date: new Date().toISOString().split('T')[0],
+          createdAt: new Date(),
         };
-        setLinks(prev => [newLink, ...prev]);
-        setShortenedUrl(newLink);
+        const docRef = await addDoc(collection(db, "links"), newLink);
+        setShortenedUrl({ 
+            ...newLink,
+            id: docRef.id,
+            short: `${window.location.origin}/${shortId}`,
+            date: newLink.createdAt.toISOString().split('T')[0],
+        });
         setLongUrl('');
-      }, 1000);
+      } catch (error) {
+        toast({
+          title: "Error creating link",
+          description: "There was a problem shortening your link. Please try again.",
+          variant: "destructive"
+        })
+      }
     });
   };
 
@@ -131,14 +165,22 @@ export default function DashboardPage() {
     setTimeout(() => setCopied(''), 2000);
   };
   
-  const handleDelete = (id: string) => {
-    setLinks(links.filter(link => link.id !== id));
-    toast({
-        title: "Link deleted",
-        description: "The link has been permanently removed.",
-        variant: "destructive",
-        duration: 3000,
-    })
+  const handleDelete = async (id: string) => {
+    try {
+        await deleteDoc(doc(db, "links", id));
+        toast({
+            title: "Link deleted",
+            description: "The link has been permanently removed.",
+            variant: "destructive",
+            duration: 3000,
+        })
+    } catch (error) {
+        toast({
+            title: "Error deleting link",
+            description: "There was an error deleting the link. Please try again.",
+            variant: "destructive"
+        })
+    }
   }
 
   return (
