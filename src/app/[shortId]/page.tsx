@@ -257,6 +257,7 @@ export default function ShortLinkPage({ params }: { params: { shortId: string } 
       return <LinkGate linkData={linkData} />;
   }
 
+  // This is a fallback loading state for the brief moment before redirection for non-gate links.
   return (
      <div className="flex h-screen w-full flex-col items-center justify-center bg-background text-foreground">
         <Loader2 className="h-12 w-12 animate-spin text-primary"/>
