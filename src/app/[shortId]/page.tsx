@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { notFound } from 'next/navigation';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, doc, updateDoc, increment } from 'firebase/firestore';
-import { Loader2, ExternalLink, CheckCircle2, LockKeyhole, Lock, Link as LinkIcon, ChevronRight, Youtube, Instagram } from 'lucide-react';
+import { Loader2, ExternalLink, CheckCircle2, Lock, Link as LinkIcon, ChevronRight, Youtube, Instagram } from 'lucide-react';
 import type { Rule } from '@/components/rule-editor';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -27,7 +27,7 @@ const RULE_DETAILS = {
 
 function RuleItem({ rule, onComplete, isCompleted }: { rule: Rule; onComplete: () => void; isCompleted: boolean }) {
   const [isClicked, setIsClicked] = useState(false);
-  const [countdown, setCountdown] = useState(5);
+  const [verifyingText, setVerifyingText] = useState('Verificando');
 
   const { text, icon: Icon, color } = RULE_DETAILS[rule.type] || RULE_DETAILS.visit;
 
@@ -36,17 +36,17 @@ function RuleItem({ rule, onComplete, isCompleted }: { rule: Rule; onComplete: (
 
     window.open(rule.url, '_blank');
     setIsClicked(true);
+    
+    let dots = 0;
+    const verifyingInterval = setInterval(() => {
+        dots = (dots + 1) % 4;
+        setVerifyingText(`Verificando${'.'.repeat(dots)}`);
+    }, 500);
 
-    const timer = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev === 1) {
-          clearInterval(timer);
-          onComplete();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    const completionTimeout = setTimeout(() => {
+      clearInterval(verifyingInterval);
+      onComplete();
+    }, 10000);
   };
 
   return (
@@ -61,7 +61,7 @@ function RuleItem({ rule, onComplete, isCompleted }: { rule: Rule; onComplete: (
       </div>
       <div>
         {isClicked && !isCompleted && (
-           <span className="text-sm font-mono bg-black/20 rounded-md px-2 py-1">{countdown}s</span>
+           <span className="text-sm font-mono bg-black/20 rounded-md px-2 py-1 w-28 text-center">{verifyingText}</span>
         )}
         {isCompleted && (
             <CheckCircle2 className="h-6 w-6" />
