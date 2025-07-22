@@ -375,7 +375,7 @@ export default function DashboardPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="w-[35%]">Link Details</TableHead>
+                        <TableHead className="min-w-[250px]">Link Details</TableHead>
                         <TableHead>Short Link</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Clicks</TableHead>
@@ -460,24 +460,24 @@ export default function DashboardPage() {
                         Update the details of your link here. Click save when you're done.
                     </DialogDescription>
                 </DialogHeader>
-                <div className="grid gap-4 py-4">
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="edit-title" className="text-right">
+                <div className="grid gap-y-4 py-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-x-4 gap-y-2">
+                        <Label htmlFor="edit-title" className="text-left sm:text-right">
                             Title
                         </Label>
-                        <Input id="edit-title" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="col-span-3" />
+                        <Input id="edit-title" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="col-span-1 sm:col-span-3" />
                     </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="edit-description" className="text-right">
+                    <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-x-4 gap-y-2">
+                        <Label htmlFor="edit-description" className="text-left sm:text-right">
                             Description
                         </Label>
-                        <Textarea id="edit-description" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} className="col-span-3" />
+                        <Textarea id="edit-description" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} className="col-span-1 sm:col-span-3" />
                     </div>
-                    <div className="grid grid-cols-4 items-start gap-4">
-                        <Label className="text-right pt-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-4 items-start gap-x-4 gap-y-2">
+                        <Label className="text-left sm:text-right pt-2">
                             Rules
                         </Label>
-                        <div className="col-span-3">
+                        <div className="col-span-1 sm:col-span-3">
                             <p className="text-sm text-muted-foreground mb-2">Add at least 3 rules to make this link monetizable.</p>
                             <RuleEditor rules={editRules} onRulesChange={setEditRules} />
                         </div>
@@ -500,5 +500,3 @@ export default function DashboardPage() {
     </TooltipProvider>
   );
 }
-
-    

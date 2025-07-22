@@ -119,70 +119,74 @@ export default function ProfilePage() {
             Back to Dashboard
         </Button>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <Card className="md:col-span-2">
-                <CardHeader>
-                    <CardTitle>Profile Information</CardTitle>
-                    <CardDescription>Update your personal details here.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                    <div className="flex items-center space-x-4">
-                        <Avatar className="h-20 w-20">
-                            <AvatarImage src={photoPreview ?? undefined} alt="Profile photo" />
-                            <AvatarFallback>{displayName?.[0]?.toUpperCase() ?? 'U'}</AvatarFallback>
-                        </Avatar>
-                        <div className="space-y-1">
-                             <Label htmlFor="profile-photo">Profile Photo</Label>
-                             <Input id="profile-photo" type="file" accept="image/*" onChange={handlePhotoChange} className="max-w-xs" />
-                             <p className="text-xs text-muted-foreground">PNG, JPG, GIF up to 10MB.</p>
+            <div className="md:col-span-2 space-y-8">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Profile Information</CardTitle>
+                        <CardDescription>Update your personal details here.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-4 sm:space-y-0 sm:space-x-4">
+                            <Avatar className="h-20 w-20">
+                                <AvatarImage src={photoPreview ?? undefined} alt="Profile photo" />
+                                <AvatarFallback>{displayName?.[0]?.toUpperCase() ?? 'U'}</AvatarFallback>
+                            </Avatar>
+                            <div className="space-y-1 w-full">
+                                 <Label htmlFor="profile-photo">Profile Photo</Label>
+                                 <Input id="profile-photo" type="file" accept="image/*" onChange={handlePhotoChange} className="max-w-xs" />
+                                 <p className="text-xs text-muted-foreground">PNG, JPG, GIF up to 10MB.</p>
+                            </div>
                         </div>
-                    </div>
 
-                    <div className="space-y-2">
-                        <Label htmlFor="displayName">Username</Label>
-                        <Input id="displayName" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
-                    </div>
-                    <div className="space-y-2">
-                        <Label>Email</Label>
-                        <Input value={user.email ?? ''} disabled />
-                         <p className="text-xs text-muted-foreground">Email address cannot be changed.</p>
-                    </div>
-                </CardContent>
-                <CardFooter>
-                    <Button onClick={handleSaveProfile} disabled={isSaving}>
-                        {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Save Changes
-                    </Button>
-                </CardFooter>
-            </Card>
+                        <div className="space-y-2">
+                            <Label htmlFor="displayName">Username</Label>
+                            <Input id="displayName" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Email</Label>
+                            <Input value={user.email ?? ''} disabled />
+                             <p className="text-xs text-muted-foreground">Email address cannot be changed.</p>
+                        </div>
+                    </CardContent>
+                    <CardFooter>
+                        <Button onClick={handleSaveProfile} disabled={isSaving}>
+                            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Save Changes
+                        </Button>
+                    </CardFooter>
+                </Card>
+            </div>
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>Your Stats</CardTitle>
-                    <CardDescription>An overview of your account activity.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="flex justify-between items-center p-3 bg-muted rounded-md">
-                        <span className="font-medium">Current Balance</span>
-                        <span className="font-bold text-lg text-primary">$0.00</span>
-                    </div>
-                     <div className="flex justify-between items-center p-3 bg-muted rounded-md">
-                        <span className="font-medium">Account Status</span>
-                        <span className="font-semibold text-green-600">Verified</span>
-                    </div>
-                    <div className="flex justify-between items-center p-3 bg-muted rounded-md">
-                        <span className="font-medium">Total Visits</span>
-                        <span>0</span>
-                    </div>
-                    <div className="flex justify-between items-center p-3 bg-muted rounded-md">
-                        <span className="font-medium">Monetized Visits</span>
-                        <span>0</span>
-                    </div>
-                    <div className="flex justify-between items-center p-3 bg-muted rounded-md">
-                        <span className="font-medium">Current CPM</span>
-                        <span>$3.00</span>
-                    </div>
-                </CardContent>
-            </Card>
+            <div className="space-y-8">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Your Stats</CardTitle>
+                        <CardDescription>An overview of your account activity.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="flex justify-between items-center p-3 bg-muted rounded-md">
+                            <span className="font-medium">Current Balance</span>
+                            <span className="font-bold text-lg text-primary">$0.00</span>
+                        </div>
+                         <div className="flex justify-between items-center p-3 bg-muted rounded-md">
+                            <span className="font-medium">Account Status</span>
+                            <span className="font-semibold text-green-600">Verified</span>
+                        </div>
+                        <div className="flex justify-between items-center p-3 bg-muted rounded-md">
+                            <span className="font-medium">Total Visits</span>
+                            <span>0</span>
+                        </div>
+                        <div className="flex justify-between items-center p-3 bg-muted rounded-md">
+                            <span className="font-medium">Monetized Visits</span>
+                            <span>0</span>
+                        </div>
+                        <div className="flex justify-between items-center p-3 bg-muted rounded-md">
+                            <span className="font-medium">Current CPM</span>
+                            <span>$3.00</span>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
         </div>
       </div>
     </main>
