@@ -5,24 +5,26 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useUser } from '@/hooks/use-user';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Bell, CheckCircle2, XCircle, Clock } from 'lucide-react';
+import { Bell, CheckCircle2, XCircle, Clock, Trophy } from 'lucide-react';
 import type { PayoutRequest } from '@/hooks/use-user';
 
-type Notification = {
+type GenericNotification = {
     id: string;
     icon: React.ElementType;
     color: string;
     title: string;
     description: string;
     date: string;
+    timestamp: number;
 };
 
-const getNotificationDetails = (payout: PayoutRequest) => {
-    const date = payout.requestedAt ? new Date(payout.requestedAt.seconds * 1000).toLocaleString() : 'N/A';
+const getPayoutNotificationDetails = (payout: PayoutRequest) => {
+    const date = payout.processedAt ? new Date(payout.processedAt.seconds * 1000).toLocaleString() : (payout.requestedAt ? new Date(payout.requestedAt.seconds * 1000).toLocaleString() : 'N/A');
     const amount = payout.amount.toFixed(2);
+    const timestamp = payout.processedAt?.seconds || payout.requestedAt?.seconds || 0;
 
     switch (payout.status) {
         case 'completed':
@@ -31,7 +33,8 @@ const getNotificationDetails = (payout: PayoutRequest) => {
                 color: 'text-green-500',
                 title: 'Payout Approved',
                 description: `Your request for $${amount} has been approved.`,
-                date: payout.processedAt ? new Date(payout.processedAt.seconds * 1000).toLocaleString() : date,
+                date,
+                timestamp,
             };
         case 'rejected':
             return {
@@ -39,7 +42,8 @@ const getNotificationDetails = (payout: PayoutRequest) => {
                 color: 'text-red-500',
                 title: 'Payout Rejected',
                 description: `Your request for $${amount} has been rejected.`,
-                date: payout.processedAt ? new Date(payout.processedAt.seconds * 1000).toLocaleString() : date,
+                date,
+                timestamp,
             };
         case 'pending':
         default:
@@ -49,39 +53,48 @@ const getNotificationDetails = (payout: PayoutRequest) => {
                 title: 'Payout Pending',
                 description: `Your request for $${amount} is currently under review.`,
                 date,
+                timestamp,
             };
     }
 }
 
-
 export default function NotificationsPage() {
     const { user } = useUser();
-    const [notifications, setNotifications] = useState<Notification[]>([]);
+    const [notifications, setNotifications] = useState<GenericNotification[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         if (user) {
             setLoading(true);
-            const q = query(collection(db, "payoutRequests"), where("userId", "==", user.uid));
-            const unsubscribe = onSnapshot(q, (snapshot) => {
-                const payoutData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PayoutRequest));
-                
-                // Sort client-side
-                payoutData.sort((a, b) => (b.requestedAt?.seconds ?? 0) - (a.requestedAt?.seconds ?? 0));
+            const payoutQuery = query(collection(db, "payoutRequests"), where("userId", "==", user.uid));
+            const milestoneQuery = query(collection(db, "notifications"), where("userId", "==", user.uid), where("type", "==", "milestone"));
 
-                const notificationData = payoutData.map(p => {
-                    const details = getNotificationDetails(p);
-                    return {
-                        id: p.id,
-                        ...details,
-                    }
+            const unsubPayouts = onSnapshot(payoutQuery, (payoutSnapshot) => {
+                const payoutData = payoutSnapshot.docs.map(doc => getPayoutNotificationDetails({ id: doc.id, ...doc.data() } as PayoutRequest));
+
+                const unsubMilestones = onSnapshot(milestoneQuery, (milestoneSnapshot) => {
+                    const milestoneData = milestoneSnapshot.docs.map(doc => {
+                        const data = doc.data();
+                        return {
+                            id: doc.id,
+                            icon: Trophy,
+                            color: 'text-blue-500',
+                            title: 'Milestone Reached!',
+                            description: data.message,
+                            date: new Date(data.createdAt.seconds * 1000).toLocaleString(),
+                            timestamp: data.createdAt.seconds,
+                        }
+                    });
+                    
+                    const allNotifications = [...payoutData, ...milestoneData];
+                    allNotifications.sort((a, b) => b.timestamp - a.timestamp);
+                    setNotifications(allNotifications);
+                    setLoading(false);
                 });
-                
-                // Here you would merge with other notification types
-                setNotifications(notificationData);
-                setLoading(false);
+                 return () => unsubMilestones();
             });
-            return () => unsubscribe();
+
+            return () => unsubPayouts();
         }
     }, [user]);
 

@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import { notFound } from 'next/navigation';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, updateDoc, increment } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc, increment, addDoc, serverTimestamp } from 'firebase/firestore';
 import { Loader2, ExternalLink, CheckCircle2, Lock, Link as LinkIcon, ChevronRight, Youtube, Instagram } from 'lucide-react';
 import type { Rule } from '@/components/rule-editor';
 import { Button } from '@/components/ui/button';
@@ -12,10 +12,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Progress } from '@/components/ui/progress';
 
 type LinkData = {
+  id: string;
   original: string;
   rules: Rule[];
   title: string;
   description?: string;
+  userId: string;
 };
 
 const RULE_DETAILS = {
@@ -162,15 +164,36 @@ export default function ShortLinkPage({ params }: { params: { shortId: string } 
         
         // Increment click count
         const linkRef = doc(db, 'links', linkDoc.id);
+        const currentClicks = data.clicks || 0;
+        const newClicks = currentClicks + 1;
+
         await updateDoc(linkRef, {
             clicks: increment(1)
         });
+
+        // Check for milestone
+        const milestone = 1000;
+        if (Math.floor(currentClicks / milestone) < Math.floor(newClicks / milestone)) {
+            const reachedMilestone = Math.floor(newClicks / milestone) * milestone;
+             await addDoc(collection(db, "notifications"), {
+                userId: data.userId,
+                linkId: linkDoc.id,
+                linkTitle: data.title,
+                type: 'milestone',
+                milestone: reachedMilestone,
+                message: `Your link "${data.title}" reached ${reachedMilestone.toLocaleString()} visits!`,
+                createdAt: serverTimestamp(),
+                read: false
+            });
+        }
         
         setLinkData({
+            id: linkDoc.id,
             original: data.original,
             rules: data.rules || [],
             title: data.title,
             description: data.description,
+            userId: data.userId,
         });
 
         if (data.rules && data.rules.length > 0) {

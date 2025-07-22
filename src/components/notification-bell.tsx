@@ -8,11 +8,16 @@ import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Bell, CheckCircle2, XCircle, Clock } from 'lucide-react';
+import { Bell, CheckCircle2, XCircle, Clock, Trophy } from 'lucide-react';
 import type { PayoutRequest } from '@/hooks/use-user';
 
+type MilestoneNotification = {
+    id: string;
+    message: string;
+    createdAt: any;
+}
 
-const getNotificationDetails = (payout: PayoutRequest) => {
+const getPayoutNotificationDetails = (payout: PayoutRequest) => {
     const date = payout.requestedAt ? new Date(payout.requestedAt.seconds * 1000).toLocaleDateString() : 'N/A';
      const amount = payout.amount.toFixed(2);
 
@@ -29,28 +34,36 @@ const getNotificationDetails = (payout: PayoutRequest) => {
 
 export function NotificationBell() {
     const { user } = useUser();
-    const [notifications, setNotifications] = useState<PayoutRequest[]>([]);
+    const [payouts, setPayouts] = useState<PayoutRequest[]>([]);
+    const [milestones, setMilestones] = useState<MilestoneNotification[]>([]);
     const [hasUnread, setHasUnread] = useState(false);
 
     useEffect(() => {
         if (user) {
-            const q = query(collection(db, "payoutRequests"), where("userId", "==", user.uid));
-            const unsubscribe = onSnapshot(q, (snapshot) => {
+            const payoutQuery = query(collection(db, "payoutRequests"), where("userId", "==", user.uid));
+            const unsubPayouts = onSnapshot(payoutQuery, (snapshot) => {
                 const payoutData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PayoutRequest));
-                
-                // Sort client-side
                 payoutData.sort((a, b) => (b.requestedAt?.seconds ?? 0) - (a.requestedAt?.seconds ?? 0));
-
-                setNotifications(payoutData);
+                setPayouts(payoutData);
                 
-                // Check for pending notifications to show indicator
                 if (payoutData.some(p => p.status === 'pending')) {
                     setHasUnread(true);
                 } else {
                     setHasUnread(false);
                 }
             });
-            return () => unsubscribe();
+
+            const milestoneQuery = query(collection(db, "notifications"), where("userId", "==", user.uid), where("type", "==", "milestone"));
+            const unsubMilestones = onSnapshot(milestoneQuery, (snapshot) => {
+                const milestoneData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as MilestoneNotification));
+                milestoneData.sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
+                setMilestones(milestoneData);
+            });
+
+            return () => {
+                unsubPayouts();
+                unsubMilestones();
+            }
         }
     }, [user]);
 
@@ -72,24 +85,35 @@ export function NotificationBell() {
                     <h4 className="font-medium text-sm">Notifications</h4>
                 </div>
                 <div className="space-y-2 p-4 pt-0 max-h-80 overflow-y-auto">
-                    {notifications.length > 0 ? (
-                        notifications.map(payout => {
-                             const { icon: Icon, color, title, date } = getNotificationDetails(payout);
-                             return (
-                                <div key={payout.id} className="flex items-start gap-3">
-                                    <Icon className={`h-5 w-5 mt-1 shrink-0 ${color}`} />
-                                    <div className="flex-1 text-sm">
-                                        <p className="font-medium">{title}</p>
-                                        <p className="text-xs text-muted-foreground">{date}</p>
-                                    </div>
-                                </div>
-                             )
-                        })
-                    ) : (
+                    {payouts.length === 0 && milestones.length === 0 ? (
                         <div className="text-center text-muted-foreground py-8">
                              <Bell className="mx-auto h-8 w-8 mb-2" />
                              <p className="text-sm">No notifications yet.</p>
                         </div>
+                    ) : (
+                        <>
+                            {milestones.map(milestone => (
+                                <div key={milestone.id} className="flex items-start gap-3">
+                                    <Trophy className="h-5 w-5 mt-1 shrink-0 text-blue-500" />
+                                    <div className="flex-1 text-sm">
+                                        <p className="font-medium">Milestone Reached!</p>
+                                        <p className="text-xs text-muted-foreground">{milestone.message}</p>
+                                    </div>
+                                </div>
+                            ))}
+                            {payouts.map(payout => {
+                                const { icon: Icon, color, title, date } = getPayoutNotificationDetails(payout);
+                                return (
+                                    <div key={payout.id} className="flex items-start gap-3">
+                                        <Icon className={`h-5 w-5 mt-1 shrink-0 ${color}`} />
+                                        <div className="flex-1 text-sm">
+                                            <p className="font-medium">{title}</p>
+                                            <p className="text-xs text-muted-foreground">{date}</p>
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                        </>
                     )}
                 </div>
                 <div className="p-2 border-t">
