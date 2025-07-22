@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import { notFound } from 'next/navigation';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, updateDoc, increment, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc, increment, addDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { Loader2, ExternalLink, CheckCircle2, Lock, Link as LinkIcon, ChevronRight, Youtube, Instagram } from 'lucide-react';
 import type { Rule } from '@/components/rule-editor';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,7 @@ type LinkData = {
   title: string;
   description?: string;
   userId: string;
+  monetizable: boolean;
 };
 
 const RULE_DETAILS = {
@@ -26,6 +27,8 @@ const RULE_DETAILS = {
   follow: { text: 'Follow On Instagram', icon: Instagram, color: 'bg-blue-600 hover:bg-blue-700' },
   visit: { text: 'Visit Website', icon: ExternalLink, color: 'bg-gray-500 hover:bg-gray-600' },
 };
+
+const CPM = 3.00; // Cost Per Mille (1000 views)
 
 function RuleItem({ rule, onComplete, isCompleted }: { rule: Rule; onComplete: () => void; isCompleted: boolean }) {
   const [isClicked, setIsClicked] = useState(false);
@@ -162,28 +165,29 @@ export default function ShortLinkPage({ params }: { params: { shortId: string } 
         const linkDoc = querySnapshot.docs[0];
         const data = linkDoc.data() as LinkData & { clicks: number };
         
-        // SERVER-SIDE LOGIC REQUIRED HERE
-        // To implement IP-based click tracking, a server-side function (e.g., Firebase Function) is needed
-        // to securely get the visitor's IP address. The logic would be:
-        // 1. Get visitor's IP from request headers.
-        // 2. Check the `clicks` collection in Firestore for a recent click from this IP for this linkId.
-        // 3. If a click exists within the last hour, do NOT increment.
-        // 4. If no recent click, increment the link's click count and add a new document to the `clicks` collection.
-        
-        // For now, we will just increment the click count directly.
         const linkRef = doc(db, 'links', linkDoc.id);
+        const userRef = doc(db, 'users', data.userId);
+        
+        const batch = writeBatch(db);
+
+        // Always increment click count on the link
+        batch.update(linkRef, { clicks: increment(1) });
+
+        // If the link is monetizable, increment earnings for the link and the user
+        if (data.monetizable) {
+            const earningsPerClick = CPM / 1000;
+            batch.update(linkRef, { generatedEarnings: increment(earningsPerClick) });
+            batch.update(userRef, { generatedEarnings: increment(earningsPerClick) });
+        }
+        
+        // Milestone logic
         const currentClicks = data.clicks || 0;
         const newClicks = currentClicks + 1;
-
-        await updateDoc(linkRef, {
-            clicks: increment(1)
-        });
-
-        // Check for milestone
         const milestone = 1000;
         if (Math.floor(currentClicks / milestone) < Math.floor(newClicks / milestone)) {
             const reachedMilestone = Math.floor(newClicks / milestone) * milestone;
-             await addDoc(collection(db, "notifications"), {
+            const notificationRef = doc(collection(db, 'notifications')); // Create a reference for a new notification
+            batch.set(notificationRef, {
                 userId: data.userId,
                 linkId: linkDoc.id,
                 linkTitle: data.title,
@@ -195,6 +199,8 @@ export default function ShortLinkPage({ params }: { params: { shortId: string } 
             });
         }
         
+        await batch.commit();
+        
         setLinkData({
             id: linkDoc.id,
             original: data.original,
@@ -202,6 +208,7 @@ export default function ShortLinkPage({ params }: { params: { shortId: string } 
             title: data.title,
             description: data.description,
             userId: data.userId,
+            monetizable: data.monetizable || false,
         });
 
         if (data.rules && data.rules.length > 0) {

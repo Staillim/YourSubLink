@@ -60,6 +60,7 @@ export type LinkItem = {
   description?: string;
   monetizable: boolean;
   rules: Rule[];
+  generatedEarnings: number;
 };
 
 export default function DashboardPage() {
@@ -107,6 +108,7 @@ export default function DashboardPage() {
             description: data.description,
             monetizable: data.monetizable || false,
             rules: data.rules || [],
+            generatedEarnings: data.generatedEarnings || 0,
           });
         });
         setLinks(linksData.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));

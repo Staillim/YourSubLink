@@ -63,6 +63,7 @@ export default function CreateLinkPage() {
           description,
           rules,
           monetizable: rules.length >= 3,
+          generatedEarnings: 0,
         };
         await addDoc(collection(db, "links"), newLink);
         setShortenedUrl(`${window.location.origin}/${shortId}`);
@@ -172,5 +173,3 @@ export default function CreateLinkPage() {
     </>
   );
 }
-
-    

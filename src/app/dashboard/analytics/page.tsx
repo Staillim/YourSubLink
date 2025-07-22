@@ -63,6 +63,7 @@ export default function AnalyticsPage() {
             description: data.description,
             monetizable: data.monetizable || false,
             rules: data.rules || [],
+            generatedEarnings: data.generatedEarnings || 0,
           });
         });
         setLinks(linksData);
@@ -76,13 +77,13 @@ export default function AnalyticsPage() {
   }, [user, loading]);
 
   const totalClicks = links.reduce((acc, link) => acc + link.clicks, 0);
-  const totalEarnings = (totalClicks / 1000) * CPM;
+  const totalEarnings = links.reduce((acc, link) => acc + (link.monetizable ? (link.clicks / 1000) * CPM : 0), 0);
 
   const getChartData = () => {
     const monthlyEarnings: { [key: string]: number } = {};
 
     links.forEach(link => {
-        if (link.clicks > 0) {
+        if (link.clicks > 0 && link.monetizable) {
             const date = new Date(link.date);
             const year = getYear(date);
             const month = getMonth(date);
@@ -112,7 +113,7 @@ export default function AnalyticsPage() {
   
   const linksWithEarnings = links.map(link => ({
       ...link,
-      earnings: (link.clicks / 1000) * CPM
+      earnings: link.monetizable ? (link.clicks / 1000) * CPM : 0
   })).sort((a,b) => b.earnings - a.earnings);
 
 
@@ -149,7 +150,7 @@ export default function AnalyticsPage() {
                   </CardHeader>
                   <CardContent>
                       <div className="text-2xl font-bold">${totalEarnings.toFixed(2)}</div>
-                      <p className="text-xs text-muted-foreground">Based on total clicks</p>
+                      <p className="text-xs text-muted-foreground">Based on total monetizable clicks</p>
                   </CardContent>
               </Card>
               <Card>
@@ -233,5 +234,3 @@ export default function AnalyticsPage() {
     </>
   );
 }
-
-    
