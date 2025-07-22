@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import { useUser } from '@/hooks/use-user';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp, query, where, onSnapshot, increment } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, onSnapshot } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose, DialogTrigger } from '@/components/ui/dialog';
@@ -15,7 +15,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { toast } from '@/hooks/use-toast';
 import { Loader2, DollarSign, Wallet, PiggyBank } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { doc, writeBatch } from 'firebase/firestore';
 import { Badge } from '@/components/ui/badge';
 
 const MIN_PAYOUT_AMOUNT = 10;
@@ -58,10 +57,15 @@ export default function PayoutsPage() {
             return () => unsubscribe();
         }
     }, [user]);
-
+    
     const generatedEarnings = profile?.generatedEarnings ?? 0;
     const paidEarnings = profile?.paidEarnings ?? 0;
-    const payoutsPending = profile?.payoutsPending ?? 0;
+    
+    // Calculate pending payouts dynamically from the payouts list
+    const payoutsPending = payouts
+        .filter(p => p.status === 'pending')
+        .reduce((acc, p) => acc + p.amount, 0);
+
     const availableBalance = generatedEarnings - paidEarnings - payoutsPending;
 
     const resetForm = () => {
@@ -91,11 +95,8 @@ export default function PayoutsPage() {
 
         setIsSubmitting(true);
         try {
-            const batch = writeBatch(db);
-            
-            // 1. Create payout request document
-            const requestRef = doc(collection(db, 'payoutRequests'));
-            batch.set(requestRef, {
+            // Only create the payout request document. Do not update the user's profile.
+            await addDoc(collection(db, 'payoutRequests'), {
                 userId: user.uid,
                 userEmail: user.email,
                 userName: profile.displayName,
@@ -105,14 +106,6 @@ export default function PayoutsPage() {
                 status: 'pending',
                 requestedAt: serverTimestamp(),
             });
-
-            // 2. Update user's pending payout amount
-            const userRef = doc(db, 'users', user.uid);
-            batch.update(userRef, {
-                payoutsPending: increment(payoutAmount),
-            });
-            
-            await batch.commit();
 
             toast({ title: 'Request Submitted!', description: 'Your payout request has been sent for review.' });
             resetForm();
@@ -126,7 +119,7 @@ export default function PayoutsPage() {
     };
 
 
-    if (loading) {
+    if (loading || payoutsLoading) {
         return (
             <div className="flex flex-col gap-6">
                 <Skeleton className="h-8 w-32" />
