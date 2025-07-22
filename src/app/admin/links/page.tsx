@@ -2,6 +2,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { db } from '@/lib/firebase';
 import { collection, onSnapshot, doc, deleteDoc, getDoc } from 'firebase/firestore';
 import {
@@ -16,7 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
-import { MoreVertical, Trash2, ExternalLink } from 'lucide-react';
+import { MoreVertical, Trash2, ExternalLink, BarChart3 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
     DropdownMenu,
@@ -44,6 +45,7 @@ type Link = {
 export default function AdminLinksPage() {
   const [links, setLinks] = useState<Link[]>([]);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, 'links'), async (snapshot) => {
@@ -174,6 +176,10 @@ export default function AdminLinksPage() {
                                     </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onClick={() => router.push(`/admin/links/${link.id}`)}>
+                                        <BarChart3 className="mr-2 h-4 w-4" />
+                                        <span>View Stats</span>
+                                    </DropdownMenuItem>
                                     <DropdownMenuItem onClick={() => window.open(link.short, '_blank')}>
                                         <ExternalLink className="mr-2 h-4 w-4" />
                                         <span>View Link</span>
