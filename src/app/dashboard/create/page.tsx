@@ -18,7 +18,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Link as LinkIcon, Loader2, Check } from 'lucide-react';
+import { Link as LinkIcon, Loader2, Check, Copy } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Rule, RuleEditor } from '@/components/rule-editor';
@@ -160,12 +160,14 @@ export default function CreateLinkPage() {
                     <LinkIcon className="h-4 w-4" />
                     <AlertTitle className="font-bold">Link Created Successfully!</AlertTitle>
                     <AlertDescription className="mt-2 flex items-center justify-between">
-                    <span className="truncate pr-4 font-mono text-sm">
-                        {shortenedUrl}
-                    </span>
-                    <Button variant="ghost" size="icon" onClick={() => handleCopy(shortenedUrl)}>
-                        {copied ? <Check className="h-4 w-4 text-green-500" /> : <LinkIcon className="h-4 w-4" />}
-                    </Button>
+                        <div className="overflow-hidden w-full mr-4">
+                           <p className="font-mono text-sm whitespace-nowrap animate-marquee">
+                               {shortenedUrl}
+                           </p>
+                        </div>
+                        <Button variant="ghost" size="icon" onClick={() => handleCopy(shortenedUrl)}>
+                           {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                        </Button>
                     </AlertDescription>
                 </Alert>
              )}
