@@ -38,6 +38,7 @@ export function RuleEditor({ rules, onRulesChange }: RuleEditorProps) {
     if (newRuleUrl.trim() !== '') {
       onRulesChange([...rules, { type: newRuleType, url: newRuleUrl.trim() }]);
       setNewRuleUrl('');
+      setNewRuleType('like'); // Reset to default
     }
   };
 
@@ -45,21 +46,31 @@ export function RuleEditor({ rules, onRulesChange }: RuleEditorProps) {
     onRulesChange(rules.filter((_, i) => i !== index));
   };
 
-  const handleUpdateRuleUrl = (index: number, url: string) => {
+  const handleUpdateRule = (index: number, field: 'type' | 'url', value: string) => {
     const updatedRules = [...rules];
-    updatedRules[index].url = url;
+    updatedRules[index] = { ...updatedRules[index], [field]: value };
     onRulesChange(updatedRules);
   };
+
 
   return (
     <div className="space-y-4 rounded-md border p-4">
       {rules.map((rule, index) => (
         <div key={index} className="flex items-center gap-2">
-          <Input value={RULE_TYPES[rule.type]} disabled className="w-[200px] bg-muted" />
+           <Select value={rule.type} onValueChange={(value: any) => handleUpdateRule(index, 'type', value)}>
+              <SelectTrigger className="w-[220px]">
+                  <SelectValue placeholder="Select a rule" />
+              </SelectTrigger>
+              <SelectContent>
+                  {Object.entries(RULE_TYPES).map(([key, value]) => (
+                  <SelectItem key={key} value={key}>{value}</SelectItem>
+                  ))}
+              </SelectContent>
+           </Select>
           <Input
             placeholder="https://..."
             value={rule.url}
-            onChange={(e) => handleUpdateRuleUrl(index, e.target.value)}
+            onChange={(e) => handleUpdateRule(index, 'url', e.target.value)}
           />
           <Button
             type="button"
