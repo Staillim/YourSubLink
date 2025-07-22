@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 
 type Event = {
     id: string;
-    type: 'Link Created' | 'Payout Requested' | 'Payout Processed' | 'User Registered';
+    type: 'Payout Requested' | 'Payout Processed' | 'User Registered';
     timestamp: any;
     date: string;
     message: string;
@@ -55,38 +55,18 @@ export default function AdminHistoryPage() {
             const userSnap = await getDoc(userRef);
             return userSnap.exists() ? userSnap.data().displayName : 'Unknown User';
         };
-
-        const qLinks = query(collection(db, 'links'), orderBy('createdAt', 'desc'));
+        
         const qPayouts = query(collection(db, 'payoutRequests'), orderBy('requestedAt', 'desc'));
         const qUsers = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
 
         const unsubs: (() => void)[] = [];
-        let allEvents: Event[] = [];
+        let allEvents: Omit<Event, 'type'> & { type: string }[] = [];
 
         const processAndSetEvents = () => {
              allEvents.sort((a, b) => b.timestamp.seconds - a.timestamp.seconds);
-             setEvents(allEvents);
+             setEvents(allEvents as Event[]);
              setLoading(false);
         };
-
-        unsubs.push(onSnapshot(qLinks, async (snapshot) => {
-            const linkEvents: Event[] = await Promise.all(snapshot.docs.map(async (linkDoc) => {
-                const data = linkDoc.data();
-                const userName = await fetchUserName(data.userId);
-                return {
-                    id: linkDoc.id,
-                    type: 'Link Created',
-                    timestamp: data.createdAt,
-                    date: new Date(data.createdAt.seconds * 1000).toLocaleString(),
-                    message: `Link "${data.title}" was created.`,
-                    userName: userName,
-                    userId: data.userId,
-                    icon: Link2,
-                };
-            }));
-            allEvents = [...allEvents.filter(e => e.type !== 'Link Created'), ...linkEvents];
-            processAndSetEvents();
-        }));
 
         unsubs.push(onSnapshot(qPayouts, async (snapshot) => {
             const payoutEvents: Event[] = await Promise.all(snapshot.docs.flatMap(async (payoutDoc) => {
