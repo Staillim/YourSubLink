@@ -52,7 +52,7 @@ export default function PayoutsPage() {
                 snapshot.forEach(doc => {
                     requests.push({ id: doc.id, ...doc.data() } as PayoutRequest);
                 });
-                setPayouts(requests.sort((a,b) => b.requestedAt.seconds - a.requestedAt.seconds));
+                setPayouts(requests.sort((a,b) => (b.requestedAt?.seconds ?? 0) - (a.requestedAt?.seconds ?? 0)));
                 setPayoutsLoading(false);
             });
             return () => unsubscribe();
@@ -251,7 +251,7 @@ export default function PayoutsPage() {
                             ) : payouts.length > 0 ? (
                                 payouts.map(p => (
                                     <TableRow key={p.id}>
-                                        <TableCell>{new Date(p.requestedAt.seconds * 1000).toLocaleDateString()}</TableCell>
+                                        <TableCell>{p.requestedAt ? new Date(p.requestedAt.seconds * 1000).toLocaleDateString() : 'Processing...'}</TableCell>
                                         <TableCell className="font-medium">${p.amount.toFixed(2)}</TableCell>
                                         <TableCell className="capitalize">{p.method}</TableCell>
                                         <TableCell>
