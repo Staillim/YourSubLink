@@ -49,8 +49,6 @@ type UserProfile = {
   monetizationStatus: 'active' | 'inactive';
 };
 
-const CPM = 3.00;
-
 export default function AdminUsersPage() {
   const { user } = useUser();
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -73,13 +71,6 @@ export default function AdminUsersPage() {
         const linksQuery = query(collection(db, 'links'), where('userId', '==', userDoc.id));
         const linksSnapshot = await getDocs(linksQuery);
 
-        let totalClicks = 0;
-        linksSnapshot.forEach(linkDoc => {
-            totalClicks += linkDoc.data().clicks || 0;
-        });
-
-        const generatedEarnings = (totalClicks / 1000) * CPM;
-
         usersData.push({
           uid: userDoc.id,
           displayName: userData.displayName,
@@ -87,7 +78,7 @@ export default function AdminUsersPage() {
           photoURL: userData.photoURL,
           role: userData.role,
           linksCount: linksSnapshot.size,
-          generatedEarnings,
+          generatedEarnings: userData.generatedEarnings || 0,
           paidEarnings: userData.paidEarnings || 0,
           monetizationStatus: 'active', // Placeholder
         });
@@ -102,7 +93,7 @@ export default function AdminUsersPage() {
 
   const openAddBalanceDialog = (user: UserProfile) => {
     setSelectedUser(user);
-    setBalanceAmount(user.paidEarnings.toFixed(2));
+    setBalanceAmount(user.generatedEarnings.toFixed(2));
     setIsAddBalanceDialogOpen(true);
   }
 
@@ -118,11 +109,11 @@ export default function AdminUsersPage() {
     setIsSubmitting(true);
     try {
         const userDocRef = doc(db, 'users', selectedUser.uid);
-        await updateDoc(userDocRef, { paidEarnings: newBalance });
+        await updateDoc(userDocRef, { generatedEarnings: newBalance });
         
         toast({
             title: 'Balance Updated',
-            description: `Successfully set ${selectedUser.displayName}'s balance to $${newBalance.toFixed(2)}.`,
+            description: `Successfully set ${selectedUser.displayName}'s generated balance to $${newBalance.toFixed(2)}.`,
         });
         
         setIsAddBalanceDialogOpen(false);
@@ -247,14 +238,14 @@ export default function AdminUsersPage() {
         <Dialog open={isAddBalanceDialogOpen} onOpenChange={setIsAddBalanceDialogOpen}>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Add/Edit Balance for {selectedUser?.displayName}</DialogTitle>
+                    <DialogTitle>Add/Edit Generated Balance for {selectedUser?.displayName}</DialogTitle>
                     <DialogDescription>
-                        Set the total paid earnings for this user. This will overwrite the current value.
+                        Set the total generated earnings for this user. This will overwrite the current value.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                     <div className="space-y-2">
-                        <Label htmlFor="balance-amount">Total Paid Balance ($)</Label>
+                        <Label htmlFor="balance-amount">Total Generated Balance ($)</Label>
                         <Input 
                             id="balance-amount"
                             type="number"
@@ -280,3 +271,5 @@ export default function AdminUsersPage() {
     </>
   );
 }
+
+    
