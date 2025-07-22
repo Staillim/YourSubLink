@@ -162,7 +162,15 @@ export default function ShortLinkPage({ params }: { params: { shortId: string } 
         const linkDoc = querySnapshot.docs[0];
         const data = linkDoc.data() as LinkData & { clicks: number };
         
-        // Increment click count
+        // SERVER-SIDE LOGIC REQUIRED HERE
+        // To implement IP-based click tracking, a server-side function (e.g., Firebase Function) is needed
+        // to securely get the visitor's IP address. The logic would be:
+        // 1. Get visitor's IP from request headers.
+        // 2. Check the `clicks` collection in Firestore for a recent click from this IP for this linkId.
+        // 3. If a click exists within the last hour, do NOT increment.
+        // 4. If no recent click, increment the link's click count and add a new document to the `clicks` collection.
+        
+        // For now, we will just increment the click count directly.
         const linkRef = doc(db, 'links', linkDoc.id);
         const currentClicks = data.clicks || 0;
         const newClicks = currentClicks + 1;
