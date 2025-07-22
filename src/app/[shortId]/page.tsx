@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import { notFound, useRouter } from 'next/navigation';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, updateDoc, increment, addDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc, increment, writeBatch, serverTimestamp, orderBy, limit } from 'firebase/firestore';
 import { Loader2, ExternalLink, CheckCircle2, Lock, Link as LinkIcon, ChevronRight, Youtube, Instagram } from 'lucide-react';
 import type { Rule } from '@/components/rule-editor';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,7 @@ type LinkData = {
   description?: string;
   userId: string;
   monetizable: boolean;
+  clicks: number;
 };
 
 const RULE_DETAILS = {
@@ -79,8 +80,9 @@ function RuleItem({ rule, onComplete, isCompleted }: { rule: Rule; onComplete: (
   );
 }
 
-function LinkGate({ linkData }: { linkData: LinkData }) {
+function LinkGate({ linkData, shortId }: { linkData: LinkData, shortId: string }) {
     const [completedRules, setCompletedRules] = useState<boolean[]>(Array(linkData.rules.length).fill(false));
+    const [isUnlocking, setIsUnlocking] = useState(false);
     const totalRules = linkData.rules.length;
     const completedCount = completedRules.filter(Boolean).length;
     const allRulesCompleted = completedCount === totalRules;
@@ -93,11 +95,76 @@ function LinkGate({ linkData }: { linkData: LinkData }) {
         });
     }
     
-    const handleRedirect = () => {
-        if(allRulesCompleted) {
+    const handleUnlock = async () => {
+        if (!allRulesCompleted || isUnlocking) return;
+        setIsUnlocking(true);
+
+        try {
+            // Rate limiting check: has this IP clicked this link in the last hour?
+            const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+            const recentClicksQuery = query(
+                collection(db, 'clicks'),
+                where('linkId', '==', linkData.id),
+                where('ipAddress', '==', 'x.x.x.x'), // Placeholder
+                where('timestamp', '>', oneHourAgo),
+                limit(1)
+            );
+            const recentClicksSnapshot = await getDocs(recentClicksQuery);
+
+            if (recentClicksSnapshot.empty) {
+                // No recent click found, proceed to record this one.
+                const batch = writeBatch(db);
+                const clickDocRef = doc(collection(db, 'clicks'));
+                const linkRef = doc(db, 'links', linkData.id);
+                const userRef = doc(db, 'users', linkData.userId);
+
+                // 1. Record the new click
+                batch.set(clickDocRef, {
+                    linkId: linkData.id,
+                    timestamp: serverTimestamp(),
+                    ipAddress: 'x.x.x.x', // Placeholder for server-side IP
+                });
+
+                // 2. Increment click count on the link
+                batch.update(linkRef, { clicks: increment(1) });
+
+                // 3. If monetizable, handle earnings
+                if (linkData.monetizable) {
+                    const earningsPerClick = CPM / 1000;
+                    batch.update(linkRef, { generatedEarnings: increment(earningsPerClick) });
+                    batch.update(userRef, { generatedEarnings: increment(earningsPerClick) });
+                }
+
+                // 4. Milestone check
+                const currentClicks = linkData.clicks;
+                const newClicks = currentClicks + 1;
+                const milestone = 1000;
+                if (Math.floor(currentClicks / milestone) < Math.floor(newClicks / milestone)) {
+                    const reachedMilestone = Math.floor(newClicks / milestone) * milestone;
+                    const notificationRef = doc(collection(db, 'notifications'));
+                    batch.set(notificationRef, {
+                        userId: linkData.userId,
+                        linkId: linkData.id,
+                        linkTitle: linkData.title,
+                        type: 'milestone',
+                        milestone: reachedMilestone,
+                        message: `Your link "${linkData.title}" reached ${reachedMilestone.toLocaleString()} visits!`,
+                        createdAt: serverTimestamp(),
+                        read: false
+                    });
+                }
+
+                await batch.commit();
+            }
+             // If a recent click was found, we do nothing but redirect.
+        } catch (error) {
+            console.error("Error processing unlock:", error);
+            // Even if there's an error, we should still redirect the user.
+        } finally {
             window.location.href = linkData.original;
         }
     }
+
 
     return (
         <div className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4">
@@ -128,15 +195,15 @@ function LinkGate({ linkData }: { linkData: LinkData }) {
                     </div>
 
                     <Button
-                        onClick={handleRedirect}
-                        disabled={!allRulesCompleted}
+                        onClick={handleUnlock}
+                        disabled={!allRulesCompleted || isUnlocking}
                         className="w-full font-bold text-lg py-7 mt-4 bg-green-600 hover:bg-green-700 disabled:bg-gray-800 disabled:text-muted-foreground disabled:cursor-not-allowed"
                         size="lg"
                     >
                         <div className="flex items-center justify-between w-full">
                            <Lock className="h-5 w-5"/>
-                           <span>Unlock Link</span>
-                           <LinkIcon className="h-5 w-5"/>
+                           {isUnlocking ? <span>Unlocking...</span> : <span>Unlock Link</span>}
+                           {isUnlocking ? <Loader2 className="h-5 w-5 animate-spin"/> : <LinkIcon className="h-5 w-5"/>}
                         </div>
                     </Button>
                 </CardContent>
@@ -152,7 +219,10 @@ export default function ShortLinkPage({ params }: { params: { shortId: string } 
   const [linkData, setLinkData] = useState<LinkData | null>(null);
   
   useEffect(() => {
-    if (!shortId) return;
+    if (!shortId) {
+        setStatus('not-found');
+        return;
+    };
 
     const getLink = async () => {
       try {
@@ -165,55 +235,9 @@ export default function ShortLinkPage({ params }: { params: { shortId: string } 
         }
         
         const linkDoc = querySnapshot.docs[0];
-        const data = linkDoc.data() as LinkData & { clicks: number };
+        const data = linkDoc.data();
         
-        // This logic is safe to run even if there's a click from the same IP,
-        // as the backend would ultimately be responsible for filtering.
-        const clickDocRef = doc(collection(db, 'clicks'));
-        const linkRef = doc(db, 'links', linkDoc.id);
-        const userRef = doc(db, 'users', data.userId);
-        
-        const batch = writeBatch(db);
-
-        // Record the click in the 'clicks' collection
-        batch.set(clickDocRef, {
-            linkId: linkDoc.id,
-            timestamp: serverTimestamp(),
-            ipAddress: 'x.x.x.x', // Placeholder for server-side IP
-        });
-        
-        // Always increment click count on the link
-        batch.update(linkRef, { clicks: increment(1) });
-
-        // If the link is monetizable, increment earnings for the link and the user
-        if (data.monetizable) {
-            const earningsPerClick = CPM / 1000;
-            batch.update(linkRef, { generatedEarnings: increment(earningsPerClick) });
-            batch.update(userRef, { generatedEarnings: increment(earningsPerClick) });
-        }
-        
-        // Milestone logic
-        const currentClicks = data.clicks || 0;
-        const newClicks = currentClicks + 1;
-        const milestone = 1000;
-        if (Math.floor(currentClicks / milestone) < Math.floor(newClicks / milestone)) {
-            const reachedMilestone = Math.floor(newClicks / milestone) * milestone;
-            const notificationRef = doc(collection(db, 'notifications')); // Create a reference for a new notification
-            batch.set(notificationRef, {
-                userId: data.userId,
-                linkId: linkDoc.id,
-                linkTitle: data.title,
-                type: 'milestone',
-                milestone: reachedMilestone,
-                message: `Your link "${data.title}" reached ${reachedMilestone.toLocaleString()} visits!`,
-                createdAt: serverTimestamp(),
-                read: false
-            });
-        }
-        
-        await batch.commit();
-
-        const finalLinkData = {
+        const fetchedLinkData: LinkData = {
             id: linkDoc.id,
             original: data.original,
             rules: data.rules || [],
@@ -221,14 +245,32 @@ export default function ShortLinkPage({ params }: { params: { shortId: string } 
             description: data.description,
             userId: data.userId,
             monetizable: data.monetizable || false,
+            clicks: data.clicks || 0,
         };
         
-        if (finalLinkData.rules && finalLinkData.rules.length > 0) {
-            setLinkData(finalLinkData);
+        if (fetchedLinkData.rules.length > 0) {
+            setLinkData(fetchedLinkData);
             setStatus('gate');
         } else {
-            // If no rules, redirect immediately.
-            window.location.href = finalLinkData.original;
+            // For non-gate links, we process the click immediately and redirect.
+            const clickQuery = query(
+                collection(db, 'clicks'),
+                where('linkId', '==', fetchedLinkData.id),
+                where('ipAddress', '==', 'x.x.x.x'),
+                where('timestamp', '>', new Date(Date.now() - 60 * 60 * 1000)),
+                limit(1)
+            );
+            const clickSnapshot = await getDocs(clickQuery);
+            
+            if (clickSnapshot.empty) {
+                const batch = writeBatch(db);
+                const clickDocRef = doc(collection(db, 'clicks'));
+                const linkRef = doc(db, 'links', linkDoc.id);
+                batch.set(clickDocRef, { linkId: linkDoc.id, timestamp: serverTimestamp(), ipAddress: 'x.x.x.x' });
+                batch.update(linkRef, { clicks: increment(1) });
+                await batch.commit();
+            }
+            window.location.href = fetchedLinkData.original;
         }
 
       } catch (error) {
@@ -254,10 +296,10 @@ export default function ShortLinkPage({ params }: { params: { shortId: string } 
   }
   
   if (status === 'gate' && linkData) {
-      return <LinkGate linkData={linkData} />;
+      return <LinkGate linkData={linkData} shortId={shortId} />;
   }
 
-  // This is a fallback loading state for the brief moment before redirection for non-gate links.
+  // Fallback state, should be brief
   return (
      <div className="flex h-screen w-full flex-col items-center justify-center bg-background text-foreground">
         <Loader2 className="h-12 w-12 animate-spin text-primary"/>
@@ -265,3 +307,5 @@ export default function ShortLinkPage({ params }: { params: { shortId: string } 
     </div>
   );
 }
+
+
