@@ -24,7 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Copy, Link as LinkIcon, Loader2, MoreVertical, Trash2, ExternalLink, BadgeHelp, Edit, PlusCircle } from 'lucide-react';
+import { Copy, Link as LinkIcon, Loader2, MoreVertical, Trash2, ExternalLink, BadgeHelp, Edit, PlusCircle, BarChart3 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
@@ -262,6 +262,10 @@ export default function DashboardPage() {
                                     </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onClick={() => router.push(`/dashboard/links/${link.id}`)}>
+                                        <BarChart3 className="mr-2 h-4 w-4" />
+                                        <span>View Stats</span>
+                                    </DropdownMenuItem>
                                     <DropdownMenuItem onClick={() => openEditDialog(link)}>
                                         <Edit className="mr-2 h-4 w-4" />
                                         <span>Edit</span>
