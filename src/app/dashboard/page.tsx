@@ -26,7 +26,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Copy, Link as LinkIcon, Loader2, MoreVertical, Trash2, Check, ExternalLink, BadgeHelp, Edit } from 'lucide-react';
 import { UserNav } from '@/components/user-nav';
 import { Logo } from '@/components/icons';
@@ -51,6 +50,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Rule, RuleEditor } from '@/components/rule-editor';
+import { DashboardNav } from '@/components/dashboard-nav';
 
 
 export type LinkItem = {
@@ -135,23 +135,14 @@ export default function DashboardPage() {
           <Logo />
           <Skeleton className="h-9 w-9 rounded-full" />
         </header>
-        <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-8">
-          <Skeleton className="h-10 w-1/4" />
-          <Skeleton className="h-6 w-1/2" />
-          <div className="mt-6">
-            <Card>
-              <CardHeader>
-                <Skeleton className="h-8 w-1/3" />
-                <Skeleton className="h-4 w-2/3" />
-              </CardHeader>
-              <CardContent>
-                <Skeleton className="h-10 w-full" />
-              </CardContent>
-              <CardFooter className="border-t px-6 py-4">
-                <Skeleton className="h-10 w-32" />
-              </CardFooter>
-            </Card>
-          </div>
+        <main className="flex min-h-screen flex-1 flex-col gap-4 p-4 md:gap-8 md:p-8">
+            <div className="grid w-full items-start gap-6 md:grid-cols-[180px_1fr] lg:grid-cols-[250px_1fr]">
+                <Skeleton className="h-full w-full" />
+                <div className="grid gap-6">
+                    <Skeleton className="h-48 w-full" />
+                    <Skeleton className="h-72 w-full" />
+                </div>
+            </div>
         </main>
       </div>
     );
@@ -278,176 +269,166 @@ export default function DashboardPage() {
         <Logo />
         <UserNav />
       </header>
-      <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-8">
-        <div className="grid gap-4">
-          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Dashboard</h1>
-          <p className="text-muted-foreground">
-            Create and manage your shortened links.
-          </p>
-        </div>
-        <Tabs defaultValue="create" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 md:w-[400px]">
-            <TabsTrigger value="create">
-              <LinkIcon className="mr-2 h-4 w-4" /> Create New
-            </TabsTrigger>
-            <TabsTrigger value="links">My Links</TabsTrigger>
-          </TabsList>
-          <TabsContent value="create" className="mt-6">
-            <Card>
-              <form onSubmit={handleShorten}>
-                <CardHeader>
-                  <CardTitle>Shorten a new link</CardTitle>
-                  <CardDescription>
-                    Provide the details for your new link below.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                   <div className="space-y-2">
-                    <Label htmlFor="title">Title</Label>
-                    <Input
-                      id="title"
-                      placeholder="e.g. My YouTube Channel"
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="long-url">Destination URL</Label>
-                    <Input
-                      id="long-url"
-                      placeholder="https://example.com/very-long-url-to-shorten"
-                      value={longUrl}
-                      onChange={(e) => setLongUrl(e.target.value)}
-                      required
-                    />
-                  </div>
-                   <div className="space-y-2">
-                    <Label htmlFor="description">Description (Optional)</Label>
-                    <Textarea
-                      id="description"
-                      placeholder="A short description for your link"
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Monetization Rules</Label>
-                     <p className="text-sm text-muted-foreground">Add at least 3 rules to make this link monetizable.</p>
-                    <RuleEditor rules={rules} onRulesChange={setRules} />
-                  </div>
-                </CardContent>
-                <CardFooter className="border-t px-6 py-4">
-                  <Button type="submit" disabled={isPending} style={{ backgroundColor: 'hsl(var(--accent))', color: 'hsl(var(--accent-foreground))' }} className="font-semibold">
-                    {isPending && (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    )}
-                    Create Link
-                  </Button>
-                </CardFooter>
-              </form>
-            </Card>
-            {shortenedUrl && (
-              <Alert className="mt-6">
-                <LinkIcon className="h-4 w-4" />
-                <AlertTitle className="font-bold">Link Created Successfully!</AlertTitle>
-                <AlertDescription className="mt-2 flex items-center justify-between">
-                  <span className="truncate pr-4 font-mono text-sm">
-                    {shortenedUrl.short}
-                  </span>
-                  <Button variant="ghost" size="icon" onClick={() => handleCopy(shortenedUrl.short)}>
-                    {copied === shortenedUrl.short ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-                  </Button>
-                </AlertDescription>
-              </Alert>
-            )}
-          </TabsContent>
-          <TabsContent value="links" className="mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>My Links</CardTitle>
-                <CardDescription>
-                  Here are all the links you've created.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="min-w-[250px]">Link Details</TableHead>
-                        <TableHead>Short Link</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Clicks</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {links.map((link) => (
-                        <TableRow key={link.id} className="hover:bg-muted/50">
-                          <TableCell className="max-w-xs font-medium">
-                            <div className="flex flex-col gap-1">
-                                <span className="truncate font-bold">{link.title}</span>
-                                <a href={link.original} target="_blank" rel="noopener noreferrer" className="hover:underline text-muted-foreground text-xs flex items-center gap-1">
-                                   {link.original}
-                                   <ExternalLink className="h-3 w-3 shrink-0"/>
-                                </a>
+       <main className="flex min-h-[calc(100vh_-_theme(spacing.16))] flex-1 flex-col gap-4 bg-muted/40 p-4 md:gap-8 md:p-10">
+            <div className="mx-auto grid w-full max-w-6xl gap-2">
+                <h1 className="text-3xl font-semibold">Links</h1>
+            </div>
+            <div className="mx-auto grid w-full max-w-6xl items-start gap-6 md:grid-cols-[180px_1fr] lg:grid-cols-[250px_1fr]">
+                <DashboardNav />
+                <div className="grid gap-6">
+                    <Card>
+                        <form onSubmit={handleShorten}>
+                            <CardHeader>
+                            <CardTitle>Create a new link</CardTitle>
+                            <CardDescription>
+                                Provide the details for your new link below.
+                            </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="title">Title</Label>
+                                <Input
+                                id="title"
+                                placeholder="e.g. My YouTube Channel"
+                                value={title}
+                                onChange={(e) => setTitle(e.target.value)}
+                                required
+                                />
                             </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <a href={link.short} target="_blank" rel="noopener noreferrer" className="font-mono text-sm text-primary hover:underline">{link.short}</a>
+                            <div className="space-y-2">
+                                <Label htmlFor="long-url">Destination URL</Label>
+                                <Input
+                                id="long-url"
+                                placeholder="https://example.com/very-long-url-to-shorten"
+                                value={longUrl}
+                                onChange={(e) => setLongUrl(e.target.value)}
+                                required
+                                />
                             </div>
-                          </TableCell>
-                           <TableCell>
-                             <Badge variant={link.monetizable ? 'default' : 'secondary'} className={link.monetizable ? 'bg-green-600' : ''}>
-                                <Tooltip>
-                                    <TooltipTrigger className="flex items-center gap-1">
-                                        {link.monetizable ? 'Monetizable' : 'Not Monetizable'}
-                                        <BadgeHelp className="h-3 w-3"/>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                        <p>{link.monetizable ? 'This link is eligible for monetization.' : `This link needs at least ${3 - link.rules.length} more rule(s) to be monetizable.`}</p>
-                                    </TooltipContent>
-                                </Tooltip>
-                             </Badge>
-                           </TableCell>
-                          <TableCell>{link.clicks}</TableCell>
-                          <TableCell className="text-muted-foreground">{link.date}</TableCell>
-                          <TableCell className="text-right">
-                             <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="icon">
-                                    <MoreVertical className="h-4 w-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onClick={() => openEditDialog(link)}>
-                                      <Edit className="mr-2 h-4 w-4" />
-                                      <span>Edit</span>
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => handleCopy(link.short)}>
-                                    <Copy className="mr-2 h-4 w-4" />
-                                    <span>Copy</span>
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(link.id)}>
-                                    <Trash2 className="mr-2 h-4 w-4" />
-                                    <span>Delete</span>
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                            <div className="space-y-2">
+                                <Label htmlFor="description">Description (Optional)</Label>
+                                <Textarea
+                                id="description"
+                                placeholder="A short description for your link"
+                                value={description}
+                                onChange={(e) => setDescription(e.target.value)}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Monetization Rules</Label>
+                                <p className="text-sm text-muted-foreground">Add at least 3 rules to make this link monetizable.</p>
+                                <RuleEditor rules={rules} onRulesChange={setRules} />
+                            </div>
+                            </CardContent>
+                            <CardFooter className="border-t px-6 py-4">
+                            <Button type="submit" disabled={isPending} className="font-semibold bg-primary text-primary-foreground hover:bg-primary/90">
+                                {isPending && (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                )}
+                                Create Link
+                            </Button>
+                            </CardFooter>
+                        </form>
+                    </Card>
+                     {shortenedUrl && (
+                        <Alert className="mt-6">
+                            <LinkIcon className="h-4 w-4" />
+                            <AlertTitle className="font-bold">Link Created Successfully!</AlertTitle>
+                            <AlertDescription className="mt-2 flex items-center justify-between">
+                            <span className="truncate pr-4 font-mono text-sm">
+                                {shortenedUrl.short}
+                            </span>
+                            <Button variant="ghost" size="icon" onClick={() => handleCopy(shortenedUrl.short)}>
+                                {copied === shortenedUrl.short ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                            </Button>
+                            </AlertDescription>
+                        </Alert>
+                     )}
+                     <Card>
+                        <CardHeader>
+                            <CardTitle>My Links</CardTitle>
+                            <CardDescription>
+                            Here are all the links you've created.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="overflow-x-auto">
+                            <Table>
+                                <TableHeader>
+                                <TableRow>
+                                    <TableHead className="min-w-[250px] w-[40%]">Link Details</TableHead>
+                                    <TableHead>Short Link</TableHead>
+                                    <TableHead>Status</TableHead>
+                                    <TableHead>Clicks</TableHead>
+                                    <TableHead>Date</TableHead>
+                                    <TableHead className="text-right">Actions</TableHead>
+                                </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                {links.map((link) => (
+                                    <TableRow key={link.id} className="hover:bg-muted/50">
+                                    <TableCell className="max-w-xs font-medium">
+                                        <div className="flex flex-col gap-1">
+                                            <span className="truncate font-bold">{link.title}</span>
+                                            <a href={link.original} target="_blank" rel="noopener noreferrer" className="hover:underline text-muted-foreground text-xs flex items-center gap-1">
+                                            <span className="truncate">{link.original}</span>
+                                            <ExternalLink className="h-3 w-3 shrink-0"/>
+                                            </a>
+                                        </div>
+                                    </TableCell>
+                                    <TableCell>
+                                        <div className="flex items-center gap-2">
+                                        <a href={link.short} target="_blank" rel="noopener noreferrer" className="font-mono text-sm text-primary hover:underline">{link.short.replace('https://','')}</a>
+                                        </div>
+                                    </TableCell>
+                                    <TableCell>
+                                        <Badge variant={link.monetizable ? 'default' : 'secondary'} className={link.monetizable ? 'bg-green-600' : ''}>
+                                            <Tooltip>
+                                                <TooltipTrigger className="flex items-center gap-1">
+                                                    {link.monetizable ? 'Monetizable' : 'Not Monetizable'}
+                                                    <BadgeHelp className="h-3 w-3"/>
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    <p>{link.monetizable ? 'This link is eligible for monetization.' : `This link needs at least ${3 - link.rules.length} more rule(s) to be monetizable.`}</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </Badge>
+                                    </TableCell>
+                                    <TableCell>{link.clicks}</TableCell>
+                                    <TableCell className="text-muted-foreground">{link.date}</TableCell>
+                                    <TableCell className="text-right">
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                            <Button variant="ghost" size="icon">
+                                                <MoreVertical className="h-4 w-4" />
+                                            </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end">
+                                            <DropdownMenuItem onClick={() => openEditDialog(link)}>
+                                                <Edit className="mr-2 h-4 w-4" />
+                                                <span>Edit</span>
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => handleCopy(link.short)}>
+                                                <Copy className="mr-2 h-4 w-4" />
+                                                <span>Copy</span>
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(link.id)}>
+                                                <Trash2 className="mr-2 h-4 w-4" />
+                                                <span>Delete</span>
+                                            </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </TableCell>
+                                    </TableRow>
+                                ))}
+                                </TableBody>
+                            </Table>
+                            </div>
+                        </CardContent>
+                    </Card>
                 </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-      </main>
+            </div>
+        </main>
     </div>
 
     {/* Edit Link Dialog */}
@@ -461,20 +442,20 @@ export default function DashboardPage() {
                     </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-y-4 py-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-x-4 gap-y-2">
+                    <div className="grid grid-cols-1 items-center gap-x-4 gap-y-2 sm:grid-cols-4">
                         <Label htmlFor="edit-title" className="text-left sm:text-right">
                             Title
                         </Label>
                         <Input id="edit-title" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="col-span-1 sm:col-span-3" />
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-x-4 gap-y-2">
+                    <div className="grid grid-cols-1 items-center gap-x-4 gap-y-2 sm:grid-cols-4">
                         <Label htmlFor="edit-description" className="text-left sm:text-right">
                             Description
                         </Label>
                         <Textarea id="edit-description" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} className="col-span-1 sm:col-span-3" />
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-4 items-start gap-x-4 gap-y-2">
-                        <Label className="text-left sm:text-right pt-2">
+                    <div className="grid grid-cols-1 items-start gap-x-4 gap-y-2 sm:grid-cols-4">
+                        <Label className="pt-2 text-left sm:text-right">
                             Rules
                         </Label>
                         <div className="col-span-1 sm:col-span-3">
@@ -500,3 +481,5 @@ export default function DashboardPage() {
     </TooltipProvider>
   );
 }
+
+    
