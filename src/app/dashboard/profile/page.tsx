@@ -73,12 +73,21 @@ export default function ProfilePage() {
       const userRef = doc(db, 'users', user.uid);
       const userDoc = await getDoc(userRef);
       
+      const getRole = () => {
+        if (userDoc.exists()) {
+            return userDoc.data().role; // Keep existing role
+        }
+        if (user.email === 'harrigta@gmail.com') {
+            return 'admin'; // Assign admin role
+        }
+        return 'user'; // Default role
+      }
+
       const userData = {
         displayName: displayName,
         email: user.email,
         photoURL: photoURL,
-        // Keep existing role, or set to 'user' if it doesn't exist
-        role: userDoc.exists() ? userDoc.data().role : 'user'
+        role: getRole()
       };
 
       await setDoc(userRef, userData, { merge: true });
@@ -194,4 +203,3 @@ export default function ProfilePage() {
     </>
   );
 }
-
