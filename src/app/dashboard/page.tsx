@@ -5,13 +5,12 @@ import { useState, useTransition, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { collection, addDoc, query, where, onSnapshot, deleteDoc, doc, updateDoc, serverTimestamp, addDoc as addNotificationDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
@@ -26,7 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Copy, Link as LinkIcon, Loader2, MoreVertical, Trash2, Check, ExternalLink, BadgeHelp, Edit } from 'lucide-react';
+import { Copy, Link as LinkIcon, Loader2, MoreVertical, Trash2, Check, ExternalLink, BadgeHelp, Edit, PlusCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
@@ -43,7 +42,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -72,13 +70,6 @@ export default function DashboardPage() {
   const [links, setLinks] = useState<LinkItem[]>([]);
   const [linksLoading, setLinksLoading] = useState(true);
   
-  // Create form state
-  const [longUrl, setLongUrl] = useState('');
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [rules, setRules] = useState<Rule[]>([]);
-  
-  const [shortenedUrl, setShortenedUrl] = useState<LinkItem | null>(null);
   const [isPending, startTransition] = useTransition();
   const [copied, setCopied] = useState('');
 
@@ -125,54 +116,6 @@ export default function DashboardPage() {
       return () => unsubscribe();
     }
   }, [user]);
-
-  const resetCreateForm = () => {
-    setLongUrl('');
-    setTitle('');
-    setDescription('');
-    setRules([]);
-  }
-
-  const handleShorten = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!longUrl || !title || !user) return;
-
-    startTransition(async () => {
-      setShortenedUrl(null);
-      try {
-        const shortId = Math.random().toString(36).substring(2, 8);
-        const newLink = {
-          userId: user.uid,
-          original: longUrl,
-          shortId: shortId,
-          clicks: 0,
-          createdAt: new Date(),
-          title,
-          description,
-          rules,
-          monetizable: rules.length >= 3,
-        };
-        const docRef = await addDoc(collection(db, "links"), newLink);
-        setShortenedUrl({ 
-            ...newLink,
-            id: docRef.id,
-            short: `${window.location.origin}/${shortId}`,
-            date: newLink.createdAt.toISOString().split('T')[0],
-        });
-        resetCreateForm();
-        toast({
-            title: "Link Created!",
-            description: "Your new link is ready.",
-        })
-      } catch (error) {
-        toast({
-          title: "Error creating link",
-          description: "There was a problem shortening your link. Please try again.",
-          variant: "destructive"
-        })
-      }
-    });
-  };
 
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -244,7 +187,6 @@ export default function DashboardPage() {
       <div className="flex flex-col gap-4">
         <Skeleton className="h-8 w-48" />
         <div className="grid gap-6">
-            <Skeleton className="h-48 w-full" />
             <Skeleton className="h-72 w-full" />
         </div>
       </div>
@@ -253,78 +195,14 @@ export default function DashboardPage() {
 
   return (
     <TooltipProvider>
-        <div className="flex items-center">
-            <h1 className="text-lg font-semibold md:text-2xl">Links</h1>
+        <div className="flex items-center justify-between">
+            <h1 className="text-lg font-semibold md:text-2xl">My Links</h1>
+            <Button onClick={() => router.push('/dashboard/create')}>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Create New Link
+            </Button>
         </div>
         <div className="grid gap-6">
-            <Card>
-                <form onSubmit={handleShorten}>
-                    <CardHeader>
-                    <CardTitle>Create a new link</CardTitle>
-                    <CardDescription>
-                        Provide the details for your new link below.
-                    </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="title">Title</Label>
-                        <Input
-                        id="title"
-                        placeholder="e.g. My YouTube Channel"
-                        value={title}
-                        onChange={(e) => setTitle(e.target.value)}
-                        required
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="long-url">Destination URL</Label>
-                        <Input
-                        id="long-url"
-                        placeholder="https://example.com/very-long-url-to-shorten"
-                        value={longUrl}
-                        onChange={(e) => setLongUrl(e.target.value)}
-                        required
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="description">Description (Optional)</Label>
-                        <Textarea
-                        id="description"
-                        placeholder="A short description for your link"
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label>Monetization Rules</Label>
-                        <p className="text-sm text-muted-foreground">Add at least 3 rules to make this link monetizable.</p>
-                        <RuleEditor rules={rules} onRulesChange={setRules} />
-                    </div>
-                    </CardContent>
-                    <CardFooter className="border-t px-6 py-4">
-                    <Button type="submit" disabled={isPending} className="font-semibold bg-primary text-primary-foreground hover:bg-primary/90">
-                        {isPending && (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        )}
-                        Create Link
-                    </Button>
-                    </CardFooter>
-                </form>
-            </Card>
-             {shortenedUrl && (
-                <Alert className="mt-6">
-                    <LinkIcon className="h-4 w-4" />
-                    <AlertTitle className="font-bold">Link Created Successfully!</AlertTitle>
-                    <AlertDescription className="mt-2 flex items-center justify-between">
-                    <span className="truncate pr-4 font-mono text-sm">
-                        {shortenedUrl.short}
-                    </span>
-                    <Button variant="ghost" size="icon" onClick={() => handleCopy(shortenedUrl.short)}>
-                        {copied === shortenedUrl.short ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-                    </Button>
-                    </AlertDescription>
-                </Alert>
-             )}
              <Card>
                 <CardHeader>
                     <CardTitle>My Links</CardTitle>
