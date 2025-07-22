@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, use } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, doc, getDoc, orderBy } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -59,7 +59,7 @@ const calculateRealClicks = (clicks: Click[]): number => {
 }
 
 export default function LinkStatsPage({ params }: { params: { linkId: string } }) {
-    const { linkId } = params;
+    const { linkId } = use(params);
     const [linkData, setLinkData] = useState<LinkData | null>(null);
     const [ipStats, setIpStats] = useState<IpStat[]>([]);
     const [loading, setLoading] = useState(true);

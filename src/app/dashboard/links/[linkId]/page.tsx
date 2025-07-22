@@ -1,12 +1,12 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, use } from 'react';
 import { notFound } from 'next/navigation';
 import { useUser } from '@/hooks/use-user';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, doc, getDoc, orderBy } from 'firebase/firestore';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ArrowLeft, Eye, Check, Bot } from 'lucide-react';
@@ -61,7 +61,7 @@ const calculateRealClicks = (clicks: Click[]): number => {
 }
 
 export default function UserLinkStatsPage({ params }: { params: { linkId: string } }) {
-    const { linkId } = params;
+    const { linkId } = use(params);
     const { user, loading: userLoading } = useUser();
     const [linkData, setLinkData] = useState<LinkData | null>(null);
     const [ipStats, setIpStats] = useState<IpStat[]>([]);
@@ -231,4 +231,3 @@ export default function UserLinkStatsPage({ params }: { params: { linkId: string
         </div>
     );
 }
-
