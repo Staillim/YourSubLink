@@ -242,7 +242,8 @@ export default function DashboardPage() {
     setIsEditDialogOpen(true);
   }
 
-  const handleUpdateLink = async () => {
+  const handleUpdateLink = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
     if (!editingLink) return;
 
     startTransition(async () => {
@@ -453,48 +454,52 @@ export default function DashboardPage() {
     {/* Edit Link Dialog */}
     <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="sm:max-w-2xl">
-            <DialogHeader>
-                <DialogTitle>Edit Link</DialogTitle>
-                <DialogDescription>
-                    Update the details of your link here. Changes will be saved automatically.
-                </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="edit-title" className="text-right">
-                        Title
-                    </Label>
-                    <Input id="edit-title" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="col-span-3" />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="edit-description" className="text-right">
-                        Description
-                    </Label>
-                    <Textarea id="edit-description" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} className="col-span-3" />
-                </div>
-                <div className="grid grid-cols-4 items-start gap-4">
-                     <Label className="text-right pt-2">
-                        Rules
-                    </Label>
-                    <div className="col-span-3">
-                         <p className="text-sm text-muted-foreground mb-2">Add at least 3 rules to make this link monetizable.</p>
-                        <RuleEditor rules={editRules} onRulesChange={setEditRules} />
+            <form onSubmit={handleUpdateLink}>
+                <DialogHeader>
+                    <DialogTitle>Edit Link</DialogTitle>
+                    <DialogDescription>
+                        Update the details of your link here. Click save when you're done.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                    <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="edit-title" className="text-right">
+                            Title
+                        </Label>
+                        <Input id="edit-title" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="col-span-3" />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="edit-description" className="text-right">
+                            Description
+                        </Label>
+                        <Textarea id="edit-description" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} className="col-span-3" />
+                    </div>
+                    <div className="grid grid-cols-4 items-start gap-4">
+                        <Label className="text-right pt-2">
+                            Rules
+                        </Label>
+                        <div className="col-span-3">
+                            <p className="text-sm text-muted-foreground mb-2">Add at least 3 rules to make this link monetizable.</p>
+                            <RuleEditor rules={editRules} onRulesChange={setEditRules} />
+                        </div>
                     </div>
                 </div>
-            </div>
-            <DialogFooter>
-                 <DialogClose asChild>
-                    <Button type="button" variant="secondary">
-                        Cancel
+                <DialogFooter>
+                    <DialogClose asChild>
+                        <Button type="button" variant="secondary">
+                            Cancel
+                        </Button>
+                    </DialogClose>
+                    <Button type="submit" disabled={isPending}>
+                        {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Save Changes
                     </Button>
-                </DialogClose>
-                <Button onClick={handleUpdateLink} disabled={isPending}>
-                    {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Save Changes
-                </Button>
-            </DialogFooter>
+                </DialogFooter>
+            </form>
         </DialogContent>
     </Dialog>
     </TooltipProvider>
   );
 }
+
+    
