@@ -1,6 +1,17 @@
+
 'use client';
 
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  GoogleAuthProvider,
+} from 'firebase/auth';
+import { auth } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -14,14 +25,104 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { GoogleIcon, Logo } from '@/components/icons';
+import { useToast } from '@/hooks/use-toast';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import { useState } from 'react';
+import { Loader2 } from 'lucide-react';
+
+const signInSchema = z.object({
+  email: z.string().email({ message: 'Invalid email address.' }),
+  password: z.string().min(6, { message: 'Password must be at least 6 characters.' }),
+});
+
+const signUpSchema = z.object({
+  name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
+  email: z.string().email({ message: 'Invalid email address.' }),
+  password: z.string().min(6, { message: 'Password must be at least 6 characters.' }),
+});
 
 export default function AuthenticationPage() {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState('signin');
+  const [isLoading, setIsLoading] = useState(false);
+
+  const signInForm = useForm<z.infer<typeof signInSchema>>({
+    resolver: zodResolver(signInSchema),
+    defaultValues: { email: '', password: '' },
+  });
+
+  const signUpForm = useForm<z.infer<typeof signUpSchema>>({
+    resolver: zodResolver(signUpSchema),
+    defaultValues: { name: '', email: '', password: '' },
+  });
+
+  const handleSignIn = async (values: z.infer<typeof signInSchema>) => {
+    setIsLoading(true);
+    try {
+      await signInWithEmailAndPassword(auth, values.email, values.password);
+      router.push('/dashboard');
+    } catch (error: any) {
+      toast({
+        title: 'Authentication Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSignUp = async (values: z.infer<typeof signUpSchema>) => {
+    setIsLoading(true);
+    try {
+      await createUserWithEmailAndPassword(auth, values.email, values.password);
+      router.push('/dashboard');
+    } catch (error: any) {
+      toast({
+        title: 'Authentication Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setIsLoading(true);
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+      router.push('/dashboard');
+    } catch (error: any) {
+      toast({
+        title: 'Google Sign-In Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <main className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4">
       <div className="absolute top-8 left-8">
         <Logo />
       </div>
-      <Tabs defaultValue="signin" className="w-full max-w-md">
+      <Tabs
+        defaultValue="signin"
+        className="w-full max-w-md"
+        onValueChange={setActiveTab}
+      >
         <Card className="shadow-2xl">
           <CardHeader className="text-center">
             <CardTitle className="text-2xl font-bold tracking-tight text-primary">
@@ -37,48 +138,109 @@ export default function AuthenticationPage() {
               <TabsTrigger value="signup">Sign Up</TabsTrigger>
             </TabsList>
             <TabsContent value="signin">
-              <div className="space-y-4 pt-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email-signin">Email</Label>
-                  <Input
-                    id="email-signin"
-                    type="email"
-                    placeholder="m@example.com"
-                    required
+              <Form {...signInForm}>
+                <form
+                  onSubmit={signInForm.handleSubmit(handleSignIn)}
+                  className="space-y-4 pt-4"
+                >
+                  <FormField
+                    control={signInForm.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="email"
+                            placeholder="m@example.com"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
                   />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password-signin">Password</Label>
-                  <Input id="password-signin" type="password" required />
-                </div>
-              </div>
+                  <FormField
+                    control={signInForm.control}
+                    name="password"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Password</FormLabel>
+                        <FormControl>
+                          <Input type="password" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <Button type="submit" className="w-full font-semibold" disabled={isLoading}>
+                    {isLoading && activeTab === 'signin' && !signInForm.formState.isSubmitting && (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    )}
+                    Sign In
+                  </Button>
+                </form>
+              </Form>
             </TabsContent>
             <TabsContent value="signup">
-              <div className="space-y-4 pt-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name-signup">Name</Label>
-                  <Input id="name-signup" placeholder="Max Robinson" required />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email-signup">Email</Label>
-                  <Input
-                    id="email-signup"
-                    type="email"
-                    placeholder="m@example.com"
-                    required
+              <Form {...signUpForm}>
+                <form
+                  onSubmit={signUpForm.handleSubmit(handleSignUp)}
+                  className="space-y-4 pt-4"
+                >
+                  <FormField
+                    control={signUpForm.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Name</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Max Robinson" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
                   />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password-signup">Password</Label>
-                  <Input id="password-signup" type="password" required />
-                </div>
-              </div>
+                  <FormField
+                    control={signUpForm.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="email"
+                            placeholder="m@example.com"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={signUpForm.control}
+                    name="password"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Password</FormLabel>
+                        <FormControl>
+                          <Input type="password" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <Button type="submit" className="w-full font-semibold" disabled={isLoading}>
+                    {isLoading && activeTab === 'signup' && !signUpForm.formState.isSubmitting && (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    )}
+                    Sign Up
+                  </Button>
+                </form>
+              </Form>
             </TabsContent>
-            <div className="mt-6">
-              <Button asChild className="w-full font-semibold" style={{ backgroundColor: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}>
-                <Link href="/dashboard">Continue</Link>
-              </Button>
-            </div>
+
             <div className="relative my-6">
               <div className="absolute inset-0 flex items-center">
                 <span className="w-full border-t" />
@@ -89,11 +251,17 @@ export default function AuthenticationPage() {
                 </span>
               </div>
             </div>
-            <Button variant="outline" className="w-full font-semibold" asChild>
-              <Link href="/dashboard">
-                <GoogleIcon className="mr-2 h-5 w-5" />
-                Google
-              </Link>
+            <Button
+              variant="outline"
+              className="w-full font-semibold"
+              onClick={handleGoogleSignIn}
+              disabled={isLoading}
+            >
+              {isLoading && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              <GoogleIcon className="mr-2 h-5 w-5" />
+              Google
             </Button>
           </CardContent>
           <CardFooter className="flex justify-center text-sm">

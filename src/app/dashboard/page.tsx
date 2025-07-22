@@ -1,6 +1,10 @@
+
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuthState } from 'react-firebase-hooks/auth';
+import { auth } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -32,6 +36,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Skeleton } from '@/components/ui/skeleton';
 
 type LinkItem = {
   id: string;
@@ -49,12 +54,49 @@ const mockLinksData: LinkItem[] = [
 ];
 
 export default function DashboardPage() {
+  const [user, loading] = useAuthState(auth);
+  const router = useRouter();
   const [links, setLinks] = useState<LinkItem[]>(mockLinksData);
   const [longUrl, setLongUrl] = useState('');
   const [shortenedUrl, setShortenedUrl] = useState<LinkItem | null>(null);
   const [isPending, startTransition] = useTransition();
   const [copied, setCopied] = useState('');
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/');
+    }
+  }, [user, loading, router]);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen w-full flex-col">
+        <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b bg-background/80 px-4 backdrop-blur-md md:px-8">
+          <Logo />
+          <Skeleton className="h-9 w-9 rounded-full" />
+        </header>
+        <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-8">
+          <Skeleton className="h-10 w-1/4" />
+          <Skeleton className="h-6 w-1/2" />
+          <div className="mt-6">
+            <Card>
+              <CardHeader>
+                <Skeleton className="h-8 w-1/3" />
+                <Skeleton className="h-4 w-2/3" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-10 w-full" />
+              </CardContent>
+              <CardFooter className="border-t px-6 py-4">
+                <Skeleton className="h-10 w-32" />
+              </CardFooter>
+            </Card>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   const handleShorten = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
