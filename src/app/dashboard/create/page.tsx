@@ -160,10 +160,12 @@ export default function CreateLinkPage() {
                     <LinkIcon className="h-4 w-4" />
                     <AlertTitle className="font-bold">Link Created Successfully!</AlertTitle>
                     <AlertDescription className="mt-2 flex items-center justify-between">
-                        <div className="flex-1 overflow-hidden mr-4">
-                           <p className="font-mono text-sm whitespace-nowrap animate-marquee">
-                               {shortenedUrl}
-                           </p>
+                        <div className="flex-1 min-w-0 mr-4">
+                           <div className="overflow-hidden">
+                             <p className="font-mono text-sm whitespace-nowrap animate-marquee">
+                                 {shortenedUrl}
+                             </p>
+                           </div>
                         </div>
                         <Button variant="ghost" size="icon" onClick={() => handleCopy(shortenedUrl)}>
                            {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
