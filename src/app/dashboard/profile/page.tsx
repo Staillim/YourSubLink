@@ -155,37 +155,6 @@ export default function ProfilePage() {
                 </CardFooter>
             </Card>
         </div>
-
-        <div className="space-y-8">
-            <Card>
-                <CardHeader>
-                    <CardTitle>Your Stats</CardTitle>
-                    <CardDescription>An overview of your account activity.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="flex justify-between items-center p-3 bg-muted rounded-md">
-                        <span className="font-medium">Current Balance</span>
-                        <span className="font-bold text-lg text-primary">$0.00</span>
-                    </div>
-                      <div className="flex justify-between items-center p-3 bg-muted rounded-md">
-                        <span className="font-medium">Account Status</span>
-                        <span className="font-semibold text-green-600">Verified</span>
-                    </div>
-                    <div className="flex justify-between items-center p-3 bg-muted rounded-md">
-                        <span className="font-medium">Total Visits</span>
-                        <span>0</span>
-                    </div>
-                    <div className="flex justify-between items-center p-3 bg-muted rounded-md">
-                        <span className="font-medium">Monetized Visits</span>
-                        <span>0</span>
-                    </div>
-                    <div className="flex justify-between items-center p-3 bg-muted rounded-md">
-                        <span className="font-medium">Current CPM</span>
-                        <span>$3.00</span>
-                    </div>
-                </CardContent>
-            </Card>
-        </div>
       </div>
     </>
   );
