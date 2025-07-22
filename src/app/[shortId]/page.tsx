@@ -140,7 +140,7 @@ async function recordClickAndRedirect(linkData: LinkData) {
 
 function LinkGate({ linkData }: { linkData: LinkData }) {
     const [completedRules, setCompletedRules] = useState<boolean[]>(Array(linkData.rules.length).fill(false));
-    const [isUnlocking, setIsUnlocking] = useState(false);
+    const [isRedirecting, setIsRedirecting] = useState(false);
     const totalRules = linkData.rules.length;
     const completedCount = completedRules.filter(Boolean).length;
     const allRulesCompleted = completedCount === totalRules;
@@ -152,15 +152,17 @@ function LinkGate({ linkData }: { linkData: LinkData }) {
             return newCompleted;
         });
     }
+
+    useEffect(() => {
+        if (allRulesCompleted && !isRedirecting) {
+            setIsRedirecting(true);
+            (async () => {
+                await recordClickAndRedirect(linkData);
+                window.location.href = linkData.original;
+            })();
+        }
+    }, [allRulesCompleted, isRedirecting, linkData]);
     
-    const handleUnlock = async () => {
-        if (!allRulesCompleted || isUnlocking) return;
-        setIsUnlocking(true);
-        await recordClickAndRedirect(linkData);
-        window.location.href = linkData.original;
-    }
-
-
     return (
         <div className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4">
             <Card className="w-full max-w-md shadow-2xl bg-card border-gray-800">
@@ -190,15 +192,14 @@ function LinkGate({ linkData }: { linkData: LinkData }) {
                     </div>
 
                     <Button
-                        onClick={handleUnlock}
-                        disabled={!allRulesCompleted || isUnlocking}
+                        disabled={!allRulesCompleted || isRedirecting}
                         className="w-full font-bold text-lg py-7 mt-4 bg-green-600 hover:bg-green-700 disabled:bg-gray-800 disabled:text-muted-foreground disabled:cursor-not-allowed"
                         size="lg"
                     >
                         <div className="flex items-center justify-between w-full">
                            <Lock className="h-5 w-5"/>
-                           {isUnlocking ? <span>Unlocking...</span> : <span>Unlock Link</span>}
-                           {isUnlocking ? <Loader2 className="h-5 w-5 animate-spin"/> : <LinkIcon className="h-5 w-5"/>}
+                           {isRedirecting ? <span>Redirecting...</span> : <span>Unlock Link</span>}
+                           {isRedirecting ? <Loader2 className="h-5 w-5 animate-spin"/> : <LinkIcon className="h-5 w-5"/>}
                         </div>
                     </Button>
                 </CardContent>
