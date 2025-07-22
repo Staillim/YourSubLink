@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, doc, updateDoc, writeBatch, serverTimestamp, query, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, writeBatch, serverTimestamp, query, orderBy, increment } from 'firebase/firestore';
 import {
   Table,
   TableBody,
@@ -70,11 +70,9 @@ export default function AdminPayoutRequestsPage() {
 
         if (newStatus === 'completed' && userId && amount) {
             const userRef = doc(db, 'users', userId);
-            // This is a simplified increment. For production, you might want to use a transaction.
-            const userDoc = (await batch.get(userRef)).data();
-            const currentPaid = userDoc?.paidEarnings || 0;
+            // Use Firestore's atomic increment to update paidEarnings
             batch.update(userRef, {
-                paidEarnings: currentPaid + amount,
+                paidEarnings: increment(amount),
             });
         }
 
