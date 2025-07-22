@@ -35,6 +35,10 @@ export function UserNav() {
     router.push('/dashboard/profile');
   }
 
+  if (!user) {
+    return null;
+  }
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>

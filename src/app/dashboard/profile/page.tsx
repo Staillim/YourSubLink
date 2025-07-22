@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, ArrowLeft } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function ProfilePage() {
@@ -95,9 +95,8 @@ export default function ProfilePage() {
 
   if (loading || !user) {
     return (
-       <div className="flex min-h-screen w-full flex-col items-center justify-center p-4">
-        <div className="w-full max-w-4xl">
-           <Skeleton className="h-8 w-32 mb-8" />
+       <div className="flex flex-col gap-4">
+          <Skeleton className="h-8 w-32 mb-8" />
            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               <div className="md:col-span-2">
                  <Skeleton className="h-[250px] w-full" />
@@ -106,19 +105,19 @@ export default function ProfilePage() {
                  <Skeleton className="h-[250px] w-full" />
               </div>
            </div>
-        </div>
        </div>
     );
   }
 
   return (
-    <main className="flex min-h-screen w-full flex-col items-center bg-muted/40 p-4">
-      <div className="w-full max-w-4xl">
-        <Button variant="ghost" onClick={() => router.push('/dashboard')} className="mb-6">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Dashboard
-        </Button>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+    <main className="grid flex-1 items-start gap-4 p-4 sm:px-6 sm:py-0 md:gap-8">
+        <div className="grid auto-rows-max items-start gap-4 md:gap-8 lg:col-span-2">
+            <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
+                 <div className="sm:col-span-2">
+                    <h1 className="text-3xl font-semibold">Profile</h1>
+                 </div>
+            </div>
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="md:col-span-2 space-y-8">
                 <Card>
                     <CardHeader>
@@ -188,7 +187,7 @@ export default function ProfilePage() {
                 </Card>
             </div>
         </div>
-      </div>
+        </div>
     </main>
   );
 }
