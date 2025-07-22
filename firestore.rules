@@ -3,16 +3,22 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /links/{linkId} {
-      // Allow anyone to read the link document for redirection
-      allow get: if true;
-      // Allow anyone to update the click count
-      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks']);
-      // Allow authenticated users to create their own links
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
-      // Allow authenticated users to delete their own links
-      allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
-      // Allow authenticated users to read their own links
-      allow list: if request.auth != null && resource.data.userId == request.auth.uid;
+      // Anyone can read a link to allow for redirection and gate checking.
+      allow read;
+      
+      // Anyone can increment the click count.
+      allow update: if request.resource.data.clicks == resource.data.clicks + 1;
+
+      // Only authenticated users can create their own links.
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+      
+      // The user who owns the link can update or delete it.
+      allow update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
+    }
+
+    // Users can read and write to their own user document.
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
     }
   }
 }
