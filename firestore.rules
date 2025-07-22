@@ -7,12 +7,11 @@ service cloud.firestore {
     match /links/{linkId} {
       allow read: if true;
       allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
-      allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow delete: if request.auth != null && (resource.data.userId == request.auth.uid || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
       
-      // Allow public writes for click/earnings and owner writes for details.
-      allow update: if (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks', 'generatedEarnings'])) || 
-                      (request.auth != null && resource.data.userId == request.auth.uid && 
-                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'rules', 'monetizable']));
+      // Allow public to update clicks/earnings on a link, and owners/admins to update details
+      allow update: if (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks', 'generatedEarnings'])) ||
+                      (request.auth != null && resource.data.userId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'rules', 'monetizable']));
     }
 
     // USERS
@@ -21,8 +20,7 @@ service cloud.firestore {
         allow read: if request.auth != null;
         allow list: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
       
-        // Allow users to update their own profile, admins to update anything,
-        // and allow public writes for incrementing earnings.
+        // Allow users to update their own profile, or admins to update any user
         allow update: if (request.auth != null && request.auth.uid == userId &&
                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'photoURL'])) ||
                       (request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
@@ -35,27 +33,33 @@ service cloud.firestore {
                     get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
         
         allow list: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+
+        // Allow users to create requests if they are authenticated
         allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+
+        // Admins can update any payout request
         allow update: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
       
     // NOTIFICATIONS
     match /notifications/{notificationId} {
         allow read: if request.auth != null && (resource.data.userId == request.auth.uid || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
-        allow list: if request.auth != null;
-        
-        // Secure creation: only allow if the write batch comes from a valid click registration.
-        // For simplicity in client-side logic, we'll allow any authenticated or unauthenticated write
-        // but in a real production app, this would be locked down to a backend function.
-        allow create: if true;
+        allow create: if true; // Created by the system
+        allow list: if request.auth != null && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
     }
       
     // CLICKS
     match /clicks/{clickId} {
-        // Only allow creation of click documents. 
-        // No one can read/list/update/delete, protecting IP data.
         allow create: if true;
-        allow read, update, delete, list: if false;
+
+        // Allow reading/listing clicks ONLY by the link owner or an admin.
+        allow read, list: if request.auth != null && (
+                            get(/databases/$(database)/documents/links/$(resource.data.linkId)).data.userId == request.auth.uid ||
+                            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+                          );
+
+        // Nobody can update or delete click logs.
+        allow update, delete: if false;
     }
   }
 }
