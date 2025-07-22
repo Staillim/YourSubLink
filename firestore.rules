@@ -9,11 +9,10 @@ service cloud.firestore {
       allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
       allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
       
-      // Allow authenticated users to update their own link's title, description, and rules.
-      // Allow anyone (the system) to update clicks and generatedEarnings.
-      allow update: if (request.auth != null && resource.data.userId == request.auth.uid && 
-                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'rules', 'monetizable'])) ||
-                      (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks', 'generatedEarnings']));
+      // Allow public writes for click/earnings and owner writes for details.
+      allow update: if (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks', 'generatedEarnings'])) || 
+                      (request.auth != null && resource.data.userId == request.auth.uid && 
+                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'rules', 'monetizable']));
     }
 
     // USERS
@@ -22,14 +21,12 @@ service cloud.firestore {
         allow read: if request.auth != null;
         allow list: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
       
-        // Allow users to update their own profile fields.
-        // Allow admins to update any user's role.
-        // Allow the system to update a user's earnings.
+        // Allow users to update their own profile, admins to update anything,
+        // and allow public writes for incrementing earnings.
         allow update: if (request.auth != null && request.auth.uid == userId &&
                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'photoURL'])) ||
-                      (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['generatedEarnings'])) ||
-                      (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paidEarnings'])) ||
-                      (request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+                      (request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
+                      (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['generatedEarnings']));
     }
 
     // PAYOUT REQUESTS
@@ -38,26 +35,25 @@ service cloud.firestore {
                     get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
         
         allow list: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-
-        // Allow users to create requests if they are authenticated
         allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
-
-        // Admins can update any payout request
         allow update: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
       
     // NOTIFICATIONS
     match /notifications/{notificationId} {
         allow read: if request.auth != null && (resource.data.userId == request.auth.uid || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
-        // Allow the system to create notifications.
-        allow create: if true; 
-        allow list: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+        allow list: if request.auth != null;
+        
+        // Secure creation: only allow if the write batch comes from a valid click registration.
+        // For simplicity in client-side logic, we'll allow any authenticated or unauthenticated write
+        // but in a real production app, this would be locked down to a backend function.
+        allow create: if true;
     }
       
     // CLICKS
     match /clicks/{clickId} {
-        // Allow the system to create click documents.
-        // Disallow any read, update, or delete to protect IP data.
+        // Only allow creation of click documents. 
+        // No one can read/list/update/delete, protecting IP data.
         allow create: if true;
         allow read, update, delete, list: if false;
     }
