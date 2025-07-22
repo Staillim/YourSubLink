@@ -15,7 +15,6 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Table,
@@ -25,7 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Copy, Link as LinkIcon, Loader2, MoreVertical, Trash2, Check, ExternalLink, BadgeHelp, Edit, PlusCircle } from 'lucide-react';
+import { Copy, Link as LinkIcon, Loader2, MoreVertical, Trash2, ExternalLink, BadgeHelp, Edit, PlusCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
@@ -46,6 +45,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Rule, RuleEditor } from '@/components/rule-editor';
+import { Label } from '@/components/ui/label';
 
 
 export type LinkItem = {
@@ -72,7 +72,6 @@ export default function DashboardPage() {
   const [linksLoading, setLinksLoading] = useState(true);
   
   const [isPending, startTransition] = useTransition();
-  const [copied, setCopied] = useState('');
 
   // Edit Dialog state
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -121,13 +120,11 @@ export default function DashboardPage() {
 
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
-    setCopied(text);
     toast({
         title: "Copied!",
         description: "The link has been copied to your clipboard.",
         duration: 2000,
     })
-    setTimeout(() => setCopied(''), 2000);
   };
   
   const handleDelete = async (id: string) => {
@@ -219,8 +216,8 @@ export default function DashboardPage() {
                         <TableRow>
                             <TableHead className="w-full md:w-2/5">Link</TableHead>
                             <TableHead className="hidden md:table-cell">Short Link</TableHead>
-                            <TableHead>Estado</TableHead>
-                            <TableHead>Clicks</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Total Clicks</TableHead>
                             <TableHead className="hidden md:table-cell">Date</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
@@ -282,6 +279,13 @@ export default function DashboardPage() {
                             </TableCell>
                             </TableRow>
                         ))}
+                         {links.length === 0 && (
+                            <TableRow>
+                                <TableCell colSpan={6} className="text-center h-24">
+                                No links created yet.
+                                </TableCell>
+                            </TableRow>
+                        )}
                         </TableBody>
                     </Table>
                     </div>

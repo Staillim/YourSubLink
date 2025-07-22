@@ -29,7 +29,56 @@ const RULE_DETAILS = {
   visit: { text: 'Visit Website', icon: ExternalLink, color: 'bg-gray-500 hover:bg-gray-600' },
 };
 
-const CPM = 3.00; // Cost Per Mille (1000 views)
+async function recordClick(linkData: LinkData): Promise<void> {
+    try {
+        const batch = writeBatch(db);
+        
+        // 1. Create a historical click record
+        const clickDocRef = doc(collection(db, 'clicks'));
+        batch.set(clickDocRef, {
+            linkId: linkData.id,
+            timestamp: serverTimestamp(),
+            ipAddress: 'x.x.x.x', // Placeholder for server-side IP
+        });
+
+        // 2. Increment the total clicks counter on the link
+        const linkRef = doc(db, 'links', linkData.id);
+        batch.update(linkRef, { clicks: increment(1) });
+        
+        // 3. Handle monetization earnings for the click if applicable
+        if (linkData.monetizable) {
+            const CPM = 3.00; // Cost Per Mille (1000 views)
+            const earningsPerClick = CPM / 1000;
+            batch.update(linkRef, { generatedEarnings: increment(earningsPerClick) });
+        }
+
+        // 4. Handle milestone notifications
+        const currentClicks = linkData.clicks;
+        const newClicks = currentClicks + 1;
+        const milestone = 1000;
+        if (Math.floor(currentClicks / milestone) < Math.floor(newClicks / milestone)) {
+            const reachedMilestone = Math.floor(newClicks / milestone) * milestone;
+            const notificationRef = doc(collection(db, 'notifications'));
+            batch.set(notificationRef, {
+                userId: linkData.userId,
+                linkId: linkData.id,
+                linkTitle: linkData.title,
+                type: 'milestone',
+                milestone: reachedMilestone,
+                message: `Your link "${linkData.title}" reached ${reachedMilestone.toLocaleString()} visits!`,
+                createdAt: serverTimestamp(),
+                read: false
+            });
+        }
+
+        await batch.commit();
+        console.log("Click recorded successfully.");
+        
+    } catch (error) {
+        console.error("Error processing click:", error);
+    }
+}
+
 
 function RuleItem({ rule, onComplete, isCompleted }: { rule: Rule; onComplete: () => void; isCompleted: boolean }) {
   const [isClicked, setIsClicked] = useState(false);
@@ -80,74 +129,11 @@ function RuleItem({ rule, onComplete, isCompleted }: { rule: Rule; onComplete: (
   );
 }
 
-async function recordClick(linkData: LinkData): Promise<boolean> {
-    try {
-        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-        const recentClicksQuery = query(
-            collection(db, 'clicks'),
-            where('linkId', '==', linkData.id),
-            where('ipAddress', '==', 'x.x.x.x'), // Placeholder
-            where('timestamp', '>', oneHourAgo),
-            limit(1)
-        );
-        const recentClicksSnapshot = await getDocs(recentClicksQuery);
-
-        if (!recentClicksSnapshot.empty) {
-             console.log("Recent click found for this IP. Not recording.");
-             return false;
-        }
-
-        const batch = writeBatch(db);
-        const clickDocRef = doc(collection(db, 'clicks'));
-        const linkRef = doc(db, 'links', linkData.id);
-
-        batch.set(clickDocRef, {
-            linkId: linkData.id,
-            timestamp: serverTimestamp(),
-            ipAddress: 'x.x.x.x', // Placeholder for server-side IP
-        });
-
-        batch.update(linkRef, { clicks: increment(1) });
-
-        if (linkData.monetizable) {
-            const earningsPerClick = CPM / 1000;
-            batch.update(linkRef, { generatedEarnings: increment(earningsPerClick) });
-        }
-
-        const currentClicks = linkData.clicks;
-        const newClicks = currentClicks + 1;
-        const milestone = 1000;
-        if (Math.floor(currentClicks / milestone) < Math.floor(newClicks / milestone)) {
-            const reachedMilestone = Math.floor(newClicks / milestone) * milestone;
-            const notificationRef = doc(collection(db, 'notifications'));
-            batch.set(notificationRef, {
-                userId: linkData.userId,
-                linkId: linkData.id,
-                linkTitle: linkData.title,
-                type: 'milestone',
-                milestone: reachedMilestone,
-                message: `Your link "${linkData.title}" reached ${reachedMilestone.toLocaleString()} visits!`,
-                createdAt: serverTimestamp(),
-                read: false
-            });
-        }
-
-        await batch.commit();
-        console.log("Click recorded successfully.");
-        return true;
-        
-    } catch (error) {
-        console.error("Error processing click:", error);
-        return false;
-    }
-}
-
 
 function LinkGate({ linkData }: { linkData: LinkData }) {
     const [completedRules, setCompletedRules] = useState<boolean[]>(Array(linkData.rules.length).fill(false));
     const [isRedirecting, setIsRedirecting] = useState(false);
-    const [isClickRecorded, setIsClickRecorded] = useState(false);
-
+    
     const totalRules = linkData.rules.length;
     const completedCount = completedRules.filter(Boolean).length;
     const allRulesCompleted = completedCount === totalRules;
@@ -164,17 +150,6 @@ function LinkGate({ linkData }: { linkData: LinkData }) {
         setIsRedirecting(true);
         window.location.href = linkData.original;
     }
-
-    useEffect(() => {
-        if (allRulesCompleted && !isClickRecorded) {
-            (async () => {
-                const recorded = await recordClick(linkData);
-                if (recorded) {
-                    setIsClickRecorded(true);
-                }
-            })();
-        }
-    }, [allRulesCompleted, isClickRecorded, linkData]);
     
     return (
         <div className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4">
@@ -225,7 +200,7 @@ function LinkGate({ linkData }: { linkData: LinkData }) {
 
 export default function ShortLinkPage({ params }: { params: { shortId: string } }) {
   const { shortId } = params;
-  const [status, setStatus] = useState<'loading' | 'gate' | 'not-found'>('loading');
+  const [status, setStatus] = useState<'loading' | 'gate' | 'redirecting' | 'not-found'>('loading');
   const [linkData, setLinkData] = useState<LinkData | null>(null);
   
   useEffect(() => {
@@ -258,12 +233,15 @@ export default function ShortLinkPage({ params }: { params: { shortId: string } 
             clicks: data.clicks || 0,
         };
         
+        // Record the click immediately upon fetching the link data
+        await recordClick(fetchedLinkData);
+
         if (fetchedLinkData.rules.length > 0) {
             setLinkData(fetchedLinkData);
             setStatus('gate');
         } else {
-            // For non-gate links, we process the click immediately and redirect.
-            await recordClick(fetchedLinkData);
+            // For non-gate links, redirect immediately.
+            setStatus('redirecting');
             window.location.href = fetchedLinkData.original;
         }
 
@@ -280,7 +258,7 @@ export default function ShortLinkPage({ params }: { params: { shortId: string } 
       notFound();
   }
 
-  if (status === 'loading') {
+  if (status === 'loading' || status === 'redirecting') {
     return (
         <div className="flex h-screen w-full flex-col items-center justify-center bg-background text-foreground">
             <Loader2 className="h-12 w-12 animate-spin text-primary"/>
