@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useUser } from '@/hooks/use-user';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Bell, CheckCircle2, XCircle, Clock } from 'lucide-react';
@@ -34,9 +34,13 @@ export function NotificationBell() {
 
     useEffect(() => {
         if (user) {
-            const q = query(collection(db, "payoutRequests"), where("userId", "==", user.uid), orderBy("requestedAt", "desc"));
+            const q = query(collection(db, "payoutRequests"), where("userId", "==", user.uid));
             const unsubscribe = onSnapshot(q, (snapshot) => {
                 const payoutData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PayoutRequest));
+                
+                // Sort client-side
+                payoutData.sort((a, b) => (b.requestedAt?.seconds ?? 0) - (a.requestedAt?.seconds ?? 0));
+
                 setNotifications(payoutData);
                 
                 // Check for pending notifications to show indicator

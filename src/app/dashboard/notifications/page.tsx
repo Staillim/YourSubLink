@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useUser } from '@/hooks/use-user';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Bell, CheckCircle2, XCircle, Clock } from 'lucide-react';
@@ -62,9 +62,13 @@ export default function NotificationsPage() {
     useEffect(() => {
         if (user) {
             setLoading(true);
-            const q = query(collection(db, "payoutRequests"), where("userId", "==", user.uid), orderBy("requestedAt", "desc"));
+            const q = query(collection(db, "payoutRequests"), where("userId", "==", user.uid));
             const unsubscribe = onSnapshot(q, (snapshot) => {
                 const payoutData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PayoutRequest));
+                
+                // Sort client-side
+                payoutData.sort((a, b) => (b.requestedAt?.seconds ?? 0) - (a.requestedAt?.seconds ?? 0));
+
                 const notificationData = payoutData.map(p => {
                     const details = getNotificationDetails(p);
                     return {
