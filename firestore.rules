@@ -2,8 +2,6 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Links collection rules
     match /links/{linkId} {
       allow read: if true;
       allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
@@ -12,34 +10,28 @@ service cloud.firestore {
                       (request.auth != null && resource.data.userId == request.auth.uid);
     }
 
-    // Users collection rules
     match /users/{userId} {
       allow read: if request.auth != null;
-      allow create: if request.auth != null && request.auth.uid == userId;
-      
-      // Allow user to update their own profile, but not their role
-      // Allow admin to update any user profile, including the role
-      allow update: if (request.auth != null && request.auth.uid == userId && !('role' in request.resource.data)) ||
-                      (request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
-      
-      // Allow admins to list all users
+      // Admin can list all users
       allow list: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      
+      allow create: if request.auth != null && request.auth.uid == userId;
+
+      // User can update their own displayName, photoURL, and payoutsPending field.
+      // They cannot change their role or other sensitive fields.
+      allow update: if request.auth != null && request.auth.uid == userId &&
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'photoURL', 'payoutsPending'])
+                   
+                   // Admin can update any field on any user.
+                   || request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // Payout Requests collection rules
     match /payoutRequests/{requestId} {
-      // User can create a request for themselves
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      // User can create and read their own requests
+      allow create, read: if request.auth != null && request.resource.data.userId == request.auth.uid;
       
-      // User can read their own requests. Admin can read all requests.
-      allow read: if (request.auth != null && resource.data.userId == request.auth.uid) ||
-                    (request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
-      
-      // Admin can update any request (to approve/reject)
-      allow update, delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-      
-      // Admin can list all requests
-      allow list: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      // Admin can read and update all requests (to change status)
+      allow list, update: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
   }
 }
