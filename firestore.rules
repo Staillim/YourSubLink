@@ -1,4 +1,3 @@
-
 rules_version = '2';
 
 service cloud.firestore {
@@ -15,37 +14,35 @@ service cloud.firestore {
 
     // USERS
     match /users/{userId} {
-        allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
-        allow read: if request.auth != null;
-        allow list: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
+      allow read: if request.auth != null;
+      allow list: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
       
-        // Allow users to update their own display name, photo, and pending payout amount
-        allow update: if request.auth != null && request.auth.uid == userId &&
-                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'photoURL', 'payoutsPending']);
-
-        // Admins can update any user's role or other fields
-        allow update: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      // Combine user and admin update rules
+      allow update: if (request.auth != null && request.auth.uid == userId &&
+                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'photoURL', 'payoutsPending'])) ||
+                      (request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
     }
 
     // PAYOUT REQUESTS
     match /payoutRequests/{requestId} {
-        allow read: if request.auth != null && (resource.data.userId == request.auth.uid || 
-                    get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
-        
-        allow list: if request.auth != null && (resource.data.userId == request.auth.uid || 
-                    get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+      // Users can read their own requests, admins can read all
+      allow read: if request.auth != null && (resource.data.userId == request.auth.uid || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+      
+      // Admins can list all requests
+      allow list: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
 
-        // Allow users to create requests if the amount is valid and less than or equal to their available balance
-        allow create: if request.auth != null && 
-                      request.resource.data.userId == request.auth.uid &&
-                      request.resource.data.amount > 0 &&
-                      request.resource.data.amount <= 
-                        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.generatedEarnings - 
-                         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.paidEarnings -
-                         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.payoutsPending);
+      // Allow users to create requests if the amount is valid and less than or equal to their available balance
+      allow create: if request.auth != null && 
+                    request.resource.data.userId == request.auth.uid &&
+                    request.resource.data.amount > 0 &&
+                    request.resource.data.amount <= 
+                      (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.generatedEarnings - 
+                       get(/databases/$(database)/documents/users/$(request.auth.uid)).data.paidEarnings -
+                       get(/databases/$(database)/documents/users/$(request.auth.uid)).data.payoutsPending);
 
-        // Admins can update any payout request
-        allow update: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      // Admins can update any payout request
+      allow update: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
   }
 }
