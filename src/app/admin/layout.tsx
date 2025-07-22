@@ -5,14 +5,6 @@ import * as React from 'react';
 import Link from "next/link"
 import {
   Menu,
-  Home,
-  Users,
-  Link2,
-  DollarSign,
-  Shield,
-  Settings,
-  History,
-  CreditCard
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -29,6 +21,7 @@ import { useUser } from '@/hooks/use-user';
 import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AdminNav } from '@/components/admin-nav';
+import { AdminNotificationBell } from '@/components/admin-notification-bell';
 
 export default function AdminLayout({
   children,
@@ -130,6 +123,7 @@ export default function AdminLayout({
           <div className="w-full flex-1">
             {/* Can add a search bar here later */}
           </div>
+          <AdminNotificationBell />
           <UserNav />
         </header>
         <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6">
