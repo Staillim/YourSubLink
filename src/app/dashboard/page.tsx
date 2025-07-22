@@ -242,8 +242,7 @@ export default function DashboardPage() {
     setIsEditDialogOpen(true);
   }
 
-  const handleUpdateLink = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const handleUpdateLink = async () => {
     if (!editingLink) return;
 
     startTransition(async () => {
@@ -454,7 +453,7 @@ export default function DashboardPage() {
     {/* Edit Link Dialog */}
     <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="sm:max-w-2xl">
-            <form onSubmit={handleUpdateLink}>
+            <form onSubmit={(e) => { e.preventDefault(); handleUpdateLink(); }}>
                 <DialogHeader>
                     <DialogTitle>Edit Link</DialogTitle>
                     <DialogDescription>
