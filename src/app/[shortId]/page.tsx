@@ -5,11 +5,11 @@ import { useEffect, useState } from 'react';
 import { notFound } from 'next/navigation';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, doc, updateDoc, increment } from 'firebase/firestore';
-import { Loader2, ExternalLink, CheckCircle2, LockKeyhole } from 'lucide-react';
+import { Loader2, ExternalLink, CheckCircle2, LockKeyhole, Lock, Link as LinkIcon, ChevronRight, Youtube, Instagram } from 'lucide-react';
 import type { Rule } from '@/components/rule-editor';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Logo } from '@/components/icons';
+import { Progress } from '@/components/ui/progress';
 
 type LinkData = {
   original: string;
@@ -18,17 +18,18 @@ type LinkData = {
   description?: string;
 };
 
-const RULE_DESCRIPTIONS = {
-  like: 'Da like al vídeo',
-  subscribe: 'Suscríbete al canal',
-  follow: 'Sigue la cuenta en Instagram',
-  visit: 'Visita el sitio web',
+const RULE_DETAILS = {
+  like: { text: 'Like & Comment on Video', icon: Youtube, color: 'bg-red-600 hover:bg-red-700' },
+  subscribe: { text: 'Subscribe On Youtube', icon: Youtube, color: 'bg-red-600 hover:bg-red-700' },
+  follow: { text: 'Follow On Instagram', icon: Instagram, color: 'bg-blue-600 hover:bg-blue-700' },
+  visit: { text: 'Visit Website', icon: ExternalLink, color: 'bg-gray-500 hover:bg-gray-600' },
 };
 
-function RuleItem({ rule, onComplete }: { rule: Rule; onComplete: () => void }) {
+function RuleItem({ rule, onComplete, isCompleted }: { rule: Rule; onComplete: () => void; isCompleted: boolean }) {
   const [isClicked, setIsClicked] = useState(false);
-  const [countdown, setCountdown] = useState(10);
-  const [isCompleted, setIsCompleted] = useState(false);
+  const [countdown, setCountdown] = useState(5);
+
+  const { text, icon: Icon, color } = RULE_DETAILS[rule.type] || RULE_DETAILS.visit;
 
   const handleClick = () => {
     if (isCompleted || isClicked) return;
@@ -40,7 +41,6 @@ function RuleItem({ rule, onComplete }: { rule: Rule; onComplete: () => void }) 
       setCountdown((prev) => {
         if (prev === 1) {
           clearInterval(timer);
-          setIsCompleted(true);
           onComplete();
           return 0;
         }
@@ -52,41 +52,40 @@ function RuleItem({ rule, onComplete }: { rule: Rule; onComplete: () => void }) 
   return (
     <Button
       onClick={handleClick}
-      disabled={isClicked && !isCompleted}
-      className="w-full justify-between h-auto py-3 px-4"
-      variant={isCompleted ? 'secondary' : 'outline'}
+      disabled={isClicked}
+      className={`w-full justify-between h-auto py-4 px-5 text-base font-semibold ${isCompleted ? 'bg-green-600 hover:bg-green-700' : color}`}
     >
       <div className="flex items-center gap-3">
-        {isCompleted ? (
-          <CheckCircle2 className="h-5 w-5 text-green-500" />
-        ) : (
-          <LockKeyhole className="h-5 w-5 text-muted-foreground" />
-        )}
-        <span className="font-semibold">{RULE_DESCRIPTIONS[rule.type] || 'Completar tarea'}</span>
+        <Icon className="h-6 w-6" />
+        <span>{text}</span>
       </div>
       <div>
         {isClicked && !isCompleted && (
-           <span className="text-sm font-mono bg-muted text-muted-foreground rounded-md px-2 py-1">{countdown}s</span>
+           <span className="text-sm font-mono bg-black/20 rounded-md px-2 py-1">{countdown}s</span>
         )}
         {isCompleted && (
-            <span className="text-sm font-semibold text-green-500">¡Hecho!</span>
+            <CheckCircle2 className="h-6 w-6" />
         )}
         {!isClicked && !isCompleted && (
-            <ExternalLink className="h-5 w-5 text-muted-foreground" />
+            <ChevronRight className="h-6 w-6" />
         )}
       </div>
     </Button>
   );
 }
 
-
 function LinkGate({ linkData }: { linkData: LinkData }) {
-    const [completedRules, setCompletedRules] = useState(0);
+    const [completedRules, setCompletedRules] = useState<boolean[]>(Array(linkData.rules.length).fill(false));
     const totalRules = linkData.rules.length;
-    const allRulesCompleted = completedRules === totalRules;
+    const completedCount = completedRules.filter(Boolean).length;
+    const allRulesCompleted = completedCount === totalRules;
 
-    const handleRuleComplete = () => {
-        setCompletedRules((prev) => prev + 1);
+    const handleRuleComplete = (index: number) => {
+        setCompletedRules(prev => {
+            const newCompleted = [...prev];
+            newCompleted[index] = true;
+            return newCompleted;
+        });
     }
     
     const handleRedirect = () => {
@@ -96,32 +95,44 @@ function LinkGate({ linkData }: { linkData: LinkData }) {
     }
 
     return (
-        <div className="flex min-h-screen w-full flex-col items-center justify-center bg-muted/40 p-4">
-             <div className="absolute top-8">
-                <Logo />
-            </div>
-            <Card className="w-full max-w-md shadow-2xl">
-                <CardHeader className="text-center">
-                    <CardTitle className="text-2xl font-bold tracking-tight">{linkData.title}</CardTitle>
-                    {linkData.description && (
-                        <CardDescription>{linkData.description}</CardDescription>
-                    )}
+        <div className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4">
+            <Card className="w-full max-w-md shadow-2xl bg-card border-gray-800">
+                <CardHeader className="text-center items-center pt-8">
+                    <CardTitle className="text-3xl font-bold tracking-tight">Unlock Link</CardTitle>
+                    <CardDescription className="text-muted-foreground text-base pt-1">
+                        Complete the actions and unlock the link
+                    </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                    <p className="text-center text-sm font-medium text-foreground">Completa los siguientes pasos para continuar:</p>
+                <CardContent className="space-y-4 px-6 pb-8 pt-4">
                     <div className="space-y-3">
                         {linkData.rules.map((rule, index) => (
-                            <RuleItem key={index} rule={rule} onComplete={handleRuleComplete} />
+                            <RuleItem 
+                                key={index} 
+                                rule={rule} 
+                                onComplete={() => handleRuleComplete(index)}
+                                isCompleted={completedRules[index]} 
+                            />
                         ))}
+                    </div>
+
+                    <div className="pt-4 space-y-2">
+                         <p className="text-center text-sm font-medium text-muted-foreground">
+                            unlock progress {completedCount}/{totalRules}
+                        </p>
+                        <Progress value={(completedCount / totalRules) * 100} className="w-full h-2 bg-gray-700 [&>div]:bg-green-500" />
                     </div>
 
                     <Button
                         onClick={handleRedirect}
                         disabled={!allRulesCompleted}
-                        className="w-full font-bold text-lg py-6 mt-4"
+                        className="w-full font-bold text-lg py-7 mt-4 bg-green-600 hover:bg-green-700 disabled:bg-gray-800 disabled:text-muted-foreground disabled:cursor-not-allowed"
                         size="lg"
                     >
-                        {allRulesCompleted ? 'Continuar al enlace' : `Completa ${totalRules - completedRules} paso(s) más`}
+                        <div className="flex items-center justify-between w-full">
+                           <Lock className="h-5 w-5"/>
+                           <span>Unlock Link</span>
+                           <LinkIcon className="h-5 w-5"/>
+                        </div>
                     </Button>
                 </CardContent>
             </Card>
@@ -190,7 +201,7 @@ export default function ShortLinkPage({ params }: { params: { shortId: string } 
     return (
         <div className="flex h-screen w-full flex-col items-center justify-center bg-background text-foreground">
             <Loader2 className="h-12 w-12 animate-spin text-primary"/>
-            <p className="mt-4 text-lg text-muted-foreground">Redireccionando...</p>
+            <p className="mt-4 text-lg text-muted-foreground">Redirecting...</p>
         </div>
       );
   }

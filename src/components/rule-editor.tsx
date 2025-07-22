@@ -19,7 +19,7 @@ export type Rule = {
 };
 
 const RULE_TYPES = {
-  like: 'Like a video',
+  like: 'Like & Comment on Video',
   subscribe: 'Subscribe to a channel',
   follow: 'Follow on Instagram',
   visit: 'Visit a website',
@@ -55,7 +55,7 @@ export function RuleEditor({ rules, onRulesChange }: RuleEditorProps) {
     <div className="space-y-4 rounded-md border p-4">
       {rules.map((rule, index) => (
         <div key={index} className="flex items-center gap-2">
-          <Input value={RULE_TYPES[rule.type]} disabled className="w-[180px] bg-muted" />
+          <Input value={RULE_TYPES[rule.type]} disabled className="w-[200px] bg-muted" />
           <Input
             placeholder="https://..."
             value={rule.url}
@@ -74,7 +74,7 @@ export function RuleEditor({ rules, onRulesChange }: RuleEditorProps) {
 
       <div className="flex items-center gap-2 pt-4 border-t">
         <Select value={newRuleType} onValueChange={(value: any) => setNewRuleType(value)}>
-          <SelectTrigger className="w-[200px]">
+          <SelectTrigger className="w-[220px]">
             <SelectValue placeholder="Select a rule" />
           </SelectTrigger>
           <SelectContent>
