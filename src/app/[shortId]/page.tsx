@@ -92,51 +92,57 @@ async function recordClick(linkData: LinkData) {
         );
         const recentClicksSnapshot = await getDocs(recentClicksQuery);
 
-        if (recentClicksSnapshot.empty) {
-            const batch = writeBatch(db);
-            const clickDocRef = doc(collection(db, 'clicks'));
-            const linkRef = doc(db, 'links', linkData.id);
-            const userRef = doc(db, 'users', linkData.userId);
-
-            batch.set(clickDocRef, {
-                linkId: linkData.id,
-                timestamp: serverTimestamp(),
-                ipAddress: 'x.x.x.x', // Placeholder for server-side IP
-            });
-
-            batch.update(linkRef, { clicks: increment(1) });
-
-            if (linkData.monetizable) {
-                const earningsPerClick = CPM / 1000;
-                batch.update(linkRef, { generatedEarnings: increment(earningsPerClick) });
-                batch.update(userRef, { generatedEarnings: increment(earningsPerClick) });
-            }
-
-            const currentClicks = linkData.clicks;
-            const newClicks = currentClicks + 1;
-            const milestone = 1000;
-            if (Math.floor(currentClicks / milestone) < Math.floor(newClicks / milestone)) {
-                const reachedMilestone = Math.floor(newClicks / milestone) * milestone;
-                const notificationRef = doc(collection(db, 'notifications'));
-                batch.set(notificationRef, {
-                    userId: linkData.userId,
-                    linkId: linkData.id,
-                    linkTitle: linkData.title,
-                    type: 'milestone',
-                    milestone: reachedMilestone,
-                    message: `Your link "${linkData.title}" reached ${reachedMilestone.toLocaleString()} visits!`,
-                    createdAt: serverTimestamp(),
-                    read: false
-                });
-            }
-
-            await batch.commit();
-            return true; // Click was recorded
+        if (!recentClicksSnapshot.empty) {
+             console.log("Recent click found for this IP. Not recording.");
+             return false; // Not recorded
         }
+
+        // Proceed to record the click if no recent one was found
+        const batch = writeBatch(db);
+        const clickDocRef = doc(collection(db, 'clicks'));
+        const linkRef = doc(db, 'links', linkData.id);
+        const userRef = doc(db, 'users', linkData.userId);
+
+        batch.set(clickDocRef, {
+            linkId: linkData.id,
+            timestamp: serverTimestamp(),
+            ipAddress: 'x.x.x.x', // Placeholder for server-side IP
+        });
+
+        batch.update(linkRef, { clicks: increment(1) });
+
+        if (linkData.monetizable) {
+            const earningsPerClick = CPM / 1000;
+            batch.update(linkRef, { generatedEarnings: increment(earningsPerClick) });
+            batch.update(userRef, { generatedEarnings: increment(earningsPerClick) });
+        }
+
+        const currentClicks = linkData.clicks;
+        const newClicks = currentClicks + 1;
+        const milestone = 1000;
+        if (Math.floor(currentClicks / milestone) < Math.floor(newClicks / milestone)) {
+            const reachedMilestone = Math.floor(newClicks / milestone) * milestone;
+            const notificationRef = doc(collection(db, 'notifications'));
+            batch.set(notificationRef, {
+                userId: linkData.userId,
+                linkId: linkData.id,
+                linkTitle: linkData.title,
+                type: 'milestone',
+                milestone: reachedMilestone,
+                message: `Your link "${linkData.title}" reached ${reachedMilestone.toLocaleString()} visits!`,
+                createdAt: serverTimestamp(),
+                read: false
+            });
+        }
+
+        await batch.commit();
+        console.log("Click recorded successfully.");
+        return true; // Click was recorded
+        
     } catch (error) {
-        console.error("Error processing unlock:", error);
+        console.error("Error processing click:", error);
+        return false; // Click was not recorded
     }
-    return false; // Click was not recorded
 }
 
 
