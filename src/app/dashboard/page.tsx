@@ -5,7 +5,7 @@ import { useState, useTransition, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { collection, addDoc, query, where, getDocs, onSnapshot, deleteDoc, doc, updateDoc, increment } from 'firebase/firestore';
+import { collection, addDoc, query, where, onSnapshot, deleteDoc, doc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Table,
   TableBody,
@@ -26,7 +27,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Copy, Link as LinkIcon, Loader2, MoreVertical, Trash2, Check, ExternalLink } from 'lucide-react';
+import { Copy, Link as LinkIcon, Loader2, MoreVertical, Trash2, Check, ExternalLink, BadgeHelp } from 'lucide-react';
 import { UserNav } from '@/components/user-nav';
 import { Logo } from '@/components/icons';
 import { useToast } from '@/hooks/use-toast';
@@ -38,6 +39,9 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+
 
 type LinkItem = {
   id: string;
@@ -47,6 +51,9 @@ type LinkItem = {
   clicks: number;
   date: string;
   userId: string;
+  title: string;
+  description?: string;
+  monetizable: boolean;
 };
 
 export default function DashboardPage() {
@@ -54,6 +61,8 @@ export default function DashboardPage() {
   const router = useRouter();
   const [links, setLinks] = useState<LinkItem[]>([]);
   const [longUrl, setLongUrl] = useState('');
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
   const [shortenedUrl, setShortenedUrl] = useState<LinkItem | null>(null);
   const [isPending, startTransition] = useTransition();
   const [copied, setCopied] = useState('');
@@ -82,6 +91,9 @@ export default function DashboardPage() {
             clicks: data.clicks,
             date: new Date(data.createdAt.seconds * 1000).toISOString().split('T')[0],
             userId: data.userId,
+            title: data.title,
+            description: data.description,
+            monetizable: data.monetizable || false,
           });
         });
         setLinks(linksData.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
@@ -123,7 +135,7 @@ export default function DashboardPage() {
 
   const handleShorten = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!longUrl || !user) return;
+    if (!longUrl || !title || !user) return;
 
     startTransition(async () => {
       setShortenedUrl(null);
@@ -135,6 +147,9 @@ export default function DashboardPage() {
           shortId: shortId,
           clicks: 0,
           createdAt: new Date(),
+          title,
+          description,
+          monetizable: false, // Will be updated later based on rules
         };
         const docRef = await addDoc(collection(db, "links"), newLink);
         setShortenedUrl({ 
@@ -144,6 +159,8 @@ export default function DashboardPage() {
             date: newLink.createdAt.toISOString().split('T')[0],
         });
         setLongUrl('');
+        setTitle('');
+        setDescription('');
       } catch (error) {
         toast({
           title: "Error creating link",
@@ -184,6 +201,7 @@ export default function DashboardPage() {
   }
 
   return (
+    <TooltipProvider>
     <div className="flex min-h-screen w-full flex-col">
       <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b bg-background/80 px-4 backdrop-blur-md md:px-8">
         <Logo />
@@ -207,16 +225,24 @@ export default function DashboardPage() {
             <Card>
               <form onSubmit={handleShorten}>
                 <CardHeader>
-                  <CardTitle>Shorten a long URL</CardTitle>
+                  <CardTitle>Shorten a new link</CardTitle>
                   <CardDescription>
-                    Paste your long URL below to create a short and sweet link.
+                    Provide the details for your new link below.
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-4">
+                   <div className="space-y-2">
+                    <Label htmlFor="title">Title</Label>
+                    <Input
+                      id="title"
+                      placeholder="e.g. My YouTube Channel"
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      required
+                    />
+                  </div>
                   <div className="space-y-2">
-                    <Label htmlFor="long-url" className="sr-only">
-                      Long URL
-                    </Label>
+                    <Label htmlFor="long-url">Destination URL</Label>
                     <Input
                       id="long-url"
                       placeholder="https://example.com/very-long-url-to-shorten"
@@ -225,13 +251,22 @@ export default function DashboardPage() {
                       required
                     />
                   </div>
+                   <div className="space-y-2">
+                    <Label htmlFor="description">Description (Optional)</Label>
+                    <Textarea
+                      id="description"
+                      placeholder="A short description for your link"
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                    />
+                  </div>
                 </CardContent>
                 <CardFooter className="border-t px-6 py-4">
                   <Button type="submit" disabled={isPending} style={{ backgroundColor: 'hsl(var(--accent))', color: 'hsl(var(--accent-foreground))' }} className="font-semibold">
                     {isPending && (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     )}
-                    Shorten Link
+                    Create Link
                   </Button>
                 </CardFooter>
               </form>
@@ -264,8 +299,9 @@ export default function DashboardPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="w-[40%]">Original URL</TableHead>
+                        <TableHead className="w-[35%]">Link Details</TableHead>
                         <TableHead>Short Link</TableHead>
+                        <TableHead>Status</TableHead>
                         <TableHead>Clicks</TableHead>
                         <TableHead>Date</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
@@ -274,17 +310,33 @@ export default function DashboardPage() {
                     <TableBody>
                       {links.map((link) => (
                         <TableRow key={link.id} className="hover:bg-muted/50">
-                          <TableCell className="max-w-xs truncate font-medium">
-                            <a href={link.original} target="_blank" rel="noopener noreferrer" className="hover:underline flex items-center gap-2">
-                               {link.original}
-                               <ExternalLink className="h-3 w-3 text-muted-foreground shrink-0"/>
-                            </a>
+                          <TableCell className="max-w-xs font-medium">
+                            <div className="flex flex-col gap-1">
+                                <span className="truncate font-bold">{link.title}</span>
+                                <a href={link.original} target="_blank" rel="noopener noreferrer" className="hover:underline text-muted-foreground text-xs flex items-center gap-1">
+                                   {link.original}
+                                   <ExternalLink className="h-3 w-3 shrink-0"/>
+                                </a>
+                            </div>
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
                               <a href={link.short} target="_blank" rel="noopener noreferrer" className="font-mono text-sm text-primary hover:underline">{link.short}</a>
                             </div>
                           </TableCell>
+                           <TableCell>
+                             <Badge variant={link.monetizable ? 'default' : 'secondary'} className={link.monetizable ? 'bg-green-600' : ''}>
+                                <Tooltip>
+                                    <TooltipTrigger className="flex items-center gap-1">
+                                        {link.monetizable ? 'Monetizable' : 'Not Monetizable'}
+                                        <BadgeHelp className="h-3 w-3"/>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p>{link.monetizable ? 'This link is eligible for monetization.' : 'This link needs at least 3 rules to be monetizable.'}</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                             </Badge>
+                           </TableCell>
                           <TableCell>{link.clicks}</TableCell>
                           <TableCell className="text-muted-foreground">{link.date}</TableCell>
                           <TableCell className="text-right">
@@ -317,5 +369,7 @@ export default function DashboardPage() {
         </Tabs>
       </main>
     </div>
+    </TooltipProvider>
   );
 }
+
