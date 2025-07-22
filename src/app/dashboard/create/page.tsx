@@ -18,9 +18,8 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Link as LinkIcon, Loader2, Check, Copy } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Rule, RuleEditor } from '@/components/rule-editor';
 
 export default function CreateLinkPage() {
@@ -35,7 +34,6 @@ export default function CreateLinkPage() {
   
   const [shortenedUrl, setShortenedUrl] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const [copied, setCopied] = useState(false);
 
   const resetCreateForm = () => {
     setLongUrl('');
@@ -66,11 +64,16 @@ export default function CreateLinkPage() {
           generatedEarnings: 0,
         };
         await addDoc(collection(db, "links"), newLink);
-        setShortenedUrl(`${window.location.origin}/${shortId}`);
+        const url = `${window.location.origin}/${shortId}`;
+        setShortenedUrl(url);
+
+        // Automatically copy to clipboard and show toast
+        navigator.clipboard.writeText(url);
         toast({
-            title: "Link Created!",
-            description: "Your new link is ready.",
-        })
+            title: "Link Copied!",
+            description: "The new link has been copied to your clipboard.",
+        });
+
       } catch (error) {
         toast({
           title: "Error creating link",
@@ -79,17 +82,6 @@ export default function CreateLinkPage() {
         })
       }
     });
-  };
-
-  const handleCopy = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    toast({
-        title: "Copied!",
-        description: "The link has been copied to your clipboard.",
-        duration: 2000,
-    })
-    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
@@ -143,7 +135,7 @@ export default function CreateLinkPage() {
                     </div>
                     </CardContent>
                     <CardFooter className="border-t px-6 py-4 flex justify-between">
-                    <Button type="submit" disabled={isPending} className="font-semibold bg-primary text-primary-foreground hover:bg-primary/90">
+                    <Button type="submit" disabled={isPending || !!shortenedUrl} className="font-semibold bg-primary text-primary-foreground hover:bg-primary/90">
                         {isPending && (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         )}
@@ -155,24 +147,6 @@ export default function CreateLinkPage() {
                     </CardFooter>
                 </form>
             </Card>
-             {shortenedUrl && (
-                <Alert className="mt-6">
-                    <LinkIcon className="h-4 w-4" />
-                    <AlertTitle className="font-bold">Link Created Successfully!</AlertTitle>
-                    <AlertDescription className="mt-2 flex items-center justify-between">
-                        <div className="flex-1 min-w-0 mr-4">
-                           <div className="overflow-hidden">
-                             <p className="font-mono text-sm whitespace-nowrap animate-marquee">
-                                 {shortenedUrl}
-                             </p>
-                           </div>
-                        </div>
-                        <Button variant="ghost" size="icon" onClick={() => handleCopy(shortenedUrl)}>
-                           {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-                        </Button>
-                    </AlertDescription>
-                </Alert>
-             )}
         </div>
     </>
   );
