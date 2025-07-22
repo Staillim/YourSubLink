@@ -54,7 +54,7 @@ export default function ProfilePage() {
     setIsSaving(true);
 
     try {
-      let photoURL = user.photoURL;
+      let photoURL = profile?.photoURL || user.photoURL;
 
       // Upload new photo if selected
       if (profilePhoto) {
@@ -73,22 +73,16 @@ export default function ProfilePage() {
       const userRef = doc(db, 'users', user.uid);
       const userDoc = await getDoc(userRef);
       
-      const getRole = () => {
-        if (userDoc.exists()) {
-            return userDoc.data().role; // Keep existing role
-        }
-        if (user.email === 'harrigta@gmail.com') {
-            return 'admin'; // Assign admin role
-        }
-        return 'user'; // Default role
-      }
-
-      const userData = {
+      const userData: { [key: string]: any } = {
         displayName: displayName,
         email: user.email,
         photoURL: photoURL,
-        role: getRole()
       };
+
+      // Only set role on creation, don't allow user to change it later
+      if (!userDoc.exists()) {
+        userData.role = user.email === 'harrigta@gmail.com' ? 'admin' : 'user';
+      }
 
       await setDoc(userRef, userData, { merge: true });
 
