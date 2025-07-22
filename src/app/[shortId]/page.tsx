@@ -80,7 +80,7 @@ function RuleItem({ rule, onComplete, isCompleted }: { rule: Rule; onComplete: (
   );
 }
 
-async function recordClick(linkData: LinkData) {
+async function recordClick(linkData: LinkData): Promise<boolean> {
     try {
         const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
         const recentClicksQuery = query(
@@ -94,14 +94,12 @@ async function recordClick(linkData: LinkData) {
 
         if (!recentClicksSnapshot.empty) {
              console.log("Recent click found for this IP. Not recording.");
-             return false; // Not recorded
+             return false;
         }
 
-        // Proceed to record the click if no recent one was found
         const batch = writeBatch(db);
         const clickDocRef = doc(collection(db, 'clicks'));
         const linkRef = doc(db, 'links', linkData.id);
-        const userRef = doc(db, 'users', linkData.userId);
 
         batch.set(clickDocRef, {
             linkId: linkData.id,
@@ -114,7 +112,6 @@ async function recordClick(linkData: LinkData) {
         if (linkData.monetizable) {
             const earningsPerClick = CPM / 1000;
             batch.update(linkRef, { generatedEarnings: increment(earningsPerClick) });
-            batch.update(userRef, { generatedEarnings: increment(earningsPerClick) });
         }
 
         const currentClicks = linkData.clicks;
@@ -137,11 +134,11 @@ async function recordClick(linkData: LinkData) {
 
         await batch.commit();
         console.log("Click recorded successfully.");
-        return true; // Click was recorded
+        return true;
         
     } catch (error) {
         console.error("Error processing click:", error);
-        return false; // Click was not recorded
+        return false;
     }
 }
 
