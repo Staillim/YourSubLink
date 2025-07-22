@@ -1,7 +1,6 @@
 
 'use client';
 
-import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -31,15 +30,9 @@ type RuleEditorProps = {
 };
 
 export function RuleEditor({ rules, onRulesChange }: RuleEditorProps) {
-  const [newRuleType, setNewRuleType] = useState<'like' | 'subscribe' | 'follow' | 'visit'>('like');
-  const [newRuleUrl, setNewRuleUrl] = useState('');
 
   const handleAddRule = () => {
-    if (newRuleUrl.trim() !== '') {
-      onRulesChange([...rules, { type: newRuleType, url: newRuleUrl.trim() }]);
-      setNewRuleUrl('');
-      setNewRuleType('like'); // Reset to default
-    }
+    onRulesChange([...rules, { type: 'like', url: '' }]);
   };
 
   const handleRemoveRule = (index: number) => {
@@ -48,6 +41,7 @@ export function RuleEditor({ rules, onRulesChange }: RuleEditorProps) {
 
   const handleUpdateRule = (index: number, field: 'type' | 'url', value: string) => {
     const updatedRules = [...rules];
+    // Create a new object for the rule to ensure state update
     updatedRules[index] = { ...updatedRules[index], [field]: value };
     onRulesChange(updatedRules);
   };
@@ -55,6 +49,9 @@ export function RuleEditor({ rules, onRulesChange }: RuleEditorProps) {
 
   return (
     <div className="space-y-4 rounded-md border p-4">
+        {rules.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-4">No rules added yet.</p>
+        )}
       {rules.map((rule, index) => (
         <div key={index} className="flex items-center gap-2">
            <Select value={rule.type} onValueChange={(value: any) => handleUpdateRule(index, 'type', value)}>
@@ -83,24 +80,10 @@ export function RuleEditor({ rules, onRulesChange }: RuleEditorProps) {
         </div>
       ))}
 
-      <div className="flex items-center gap-2 pt-4 border-t">
-        <Select value={newRuleType} onValueChange={(value: any) => setNewRuleType(value)}>
-          <SelectTrigger className="w-[220px]">
-            <SelectValue placeholder="Select a rule" />
-          </SelectTrigger>
-          <SelectContent>
-            {Object.entries(RULE_TYPES).map(([key, value]) => (
-              <SelectItem key={key} value={key}>{value}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Input
-          placeholder="Enter URL for the rule"
-          value={newRuleUrl}
-          onChange={(e) => setNewRuleUrl(e.target.value)}
-        />
-        <Button type="button" variant="outline" size="icon" onClick={handleAddRule}>
-          <PlusCircle className="h-4 w-4" />
+      <div className="pt-4 border-t">
+        <Button type="button" variant="outline" className="w-full" onClick={handleAddRule}>
+          <PlusCircle className="h-4 w-4 mr-2" />
+          Add Rule
         </Button>
       </div>
     </div>
