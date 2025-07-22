@@ -7,11 +7,14 @@ import { auth, db } from '@/lib/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 import type { User as FirebaseUser } from 'firebase/auth';
 
-type UserProfile = {
+export type UserProfile = {
   displayName: string;
   email: string;
   photoURL: string;
   role: 'user' | 'admin';
+  generatedEarnings: number;
+  paidEarnings: number;
+  payoutsPending: number;
 };
 
 export function useUser() {
@@ -34,17 +37,25 @@ export function useUser() {
     const userDocRef = doc(db, 'users', authUser.uid);
     const unsubscribe = onSnapshot(userDocRef, (doc) => {
       if (doc.exists()) {
-        setUserProfile(doc.data() as UserProfile);
+        const data = doc.data();
+        setUserProfile({
+            displayName: data.displayName || 'User',
+            email: data.email || '',
+            photoURL: data.photoURL || '',
+            role: data.role || 'user',
+            generatedEarnings: data.generatedEarnings || 0,
+            paidEarnings: data.paidEarnings || 0,
+            payoutsPending: data.payoutsPending || 0,
+        });
       } else {
-        // User exists in Auth but not in Firestore.
-        // This can happen if they haven't visited their profile page yet.
-        // We can create a default profile here or handle it as needed.
-        // For now, we'll assume a 'user' role.
         setUserProfile({
             displayName: authUser.displayName || 'User',
             email: authUser.email || '',
             photoURL: authUser.photoURL || '',
             role: 'user',
+            generatedEarnings: 0,
+            paidEarnings: 0,
+            payoutsPending: 0,
         });
       }
       setLoading(false);
