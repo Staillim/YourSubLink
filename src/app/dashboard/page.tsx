@@ -219,7 +219,7 @@ export default function DashboardPage() {
                         <TableRow>
                             <TableHead className="w-full md:w-2/5">Link</TableHead>
                             <TableHead className="hidden md:table-cell">Short Link</TableHead>
-                            <TableHead className="hidden md:table-cell">Status</TableHead>
+                            <TableHead>Estado</TableHead>
                             <TableHead>Clicks</TableHead>
                             <TableHead className="hidden md:table-cell">Date</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
@@ -242,7 +242,7 @@ export default function DashboardPage() {
                                 <a href={link.short} target="_blank" rel="noopener noreferrer" className="font-mono text-sm text-primary hover:underline">{link.short.replace('https://','')}</a>
                                 </div>
                             </TableCell>
-                            <TableCell className="hidden md:table-cell">
+                            <TableCell>
                                 <Badge variant={link.monetizable ? 'default' : 'secondary'} className={link.monetizable ? 'bg-green-600' : ''}>
                                     <Tooltip>
                                         <TooltipTrigger className="flex items-center gap-1">
