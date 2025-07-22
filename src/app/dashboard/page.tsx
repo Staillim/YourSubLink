@@ -5,7 +5,7 @@ import { useState, useTransition, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { collection, addDoc, query, where, onSnapshot, deleteDoc, doc } from 'firebase/firestore';
+import { collection, addDoc, query, where, onSnapshot, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -27,7 +27,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Copy, Link as LinkIcon, Loader2, MoreVertical, Trash2, Check, ExternalLink, BadgeHelp } from 'lucide-react';
+import { Copy, Link as LinkIcon, Loader2, MoreVertical, Trash2, Check, ExternalLink, BadgeHelp, Edit } from 'lucide-react';
 import { UserNav } from '@/components/user-nav';
 import { Logo } from '@/components/icons';
 import { useToast } from '@/hooks/use-toast';
@@ -37,13 +37,23 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose
+} from "@/components/ui/dialog";
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Rule, RuleEditor } from '@/components/rule-editor';
 
 
-type LinkItem = {
+export type LinkItem = {
   id: string;
   original: string;
   shortId: string;
@@ -54,20 +64,33 @@ type LinkItem = {
   title: string;
   description?: string;
   monetizable: boolean;
+  rules: Rule[];
 };
 
 export default function DashboardPage() {
   const [user, loading] = useAuthState(auth);
   const router = useRouter();
   const [links, setLinks] = useState<LinkItem[]>([]);
+  
+  // Create form state
   const [longUrl, setLongUrl] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [rules, setRules] = useState<Rule[]>([]);
+  
   const [shortenedUrl, setShortenedUrl] = useState<LinkItem | null>(null);
   const [isPending, startTransition] = useTransition();
   const [copied, setCopied] = useState('');
   const { toast } = useToast();
   const [linksLoading, setLinksLoading] = useState(true);
+
+  // Edit Dialog state
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingLink, setEditingLink] = useState<LinkItem | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editRules, setEditRules] = useState<Rule[]>([]);
+
 
   useEffect(() => {
     if (!loading && !user) {
@@ -94,6 +117,7 @@ export default function DashboardPage() {
             title: data.title,
             description: data.description,
             monetizable: data.monetizable || false,
+            rules: data.rules || [],
           });
         });
         setLinks(linksData.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
@@ -132,6 +156,13 @@ export default function DashboardPage() {
       </div>
     );
   }
+  
+  const resetCreateForm = () => {
+    setLongUrl('');
+    setTitle('');
+    setDescription('');
+    setRules([]);
+  }
 
   const handleShorten = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -149,7 +180,8 @@ export default function DashboardPage() {
           createdAt: new Date(),
           title,
           description,
-          monetizable: false, // Will be updated later based on rules
+          rules,
+          monetizable: rules.length >= 3,
         };
         const docRef = await addDoc(collection(db, "links"), newLink);
         setShortenedUrl({ 
@@ -158,9 +190,11 @@ export default function DashboardPage() {
             short: `${window.location.origin}/${shortId}`,
             date: newLink.createdAt.toISOString().split('T')[0],
         });
-        setLongUrl('');
-        setTitle('');
-        setDescription('');
+        resetCreateForm();
+        toast({
+            title: "Link Created!",
+            description: "Your new link is ready.",
+        })
       } catch (error) {
         toast({
           title: "Error creating link",
@@ -198,7 +232,44 @@ export default function DashboardPage() {
             variant: "destructive"
         })
     }
+  };
+
+  const openEditDialog = (link: LinkItem) => {
+    setEditingLink(link);
+    setEditTitle(link.title);
+    setEditDescription(link.description || '');
+    setEditRules(link.rules || []);
+    setIsEditDialogOpen(true);
   }
+
+  const handleUpdateLink = async () => {
+    if (!editingLink) return;
+
+    startTransition(async () => {
+        try {
+            const linkRef = doc(db, "links", editingLink.id);
+            await updateDoc(linkRef, {
+                title: editTitle,
+                description: editDescription,
+                rules: editRules,
+                monetizable: editRules.length >= 3
+            });
+            setIsEditDialogOpen(false);
+            setEditingLink(null);
+            toast({
+                title: "Link updated",
+                description: "Your link has been successfully updated.",
+            });
+        } catch (error) {
+             toast({
+                title: "Error updating link",
+                description: "There was a problem updating your link.",
+                variant: "destructive"
+            });
+        }
+    });
+  }
+
 
   return (
     <TooltipProvider>
@@ -259,6 +330,11 @@ export default function DashboardPage() {
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Monetization Rules</Label>
+                     <p className="text-sm text-muted-foreground">Add at least 3 rules to make this link monetizable.</p>
+                    <RuleEditor rules={rules} onRulesChange={setRules} />
                   </div>
                 </CardContent>
                 <CardFooter className="border-t px-6 py-4">
@@ -332,7 +408,7 @@ export default function DashboardPage() {
                                         <BadgeHelp className="h-3 w-3"/>
                                     </TooltipTrigger>
                                     <TooltipContent>
-                                        <p>{link.monetizable ? 'This link is eligible for monetization.' : 'This link needs at least 3 rules to be monetizable.'}</p>
+                                        <p>{link.monetizable ? 'This link is eligible for monetization.' : `This link needs at least ${3 - link.rules.length} more rule(s) to be monetizable.`}</p>
                                     </TooltipContent>
                                 </Tooltip>
                              </Badge>
@@ -347,6 +423,10 @@ export default function DashboardPage() {
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => openEditDialog(link)}>
+                                      <Edit className="mr-2 h-4 w-4" />
+                                      <span>Edit</span>
+                                  </DropdownMenuItem>
                                   <DropdownMenuItem onClick={() => handleCopy(link.short)}>
                                     <Copy className="mr-2 h-4 w-4" />
                                     <span>Copy</span>
@@ -369,7 +449,52 @@ export default function DashboardPage() {
         </Tabs>
       </main>
     </div>
+
+    {/* Edit Link Dialog */}
+    <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-2xl">
+            <DialogHeader>
+                <DialogTitle>Edit Link</DialogTitle>
+                <DialogDescription>
+                    Update the details of your link here. Changes will be saved automatically.
+                </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="edit-title" className="text-right">
+                        Title
+                    </Label>
+                    <Input id="edit-title" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="col-span-3" />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="edit-description" className="text-right">
+                        Description
+                    </Label>
+                    <Textarea id="edit-description" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} className="col-span-3" />
+                </div>
+                <div className="grid grid-cols-4 items-start gap-4">
+                     <Label className="text-right pt-2">
+                        Rules
+                    </Label>
+                    <div className="col-span-3">
+                         <p className="text-sm text-muted-foreground mb-2">Add at least 3 rules to make this link monetizable.</p>
+                        <RuleEditor rules={editRules} onRulesChange={setEditRules} />
+                    </div>
+                </div>
+            </div>
+            <DialogFooter>
+                 <DialogClose asChild>
+                    <Button type="button" variant="secondary">
+                        Cancel
+                    </Button>
+                </DialogClose>
+                <Button onClick={handleUpdateLink} disabled={isPending}>
+                    {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Save Changes
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
     </TooltipProvider>
   );
 }
-
