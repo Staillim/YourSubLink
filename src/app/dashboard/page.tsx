@@ -5,7 +5,7 @@ import { useState, useTransition, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { collection, addDoc, query, where, onSnapshot, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, query, where, onSnapshot, deleteDoc, doc, updateDoc, serverTimestamp, addDoc as addNotificationDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -61,7 +61,10 @@ export type LinkItem = {
 export default function DashboardPage() {
   const [user, loading] = useAuthState(auth);
   const router = useRouter();
+  const { toast } = useToast();
+
   const [links, setLinks] = useState<LinkItem[]>([]);
+  const [linksLoading, setLinksLoading] = useState(true);
   
   // Create form state
   const [longUrl, setLongUrl] = useState('');
@@ -72,8 +75,6 @@ export default function DashboardPage() {
   const [shortenedUrl, setShortenedUrl] = useState<LinkItem | null>(null);
   const [isPending, startTransition] = useTransition();
   const [copied, setCopied] = useState('');
-  const { toast } = useToast();
-  const [linksLoading, setLinksLoading] = useState(true);
 
   // Edit Dialog state
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -119,18 +120,6 @@ export default function DashboardPage() {
     }
   }, [user]);
 
-  if (loading || linksLoading) {
-    return (
-      <div className="flex flex-col gap-4">
-        <Skeleton className="h-8 w-48" />
-        <div className="grid gap-6">
-            <Skeleton className="h-48 w-full" />
-            <Skeleton className="h-72 w-full" />
-        </div>
-      </div>
-    );
-  }
-  
   const resetCreateForm = () => {
     setLongUrl('');
     setTitle('');
@@ -244,6 +233,17 @@ export default function DashboardPage() {
     });
   }
 
+  if (loading || linksLoading) {
+    return (
+      <div className="flex flex-col gap-4">
+        <Skeleton className="h-8 w-48" />
+        <div className="grid gap-6">
+            <Skeleton className="h-48 w-full" />
+            <Skeleton className="h-72 w-full" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <TooltipProvider>
