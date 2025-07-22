@@ -160,7 +160,7 @@ export default function CreateLinkPage() {
                     <LinkIcon className="h-4 w-4" />
                     <AlertTitle className="font-bold">Link Created Successfully!</AlertTitle>
                     <AlertDescription className="mt-2 flex items-center justify-between">
-                        <div className="overflow-hidden w-full mr-4">
+                        <div className="flex-1 overflow-hidden mr-4">
                            <p className="font-mono text-sm whitespace-nowrap animate-marquee">
                                {shortenedUrl}
                            </p>
