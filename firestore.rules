@@ -1,0 +1,24 @@
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow public read for redirection, and allow authenticated users to
+    // list their own links on the dashboard.
+    match /links/{linkId} {
+      allow read: if true;
+
+      // Allow authenticated users to create links, ensuring the userId matches their own.
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      
+      // Allow authenticated users to delete their own links.
+      allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
+
+      // Allow anyone to increment the click count, but only the click count.
+      // This is for the unauthenticated redirect page.
+      // Authenticated users can also update their own documents.
+      allow update: if (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks'])) || 
+                      (request.auth != null && resource.data.userId == request.auth.uid);
+    }
+  }
+}
