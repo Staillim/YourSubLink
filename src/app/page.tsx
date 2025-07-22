@@ -10,6 +10,7 @@ import {
   signInWithEmailAndPassword,
   signInWithPopup,
   GoogleAuthProvider,
+  sendPasswordResetEmail,
 } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
@@ -39,7 +40,7 @@ import { Loader2 } from 'lucide-react';
 
 const signInSchema = z.object({
   email: z.string().email({ message: 'Invalid email address.' }),
-  password: z.string().min(6, { message: 'Password must be at least 6 characters.' }),
+  password: z.string().min(1, { message: 'Password is required.' }),
 });
 
 const signUpSchema = z.object({
@@ -48,11 +49,16 @@ const signUpSchema = z.object({
   password: z.string().min(6, { message: 'Password must be at least 6 characters.' }),
 });
 
+const resetPasswordSchema = z.object({
+    email: z.string().email({ message: 'Invalid email address.' }),
+});
+
 export default function AuthenticationPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('signin');
   const [isLoading, setIsLoading] = useState(false);
+  const [showResetForm, setShowResetForm] = useState(false);
 
   const signInForm = useForm<z.infer<typeof signInSchema>>({
     resolver: zodResolver(signInSchema),
@@ -62,6 +68,11 @@ export default function AuthenticationPage() {
   const signUpForm = useForm<z.infer<typeof signUpSchema>>({
     resolver: zodResolver(signUpSchema),
     defaultValues: { name: '', email: '', password: '' },
+  });
+  
+  const resetPasswordForm = useForm<z.infer<typeof resetPasswordSchema>>({
+    resolver: zodResolver(resetPasswordSchema),
+    defaultValues: { email: '' },
   });
 
   const handleSignIn = async (values: z.infer<typeof signInSchema>) => {
@@ -113,6 +124,26 @@ export default function AuthenticationPage() {
     }
   };
 
+  const handlePasswordReset = async (values: z.infer<typeof resetPasswordSchema>) => {
+    setIsLoading(true);
+    try {
+      await sendPasswordResetEmail(auth, values.email);
+      toast({
+        title: 'Password Reset Email Sent',
+        description: 'Check your inbox for instructions to reset your password.',
+      });
+      setShowResetForm(false);
+    } catch (error: any) {
+        toast({
+            title: 'Error',
+            description: error.message,
+            variant: 'destructive',
+        });
+    } finally {
+        setIsLoading(false);
+    }
+  }
+
   return (
     <main className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4">
       <div className="absolute top-8 left-8">
@@ -121,23 +152,59 @@ export default function AuthenticationPage() {
       <Tabs
         defaultValue="signin"
         className="w-full max-w-md"
-        onValueChange={setActiveTab}
+        onValueChange={(value) => {
+            setActiveTab(value);
+            setShowResetForm(false);
+        }}
       >
         <Card className="shadow-2xl">
           <CardHeader className="text-center">
             <CardTitle className="text-2xl font-bold tracking-tight text-primary">
-              Welcome to YourSubLink
+              {showResetForm ? 'Reset Password' : 'Welcome to YourSubLink'}
             </CardTitle>
             <CardDescription>
-              Enter your credentials to access your account
+              {showResetForm ? 'Enter your email to receive a reset link.' : 'Enter your credentials to access your account'}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="signin">Sign In</TabsTrigger>
-              <TabsTrigger value="signup">Sign Up</TabsTrigger>
-            </TabsList>
+            {!showResetForm && (
+                <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="signin">Sign In</TabsTrigger>
+                <TabsTrigger value="signup">Sign Up</TabsTrigger>
+                </TabsList>
+            )}
+            
             <TabsContent value="signin">
+             {showResetForm ? (
+                <Form {...resetPasswordForm}>
+                    <form onSubmit={resetPasswordForm.handleSubmit(handlePasswordReset)} className="space-y-4 pt-4">
+                        <FormField
+                            control={resetPasswordForm.control}
+                            name="email"
+                            render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Email</FormLabel>
+                                <FormControl>
+                                <Input
+                                    type="email"
+                                    placeholder="m@example.com"
+                                    {...field}
+                                />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                            )}
+                        />
+                        <Button type="submit" className="w-full font-semibold" disabled={isLoading}>
+                            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Send Reset Email
+                        </Button>
+                        <Button variant="link" className="w-full" onClick={() => setShowResetForm(false)}>
+                            Back to Sign In
+                        </Button>
+                    </form>
+                </Form>
+             ) : (
               <Form {...signInForm}>
                 <form
                   onSubmit={signInForm.handleSubmit(handleSignIn)}
@@ -165,7 +232,12 @@ export default function AuthenticationPage() {
                     name="password"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Password</FormLabel>
+                        <div className="flex items-center justify-between">
+                            <FormLabel>Password</FormLabel>
+                            <Button variant="link" type="button" size="sm" className="h-auto p-0 text-xs" onClick={() => setShowResetForm(true)}>
+                                Forgot password?
+                            </Button>
+                        </div>
                         <FormControl>
                           <Input type="password" {...field} />
                         </FormControl>
@@ -181,6 +253,7 @@ export default function AuthenticationPage() {
                   </Button>
                 </form>
               </Form>
+             )}
             </TabsContent>
             <TabsContent value="signup">
               <Form {...signUpForm}>
@@ -241,29 +314,34 @@ export default function AuthenticationPage() {
               </Form>
             </TabsContent>
 
-            <div className="relative my-6">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-2 text-muted-foreground">
-                  Or continue with
-                </span>
-              </div>
-            </div>
-            <Button
-              variant="outline"
-              className="w-full font-semibold"
-              onClick={handleGoogleSignIn}
-              disabled={isLoading}
-            >
-              {isLoading && (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
-              <GoogleIcon className="mr-2 h-5 w-5" />
-              Google
-            </Button>
+            {!showResetForm && (
+                <>
+                    <div className="relative my-6">
+                        <div className="absolute inset-0 flex items-center">
+                            <span className="w-full border-t" />
+                        </div>
+                        <div className="relative flex justify-center text-xs uppercase">
+                            <span className="bg-card px-2 text-muted-foreground">
+                            Or continue with
+                            </span>
+                        </div>
+                    </div>
+                    <Button
+                        variant="outline"
+                        className="w-full font-semibold"
+                        onClick={handleGoogleSignIn}
+                        disabled={isLoading}
+                    >
+                        {isLoading && !signInForm.formState.isSubmitting && !signUpForm.formState.isSubmitting && (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        )}
+                        <GoogleIcon className="mr-2 h-5 w-5" />
+                        Google
+                    </Button>
+                </>
+            )}
           </CardContent>
+          {!showResetForm && (
           <CardFooter className="flex justify-center text-sm">
             <p className="text-muted-foreground">
               By continuing, you agree to our{' '}
@@ -273,6 +351,7 @@ export default function AuthenticationPage() {
               .
             </p>
           </CardFooter>
+          )}
         </Card>
       </Tabs>
     </main>
