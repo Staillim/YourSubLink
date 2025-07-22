@@ -2,8 +2,7 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Rules for the links collection
+    // LINKS COLLECTION RULES
     match /links/{linkId} {
       // Allow public read for redirection.
       allow read: if true;
@@ -14,26 +13,26 @@ service cloud.firestore {
       // Allow authenticated users to delete their own links.
       allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
 
-      // Allow authenticated users to update their own links.
-      // Anyone can increment the click count (for the public redirect page).
+      // Allow anyone to increment the click count (for the redirect page).
+      // Authenticated users can also update their own link documents.
       allow update: if (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks'])) || 
                       (request.auth != null && resource.data.userId == request.auth.uid);
     }
     
-    // Rules for the users collection
+    // USERS COLLECTION RULES
     match /users/{userId} {
-      // Allow authenticated users to read profiles.
-      allow read: if request.auth != null;
+      // Admins can list all users.
+      allow list: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+
+      // Authenticated users can read individual user profiles and create their own.
+      allow read, create: if request.auth != null;
       
-      // Allow users to create their own user document.
-      allow create: if request.auth != null && request.auth.uid == userId;
+      // Allow users to update their own profile, but not their role.
+      allow update: if request.auth != null && request.auth.uid == userId 
+                    && !("role" in request.resource.data.diff(resource.data).affectedKeys());
       
-      // Allow users to update their own document, but not their role.
-      // Allow users with 'admin' role to update any field on any user document, including the role.
-      allow update: if request.auth != null && (
-        (request.auth.uid == userId && request.resource.data.role == resource.data.role) ||
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
-      );
+      // Allow admins to update any field on any user's profile.
+      allow update: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
   }
 }
