@@ -134,8 +134,6 @@ async function recordClickAndRedirect(linkData: LinkData) {
         }
     } catch (error) {
         console.error("Error processing unlock:", error);
-    } finally {
-        window.location.href = linkData.original;
     }
 }
 
@@ -159,6 +157,7 @@ function LinkGate({ linkData }: { linkData: LinkData }) {
         if (!allRulesCompleted || isUnlocking) return;
         setIsUnlocking(true);
         await recordClickAndRedirect(linkData);
+        window.location.href = linkData.original;
     }
 
 
@@ -249,7 +248,8 @@ export default function ShortLinkPage({ params }: { params: { shortId: string } 
             setStatus('gate');
         } else {
             // For non-gate links, we process the click immediately and redirect.
-             recordClickAndRedirect(fetchedLinkData);
+            await recordClickAndRedirect(fetchedLinkData);
+            window.location.href = fetchedLinkData.original;
         }
 
       } catch (error) {
@@ -287,4 +287,3 @@ export default function ShortLinkPage({ params }: { params: { shortId: string } 
   );
 }
 
-    
