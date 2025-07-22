@@ -93,27 +93,27 @@ export default function AdminUsersPage() {
 
   const openAddBalanceDialog = (user: UserProfile) => {
     setSelectedUser(user);
-    setBalanceAmount(user.generatedEarnings.toFixed(2));
+    setBalanceAmount(''); // Reset amount on open
     setIsAddBalanceDialogOpen(true);
   }
 
-  const handleSetBalance = async () => {
+  const handleAddBalance = async () => {
     if (!selectedUser || balanceAmount === '') return;
     
-    const newBalance = parseFloat(balanceAmount);
-    if (isNaN(newBalance)) {
-        toast({ title: 'Invalid amount', description: 'Please enter a valid number.', variant: 'destructive' });
+    const amountToAdd = parseFloat(balanceAmount);
+    if (isNaN(amountToAdd) || amountToAdd <= 0) {
+        toast({ title: 'Invalid amount', description: 'Please enter a valid positive number.', variant: 'destructive' });
         return;
     }
 
     setIsSubmitting(true);
     try {
         const userDocRef = doc(db, 'users', selectedUser.uid);
-        await updateDoc(userDocRef, { generatedEarnings: newBalance });
+        await updateDoc(userDocRef, { generatedEarnings: increment(amountToAdd) });
         
         toast({
-            title: 'Balance Updated',
-            description: `Successfully set ${selectedUser.displayName}'s generated balance to $${newBalance.toFixed(2)}.`,
+            title: 'Balance Added',
+            description: `Successfully added $${amountToAdd.toFixed(2)} to ${selectedUser.displayName}'s balance.`,
         });
         
         setIsAddBalanceDialogOpen(false);
@@ -221,7 +221,7 @@ export default function AdminUsersPage() {
                                             </DropdownMenuItem>
                                             <DropdownMenuItem onClick={() => openAddBalanceDialog(u)}>
                                                 <DollarSign className="mr-2 h-4 w-4" />
-                                                <span>Add/Edit Balance</span>
+                                                <span>Add Balance</span>
                                             </DropdownMenuItem>
                                         </DropdownMenuContent>
                                 </DropdownMenu>
@@ -238,14 +238,14 @@ export default function AdminUsersPage() {
         <Dialog open={isAddBalanceDialogOpen} onOpenChange={setIsAddBalanceDialogOpen}>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Add/Edit Generated Balance for {selectedUser?.displayName}</DialogTitle>
+                    <DialogTitle>Add Balance to {selectedUser?.displayName}</DialogTitle>
                     <DialogDescription>
-                        Set the total generated earnings for this user. This will overwrite the current value.
+                        Enter the amount you want to add to the user's generated earnings. This will be added to their current balance.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                     <div className="space-y-2">
-                        <Label htmlFor="balance-amount">Total Generated Balance ($)</Label>
+                        <Label htmlFor="balance-amount">Amount to Add ($)</Label>
                         <Input 
                             id="balance-amount"
                             type="number"
@@ -254,6 +254,9 @@ export default function AdminUsersPage() {
                             placeholder="e.g. 50.00"
                         />
                     </div>
+                     <div className="text-sm text-muted-foreground">
+                        Current Balance: ${selectedUser?.generatedEarnings.toFixed(2) ?? '0.00'}
+                    </div>
                 </div>
                 <DialogFooter>
                     <DialogClose asChild>
@@ -261,9 +264,9 @@ export default function AdminUsersPage() {
                             Cancel
                         </Button>
                     </DialogClose>
-                    <Button onClick={handleSetBalance} disabled={isSubmitting}>
+                    <Button onClick={handleAddBalance} disabled={isSubmitting}>
                         {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Set Balance
+                        Add Balance
                     </Button>
                 </DialogFooter>
             </DialogContent>
