@@ -3,7 +3,7 @@
 
 import { useEffect, useState, use } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, getDoc, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -86,7 +86,7 @@ export default function LinkStatsPage({ params }: { params: { linkId: string } }
                 const userName = userSnap.exists() ? userSnap.data().displayName : 'Unknown User';
                 
                 // Fetch click data
-                const clicksQuery = query(collection(db, 'clicks'), where('linkId', '==', linkId), orderBy('timestamp', 'desc'));
+                const clicksQuery = query(collection(db, 'clicks'), where('linkId', '==', linkId));
                 const querySnapshot = await getDocs(clicksQuery);
                 const clicks: Click[] = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Click));
 
