@@ -41,4 +41,13 @@ const createUserProfile = async (user: User) => {
     }
 };
 
-export { app, auth, db, storage, createUserProfile };
+const getUserProfile = async (uid: string) => {
+    const userRef = doc(db, 'users', uid);
+    const userDoc = await getDoc(userRef);
+    if (userDoc.exists()) {
+        return userDoc.data();
+    }
+    return null;
+}
+
+export { app, auth, db, storage, createUserProfile, getUserProfile };

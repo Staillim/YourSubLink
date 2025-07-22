@@ -13,7 +13,7 @@ import {
   sendPasswordResetEmail,
   updateProfile,
 } from 'firebase/auth';
-import { auth, createUserProfile } from '@/lib/firebase';
+import { auth, createUserProfile, getUserProfile } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -76,11 +76,20 @@ export default function AuthenticationPage() {
     defaultValues: { email: '' },
   });
 
+  const handleRedirectBasedOnRole = async (user: any) => {
+    const profile = await getUserProfile(user.uid);
+    if (profile?.role === 'admin') {
+        router.push('/admin');
+    } else {
+        router.push('/dashboard');
+    }
+  }
+
   const handleSignIn = async (values: z.infer<typeof signInSchema>) => {
     setIsLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, values.email, values.password);
-      router.push('/dashboard');
+      const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
+      await handleRedirectBasedOnRole(userCredential.user);
     } catch (error: any) {
       toast({
         title: 'Authentication Error',
@@ -122,7 +131,7 @@ export default function AuthenticationPage() {
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
       await createUserProfile(result.user);
-      router.push('/dashboard');
+      await handleRedirectBasedOnRole(result.user);
     } catch (error: any) {
       toast({
         title: 'Google Sign-In Error',
