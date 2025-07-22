@@ -5,7 +5,7 @@ import { useState, useEffect, ChangeEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateProfile } from 'firebase/auth';
 import { auth, db, storage } from '@/lib/firebase';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -69,20 +69,13 @@ export default function ProfilePage() {
         photoURL: photoURL,
       });
 
-      // Update/Create user document in Firestore
+      // Update user document in Firestore
       const userRef = doc(db, 'users', user.uid);
-      const userDoc = await getDoc(userRef);
       
       const userData: { [key: string]: any } = {
         displayName: displayName,
-        email: user.email,
         photoURL: photoURL,
       };
-
-      // Only set role on creation, don't allow user to change it later
-      if (!userDoc.exists()) {
-        userData.role = user.email === 'harrigta@gmail.com' ? 'admin' : 'user';
-      }
 
       await setDoc(userRef, userData, { merge: true });
 

@@ -11,8 +11,9 @@ import {
   signInWithPopup,
   GoogleAuthProvider,
   sendPasswordResetEmail,
+  updateProfile,
 } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { auth, createUserProfile } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -94,7 +95,15 @@ export default function AuthenticationPage() {
   const handleSignUp = async (values: z.infer<typeof signUpSchema>) => {
     setIsLoading(true);
     try {
-      await createUserWithEmailAndPassword(auth, values.email, values.password);
+      const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
+      const user = userCredential.user;
+      
+      // Update the user's profile in Firebase Auth
+      await updateProfile(user, { displayName: values.name });
+      
+      // Create the user profile document in Firestore
+      await createUserProfile(user);
+
       router.push('/dashboard');
     } catch (error: any) {
       toast({
@@ -111,7 +120,8 @@ export default function AuthenticationPage() {
     setIsLoading(true);
     try {
       const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
+      const result = await signInWithPopup(auth, provider);
+      await createUserProfile(result.user);
       router.push('/dashboard');
     } catch (error: any) {
       toast({
