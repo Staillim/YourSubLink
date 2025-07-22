@@ -2,6 +2,8 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    
+    // LINK RULES
     match /links/{linkId} {
       allow read: if true;
       allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
@@ -9,29 +11,38 @@ service cloud.firestore {
       allow update: if (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks'])) || 
                       (request.auth != null && resource.data.userId == request.auth.uid);
     }
-
+    
+    // USER RULES
     match /users/{userId} {
-      allow read: if request.auth != null;
-      // Admin can list all users
-      allow list: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      // Allow admins to do anything.
+      allow read, write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
       
+      // Allow users to create their own profile.
       allow create: if request.auth != null && request.auth.uid == userId;
 
-      // User can update their own displayName, photoURL, and payoutsPending field.
-      // They cannot change their role or other sensitive fields.
-      allow update: if request.auth != null && request.auth.uid == userId &&
-                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'photoURL', 'payoutsPending'])
-                   
-                   // Admin can update any field on any user.
-                   || request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      // Allow users to update their own display name and photo.
+      // They cannot change their role or earnings.
+      allow update: if request.auth.uid == userId && 
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'photoURL']);
     }
 
+    // PAYOUT REQUEST RULES
     match /payoutRequests/{requestId} {
-      // User can create and read their own requests
-      allow create, read: if request.auth != null && request.resource.data.userId == request.auth.uid;
-      
-      // Admin can read and update all requests (to change status)
-      allow list, update: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+        // Admins can manage all requests.
+        allow read, write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+
+        // Users can read their own requests.
+        allow list, get: if request.auth != null && resource.data.userId == request.auth.uid;
+
+        // Users can create a request if:
+        // 1. The userId matches their own.
+        // 2. The requested amount is valid and less than or equal to their available balance.
+        allow create: if request.auth != null && 
+                        request.resource.data.userId == request.auth.uid &&
+                        request.resource.data.amount > 0 &&
+                        let userProfile = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+                        let availableBalance = userProfile.generatedEarnings - userProfile.paidEarnings - userProfile.payoutsPending;
+                        request.resource.data.amount <= availableBalance;
     }
   }
 }
