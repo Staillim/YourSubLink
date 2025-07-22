@@ -31,7 +31,7 @@ function RuleItem({ rule, onComplete }: { rule: Rule; onComplete: () => void }) 
   const [isCompleted, setIsCompleted] = useState(false);
 
   const handleClick = () => {
-    if (isCompleted) return;
+    if (isCompleted || isClicked) return;
 
     window.open(rule.url, '_blank');
     setIsClicked(true);
@@ -86,7 +86,7 @@ function LinkGate({ linkData }: { linkData: LinkData }) {
     const allRulesCompleted = completedRules === totalRules;
 
     const handleRuleComplete = () => {
-        setCompletedRules(prev => prev + 1);
+        setCompletedRules((prev) => prev + 1);
     }
     
     const handleRedirect = () => {
