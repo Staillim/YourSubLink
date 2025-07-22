@@ -3,7 +3,6 @@
 
 import { useState, useEffect, ChangeEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuthState } from 'react-firebase-hooks/auth';
 import { updateProfile } from 'firebase/auth';
 import { auth, db, storage } from '@/lib/firebase';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
@@ -16,9 +15,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useUser } from '@/hooks/use-user';
+
 
 export default function ProfilePage() {
-  const [user, loading] = useAuthState(auth);
+  const { user, profile, loading } = useUser();
   const router = useRouter();
   const { toast } = useToast();
 
@@ -34,11 +35,11 @@ export default function ProfilePage() {
   }, [user, loading, router]);
 
   useEffect(() => {
-    if (user) {
-      setDisplayName(user.displayName || '');
-      setPhotoPreview(user.photoURL);
+    if (user && profile) {
+      setDisplayName(profile.displayName || user.displayName || '');
+      setPhotoPreview(profile.photoURL || user.photoURL);
     }
-  }, [user]);
+  }, [user, profile]);
 
   const handlePhotoChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -70,11 +71,17 @@ export default function ProfilePage() {
 
       // Update/Create user document in Firestore
       const userRef = doc(db, 'users', user.uid);
-      await setDoc(userRef, {
+      const userDoc = await getDoc(userRef);
+      
+      const userData = {
         displayName: displayName,
         email: user.email,
         photoURL: photoURL,
-      }, { merge: true });
+        // Keep existing role, or set to 'user' if it doesn't exist
+        role: userDoc.exists() ? userDoc.data().role : 'user'
+      };
+
+      await setDoc(userRef, userData, { merge: true });
 
       toast({
         title: 'Profile Updated',
@@ -187,3 +194,4 @@ export default function ProfilePage() {
     </>
   );
 }
+
