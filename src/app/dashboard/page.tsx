@@ -37,11 +37,11 @@ import {
   DialogClose
 } from "@/components/ui/dialog";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+  } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -215,8 +215,8 @@ export default function DashboardPage() {
                     <Table>
                         <TableHeader>
                         <TableRow>
-                            <TableHead className="min-w-[200px] w-2/5">Link Details</TableHead>
-                            <TableHead>Short Link</TableHead>
+                            <TableHead className="w-full md:w-2/5">Link</TableHead>
+                            <TableHead className="hidden md:table-cell">Short Link</TableHead>
                             <TableHead className="hidden md:table-cell">Status</TableHead>
                             <TableHead>Clicks</TableHead>
                             <TableHead className="hidden md:table-cell">Date</TableHead>
@@ -226,16 +226,16 @@ export default function DashboardPage() {
                         <TableBody>
                         {links.map((link) => (
                             <TableRow key={link.id} className="hover:bg-muted/50">
-                            <TableCell className="max-w-[200px] sm:max-w-xs font-medium">
+                            <TableCell className="font-medium">
                                 <div className="flex flex-col gap-1">
                                     <span className="truncate font-bold">{link.title}</span>
-                                    <a href={link.original} target="_blank" rel="noopener noreferrer" className="hover:underline text-muted-foreground text-xs flex items-center gap-1">
-                                    <span className="truncate">{link.original}</span>
-                                    <ExternalLink className="h-3 w-3 shrink-0"/>
+                                    <a href={link.original} target="_blank" rel="noopener noreferrer" className="hidden md:flex hover:underline text-muted-foreground text-xs items-center gap-1">
+                                        <span className="truncate">{link.original}</span>
+                                        <ExternalLink className="h-3 w-3 shrink-0"/>
                                     </a>
                                 </div>
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="hidden md:table-cell">
                                 <div className="flex items-center gap-2">
                                 <a href={link.short} target="_blank" rel="noopener noreferrer" className="font-mono text-sm text-primary hover:underline">{link.short.replace('https://','')}</a>
                                 </div>
@@ -337,5 +337,3 @@ export default function DashboardPage() {
     </TooltipProvider>
   );
 }
-
-    
