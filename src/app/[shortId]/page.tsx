@@ -2,7 +2,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { notFound } from 'next/navigation';
+import { notFound, useRouter } from 'next/navigation';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, doc, updateDoc, increment, addDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { Loader2, ExternalLink, CheckCircle2, Lock, Link as LinkIcon, ChevronRight, Youtube, Instagram } from 'lucide-react';
@@ -148,10 +148,12 @@ function LinkGate({ linkData }: { linkData: LinkData }) {
 
 export default function ShortLinkPage({ params }: { params: { shortId: string } }) {
   const { shortId } = params;
-  const [status, setStatus] = useState<'loading' | 'redirect' | 'gate' | 'not-found'>('loading');
+  const [status, setStatus] = useState<'loading' | 'gate' | 'not-found'>('loading');
   const [linkData, setLinkData] = useState<LinkData | null>(null);
   
   useEffect(() => {
+    if (!shortId) return;
+
     const getLink = async () => {
       try {
         const q = query(collection(db, 'links'), where('shortId', '==', shortId));
@@ -165,11 +167,21 @@ export default function ShortLinkPage({ params }: { params: { shortId: string } 
         const linkDoc = querySnapshot.docs[0];
         const data = linkDoc.data() as LinkData & { clicks: number };
         
+        // This logic is safe to run even if there's a click from the same IP,
+        // as the backend would ultimately be responsible for filtering.
+        const clickDocRef = doc(collection(db, 'clicks'));
         const linkRef = doc(db, 'links', linkDoc.id);
         const userRef = doc(db, 'users', data.userId);
         
         const batch = writeBatch(db);
 
+        // Record the click in the 'clicks' collection
+        batch.set(clickDocRef, {
+            linkId: linkDoc.id,
+            timestamp: serverTimestamp(),
+            ipAddress: 'x.x.x.x', // Placeholder for server-side IP
+        });
+        
         // Always increment click count on the link
         batch.update(linkRef, { clicks: increment(1) });
 
@@ -200,8 +212,8 @@ export default function ShortLinkPage({ params }: { params: { shortId: string } 
         }
         
         await batch.commit();
-        
-        setLinkData({
+
+        const finalLinkData = {
             id: linkDoc.id,
             original: data.original,
             rules: data.rules || [],
@@ -209,12 +221,14 @@ export default function ShortLinkPage({ params }: { params: { shortId: string } 
             description: data.description,
             userId: data.userId,
             monetizable: data.monetizable || false,
-        });
-
-        if (data.rules && data.rules.length > 0) {
+        };
+        
+        if (finalLinkData.rules && finalLinkData.rules.length > 0) {
+            setLinkData(finalLinkData);
             setStatus('gate');
         } else {
-            setStatus('redirect');
+            // If no rules, redirect immediately.
+            window.location.href = finalLinkData.original;
         }
 
       } catch (error) {
@@ -226,16 +240,11 @@ export default function ShortLinkPage({ params }: { params: { shortId: string } 
     getLink();
   }, [shortId]);
   
-  useEffect(() => {
-    if (status === 'redirect' && linkData) {
-         window.location.href = linkData.original;
-    }
-    if(status === 'not-found') {
-        notFound();
-    }
-  }, [status, linkData]);
+  if (status === 'not-found') {
+      notFound();
+  }
 
-  if (status === 'loading' || status === 'redirect') {
+  if (status === 'loading') {
     return (
         <div className="flex h-screen w-full flex-col items-center justify-center bg-background text-foreground">
             <Loader2 className="h-12 w-12 animate-spin text-primary"/>
@@ -248,5 +257,10 @@ export default function ShortLinkPage({ params }: { params: { shortId: string } 
       return <LinkGate linkData={linkData} />;
   }
 
-  return null;
+  return (
+     <div className="flex h-screen w-full flex-col items-center justify-center bg-background text-foreground">
+        <Loader2 className="h-12 w-12 animate-spin text-primary"/>
+        <p className="mt-4 text-lg text-muted-foreground">Redirecting...</p>
+    </div>
+  );
 }
