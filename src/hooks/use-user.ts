@@ -14,8 +14,19 @@ export type UserProfile = {
   role: 'user' | 'admin';
   generatedEarnings: number;
   paidEarnings: number;
-  payoutsPending: number;
 };
+
+export type PayoutRequest = {
+    id: string;
+    userId: string;
+    amount: number;
+    method: string;
+    details: string;
+    status: 'pending' | 'completed' | 'rejected';
+    requestedAt: any;
+    processedAt?: any;
+};
+
 
 export function useUser() {
   const [authUser, authLoading] = useAuthState(auth);
@@ -45,7 +56,6 @@ export function useUser() {
             role: data.role || 'user',
             generatedEarnings: data.generatedEarnings || 0,
             paidEarnings: data.paidEarnings || 0,
-            payoutsPending: data.payoutsPending || 0,
         });
       } else {
         setUserProfile({
@@ -55,7 +65,6 @@ export function useUser() {
             role: 'user',
             generatedEarnings: 0,
             paidEarnings: 0,
-            payoutsPending: 0,
         });
       }
       setLoading(false);

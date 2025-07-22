@@ -3,7 +3,6 @@
 
 import * as React from 'react';
 import Link from "next/link"
-import { usePathname } from 'next/navigation';
 import {
   Menu
 } from "lucide-react"
@@ -23,6 +22,7 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth } from '@/lib/firebase';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useRouter } from 'next/navigation';
+import { NotificationBell } from '@/components/notification-bell';
 
 
 export default function DashboardLayout({
@@ -120,6 +120,7 @@ export default function DashboardLayout({
           <div className="w-full flex-1">
             {/* Can add a search bar here later */}
           </div>
+          <NotificationBell />
           <UserNav />
         </header>
         <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6">
