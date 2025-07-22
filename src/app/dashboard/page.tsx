@@ -29,12 +29,6 @@ import {
 import { Copy, Link as LinkIcon, Loader2, MoreVertical, Trash2, Check, ExternalLink, BadgeHelp, Edit } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -337,18 +331,18 @@ export default function DashboardPage() {
                     <Table>
                         <TableHeader>
                         <TableRow>
-                            <TableHead className="min-w-[250px] w-[40%]">Link Details</TableHead>
+                            <TableHead className="min-w-[200px] w-2/5">Link Details</TableHead>
                             <TableHead>Short Link</TableHead>
-                            <TableHead>Status</TableHead>
+                            <TableHead className="hidden md:table-cell">Status</TableHead>
                             <TableHead>Clicks</TableHead>
-                            <TableHead>Date</TableHead>
+                            <TableHead className="hidden md:table-cell">Date</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                         </TableHeader>
                         <TableBody>
                         {links.map((link) => (
                             <TableRow key={link.id} className="hover:bg-muted/50">
-                            <TableCell className="max-w-xs font-medium">
+                            <TableCell className="max-w-[200px] sm:max-w-xs font-medium">
                                 <div className="flex flex-col gap-1">
                                     <span className="truncate font-bold">{link.title}</span>
                                     <a href={link.original} target="_blank" rel="noopener noreferrer" className="hover:underline text-muted-foreground text-xs flex items-center gap-1">
@@ -362,7 +356,7 @@ export default function DashboardPage() {
                                 <a href={link.short} target="_blank" rel="noopener noreferrer" className="font-mono text-sm text-primary hover:underline">{link.short.replace('https://','')}</a>
                                 </div>
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="hidden md:table-cell">
                                 <Badge variant={link.monetizable ? 'default' : 'secondary'} className={link.monetizable ? 'bg-green-600' : ''}>
                                     <Tooltip>
                                         <TooltipTrigger className="flex items-center gap-1">
@@ -376,7 +370,7 @@ export default function DashboardPage() {
                                 </Badge>
                             </TableCell>
                             <TableCell>{link.clicks}</TableCell>
-                            <TableCell className="text-muted-foreground">{link.date}</TableCell>
+                            <TableCell className="hidden md:table-cell text-muted-foreground">{link.date}</TableCell>
                             <TableCell className="text-right">
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
@@ -420,23 +414,23 @@ export default function DashboardPage() {
                         </DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-y-4 py-4">
-                        <div className="grid grid-cols-1 items-center gap-x-4 gap-y-2 sm:grid-cols-4">
-                            <Label htmlFor="edit-title" className="text-left sm:text-right">
+                        <div className="space-y-2">
+                            <Label htmlFor="edit-title">
                                 Title
                             </Label>
-                            <Input id="edit-title" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="col-span-1 sm:col-span-3" />
+                            <Input id="edit-title" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
                         </div>
-                        <div className="grid grid-cols-1 items-center gap-x-4 gap-y-2 sm:grid-cols-4">
-                            <Label htmlFor="edit-description" className="text-left sm:text-right">
+                        <div className="space-y-2">
+                            <Label htmlFor="edit-description">
                                 Description
                             </Label>
-                            <Textarea id="edit-description" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} className="col-span-1 sm:col-span-3" />
+                            <Textarea id="edit-description" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} />
                         </div>
-                        <div className="grid grid-cols-1 items-start gap-x-4 gap-y-2 sm:grid-cols-4">
-                            <Label className="pt-2 text-left sm:text-right">
+                         <div className="space-y-2">
+                            <Label>
                                 Rules
                             </Label>
-                            <div className="col-span-1 sm:col-span-3">
+                            <div >
                                 <p className="text-sm text-muted-foreground mb-2">Add at least 3 rules to make this link monetizable.</p>
                                 <RuleEditor rules={editRules} onRulesChange={setEditRules} />
                             </div>
