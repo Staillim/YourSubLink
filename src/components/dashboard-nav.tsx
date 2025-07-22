@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/components/ui/button';
-import { Link as LinkIcon, BarChart3, Settings, User, CreditCard } from 'lucide-react';
+import { Link as LinkIcon, BarChart3, Settings, User, CreditCard, Bell } from 'lucide-react';
 
 const navItems = [
     {
@@ -22,6 +22,11 @@ const navItems = [
         href: '/dashboard/payouts',
         label: 'Payouts',
         icon: CreditCard,
+    },
+    {
+        href: '/dashboard/notifications',
+        label: 'Notifications',
+        icon: Bell,
     },
     {
         href: '/dashboard/profile',
