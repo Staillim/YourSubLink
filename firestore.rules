@@ -1,9 +1,10 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // LINK RULES
+    // LINKS
     match /links/{linkId} {
       allow read: if true;
       allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
@@ -11,38 +12,40 @@ service cloud.firestore {
       allow update: if (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks'])) || 
                       (request.auth != null && resource.data.userId == request.auth.uid);
     }
-    
-    // USER RULES
-    match /users/{userId} {
-      // Allow admins to do anything.
-      allow read, write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-      
-      // Allow users to create their own profile.
-      allow create: if request.auth != null && request.auth.uid == userId;
 
-      // Allow users to update their own display name and photo.
-      // They cannot change their role or earnings.
-      allow update: if request.auth.uid == userId && 
-                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'photoURL']);
+    // USERS
+    match /users/{userId} {
+        allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
+        allow read: if request.auth != null;
+        allow list: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      
+        // Allow users to update their own display name, photo, and pending payout amount
+        allow update: if request.auth != null && request.auth.uid == userId &&
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'photoURL', 'payoutsPending']);
+
+        // Admins can update any user's role or other fields
+        allow update: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // PAYOUT REQUEST RULES
+    // PAYOUT REQUESTS
     match /payoutRequests/{requestId} {
-        // Admins can manage all requests.
-        allow read, write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+        allow read: if request.auth != null && (resource.data.userId == request.auth.uid || 
+                    get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+        
+        allow list: if request.auth != null && (resource.data.userId == request.auth.uid || 
+                    get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
 
-        // Users can read their own requests.
-        allow list, get: if request.auth != null && resource.data.userId == request.auth.uid;
-
-        // Users can create a request if:
-        // 1. The userId matches their own.
-        // 2. The requested amount is valid and less than or equal to their available balance.
+        // Allow users to create requests if the amount is valid and less than or equal to their available balance
         allow create: if request.auth != null && 
-                        request.resource.data.userId == request.auth.uid &&
-                        request.resource.data.amount > 0 &&
-                        let userProfile = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
-                        let availableBalance = userProfile.generatedEarnings - userProfile.paidEarnings - userProfile.payoutsPending;
-                        request.resource.data.amount <= availableBalance;
+                      request.resource.data.userId == request.auth.uid &&
+                      request.resource.data.amount > 0 &&
+                      request.resource.data.amount <= 
+                        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.generatedEarnings - 
+                         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.paidEarnings -
+                         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.payoutsPending);
+
+        // Admins can update any payout request
+        allow update: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
   }
 }
