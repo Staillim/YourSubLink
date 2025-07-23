@@ -153,99 +153,99 @@ export default function AnalyticsPage() {
 
   return (
     <>
-        <div className="flex items-center">
-            <h1 className="text-lg font-semibold md:text-2xl">Analytics</h1>
-        </div>
-        <div className="grid gap-6">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-                        <DollarSign className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">${totalEarnings.toFixed(4)}</div>
-                        <p className="text-xs text-muted-foreground">Based on total monetizable clicks</p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Total Clicks</CardTitle>
-                        <ExternalLink className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">+{totalClicks.toLocaleString()}</div>
-                        <p className="text-xs text-muted-foreground">Across all links</p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Active CPM</CardTitle>
-                        <DollarSign className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">${activeCpm.toFixed(4)}</div>
-                        <p className="text-xs text-muted-foreground">Current rate per 1000 monetized views</p>
-                    </CardContent>
-                </Card>
-            </div>
+      <div className="flex items-center">
+        <h1 className="text-lg font-semibold md:text-2xl">Analytics</h1>
+      </div>
+      <div className="grid gap-6">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             <Card>
-                <CardHeader>
-                    <CardTitle>Earnings Overview</CardTitle>
-                    <CardDescription>Earnings from monetized clicks this year.</CardDescription>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+                    <DollarSign className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                    <ChartContainer config={chartConfig} className="min-h-[200px] w-full">
-                        <BarChart accessibilityLayer data={getChartData()}>
-                            <CartesianGrid vertical={false} />
-                            <XAxis
-                                dataKey="month"
-                                tickLine={false}
-                                tickMargin={10}
-                                axisLine={false}
-                                tickFormatter={(value) => value.slice(0, 3)}
-                            />
-                            <YAxis tickFormatter={(value) => `$${Number(value).toFixed(4)}`} />
-                            <ChartTooltip content={<ChartTooltipContent formatter={(value) => `$${Number(value).toFixed(4)}`} />} />
-                            <Bar dataKey="earnings" fill="var(--color-earnings)" radius={4} />
-                        </BarChart>
-                    </ChartContainer>
+                    <div className="text-2xl font-bold">${totalEarnings.toFixed(4)}</div>
+                    <p className="text-xs text-muted-foreground">Based on total monetizable clicks</p>
                 </CardContent>
             </Card>
             <Card>
-                <CardHeader>
-                    <CardTitle>Links Breakdown</CardTitle>
-                    <CardDescription>Detailed statistics for each of your links.</CardDescription>
-                </Header>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total Clicks</CardTitle>
+                    <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
                 <CardContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Link</TableHead>
-                                <TableHead className="text-right">Clicks</TableHead>
-                                <TableHead className="text-right">Generated Earnings</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {linksWithEarnings.map((link) => (
-                                <TableRow key={link.id}>
-                                    <TableCell className="font-medium">{link.title}</TableCell>
-                                    <TableCell className="text-right">{link.clicks.toLocaleString()}</TableCell>
-                                    <TableCell className="text-right font-semibold">${link.earnings.toFixed(4)}</TableCell>
-                                </TableRow>
-                            ))}
-                            {links.length === 0 && (
-                                <TableRow>
-                                    <TableCell colSpan={3} className="text-center text-muted-foreground">
-                                        No links created yet.
-                                    </TableCell>
-                                </TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
+                    <div className="text-2xl font-bold">+{totalClicks.toLocaleString()}</div>
+                    <p className="text-xs text-muted-foreground">Across all links</p>
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Active CPM</CardTitle>
+                    <DollarSign className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">${activeCpm.toFixed(4)}</div>
+                    <p className="text-xs text-muted-foreground">Current rate per 1000 monetized views</p>
                 </CardContent>
             </Card>
         </div>
+        <Card>
+            <CardHeader>
+                <CardTitle>Earnings Overview</CardTitle>
+                <CardDescription>Earnings from monetized clicks this year.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <ChartContainer config={chartConfig} className="min-h-[200px] w-full">
+                    <BarChart accessibilityLayer data={getChartData()}>
+                        <CartesianGrid vertical={false} />
+                        <XAxis
+                            dataKey="month"
+                            tickLine={false}
+                            tickMargin={10}
+                            axisLine={false}
+                            tickFormatter={(value) => value.slice(0, 3)}
+                        />
+                        <YAxis tickFormatter={(value) => `$${Number(value).toFixed(4)}`} />
+                        <ChartTooltip content={<ChartTooltipContent formatter={(value) => `$${Number(value).toFixed(4)}`} />} />
+                        <Bar dataKey="earnings" fill="var(--color-earnings)" radius={4} />
+                    </BarChart>
+                </ChartContainer>
+            </CardContent>
+        </Card>
+        <Card>
+            <CardHeader>
+                <CardTitle>Links Breakdown</CardTitle>
+                <CardDescription>Detailed statistics for each of your links.</CardDescription>
+            </Header>
+            <CardContent>
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Link</TableHead>
+                            <TableHead className="text-right">Clicks</TableHead>
+                            <TableHead className="text-right">Generated Earnings</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {linksWithEarnings.map((link) => (
+                            <TableRow key={link.id}>
+                                <TableCell className="font-medium">{link.title}</TableCell>
+                                <TableCell className="text-right">{link.clicks.toLocaleString()}</TableCell>
+                                <TableCell className="text-right font-semibold">${link.earnings.toFixed(4)}</TableCell>
+                            </TableRow>
+                        ))}
+                        {links.length === 0 && (
+                            <TableRow>
+                                <TableCell colSpan={3} className="text-center text-muted-foreground">
+                                    No links created yet.
+                                </TableCell>
+                            </TableRow>
+                        )}
+                    </TableBody>
+                </Table>
+            </CardContent>
+        </Card>
+      </div>
     </>
   );
 }
