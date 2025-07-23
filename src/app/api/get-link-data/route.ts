@@ -24,11 +24,13 @@ export async function POST(req: NextRequest) {
         const linkDoc = linksSnapshot.docs[0];
         const linkData = linkDoc.data();
 
+        // The response payload determines the next action on the client.
         const responsePayload = {
             link: {
                 ...linkData,
                 id: linkDoc.id,
             },
+            // If rules exist, the client should show the gate. Otherwise, redirect.
             action: (linkData.rules && linkData.rules.length > 0) ? 'GATE' : 'REDIRECT',
         };
         

@@ -123,9 +123,11 @@ export default function LinkGate({ linkData, onUnlock, initialStatus = 'gate' }:
         });
     }
 
+    // This is the CRITICAL function. It is ONLY called by the button's onClick.
+    // It calls the `onUnlock` function passed from the parent, which handles the API call and state change.
     const handleUnlockClick = () => {
         if (!allRulesCompleted) return;
-        onUnlock(); // This will trigger the "real click" count and change parent status
+        onUnlock(); 
     }
     
     if (status === 'countdown') {

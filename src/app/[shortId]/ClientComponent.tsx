@@ -19,6 +19,7 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
 
     const processLinkVisit = async () => {
       try {
+        // Step 1: Just get the link data without counting any clicks.
         const response = await fetch('/api/get-link-data', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -34,8 +35,10 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
         setLinkData(data.link);
 
         if (data.action === 'GATE') {
+            // If there are rules, show the gate. The click will be counted later.
             setStatus('gate');
         } else if (data.action === 'REDIRECT') {
+            // If no rules, count the click and redirect immediately.
             await fetch('/api/click', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -54,15 +57,18 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
     processLinkVisit();
   }, [shortId]);
   
+  // This function is now ONLY called when the user clicks the "Unlock Link" button
   const handleUnlock = async () => {
     if (!shortId) return;
     
+    // Step 2: This is the REAL click. Record it in the database.
     await fetch('/api/click', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ shortId }),
     });
 
+    // Step 3: Now, show the countdown page.
     setStatus('countdown');
   }
 
@@ -79,14 +85,17 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
     );
   }
 
+  // Render the gate, passing the handleUnlock function to be called on button click.
   if (status === 'gate' && linkData) {
     return <LinkGate linkData={linkData} onUnlock={handleUnlock} />;
   }
   
+  // After the button is clicked and state changes, render the countdown page.
   if (status === 'countdown' && linkData) {
       return <LinkGate linkData={linkData} onUnlock={handleUnlock} initialStatus="countdown" />;
   }
 
+  // Fallback loading state
   return (
     <div className="flex h-screen w-full flex-col items-center justify-center bg-background text-foreground">
       <Loader2 className="h-12 w-12 animate-spin text-primary" />

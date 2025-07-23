@@ -45,36 +45,24 @@ export async function POST(req: NextRequest) {
 
             const earningsPerClick = activeCpm / 1000;
             batch.update(userRef, { generatedEarnings: increment(earningsPerClick) });
+            // Also update the earnings on the link itself for stats
             batch.update(linkRef, { generatedEarnings: increment(earningsPerClick) });
             
+            // And update the earnings for the specific CPM period on the link
             const cpmEarningsField = `earningsByCpm.${activeCpmId}`;
             batch.update(linkRef, { [cpmEarningsField]: increment(earningsPerClick) });
         }
         
+        // Create a historical record of the click for analytics.
         const clickDocRef = doc(collection(db, 'clicks'));
         batch.set(clickDocRef, {
             linkId: linkId,
             timestamp: serverTimestamp(),
-            // This field is kept for historical/debugging purposes but is no longer central to logic
-            isRealClick: true, 
         });
 
         await batch.commit();
         
-        // Fetch the updated data to return to client
-        const updatedLinkSnap = await getDoc(linkRef);
-        const updatedLinkData = updatedLinkSnap.data();
-
-        const responsePayload = {
-            link: {
-                ...updatedLinkData,
-                id: linkId,
-            },
-            // The action is now determined by whether rules exist or not.
-            action: (linkData.rules && linkData.rules.length > 0) ? 'GATE' : 'REDIRECT',
-        };
-        
-        return NextResponse.json(responsePayload, { status: 200 });
+        return NextResponse.json({ message: 'Click processed successfully' }, { status: 200 });
 
     } catch (error) {
         console.error("Error processing click:", error);
