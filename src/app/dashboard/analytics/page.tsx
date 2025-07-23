@@ -149,7 +149,7 @@ export default function AnalyticsPage() {
                       <span className="text-sm text-muted-foreground">$</span>
                   </CardHeader>
                   <CardContent>
-                      <div className="text-2xl font-bold">${totalEarnings.toFixed(2)}</div>
+                      <div className="text-2xl font-bold">${totalEarnings.toFixed(4)}</div>
                       <p className="text-xs text-muted-foreground">Based on total monetizable clicks</p>
                   </CardContent>
               </Card>
@@ -169,7 +169,7 @@ export default function AnalyticsPage() {
                        <span className="text-sm text-muted-foreground">$</span>
                   </CardHeader>
                   <CardContent>
-                      <div className="text-2xl font-bold">${CPM.toFixed(2)}</div>
+                      <div className="text-2xl font-bold">${CPM.toFixed(4)}</div>
                       <p className="text-xs text-muted-foreground">Fixed rate per 1000 monetized views</p>
                   </CardContent>
               </Card>
@@ -191,7 +191,7 @@ export default function AnalyticsPage() {
                   tickFormatter={(value) => value.slice(0, 3)}
                 />
                 <YAxis tickFormatter={(value) => `$${value}`} />
-                <ChartTooltip content={<ChartTooltipContent formatter={(value) => `$${Number(value).toFixed(2)}`} />} />
+                <ChartTooltip content={<ChartTooltipContent formatter={(value) => `$${Number(value).toFixed(4)}`} />} />
                 <Bar dataKey="earnings" fill="var(--color-earnings)" radius={4} />
               </BarChart>
             </ChartContainer>
@@ -216,7 +216,7 @@ export default function AnalyticsPage() {
                            <TableRow key={link.id}>
                               <TableCell className="font-medium">{link.title}</TableCell>
                               <TableCell className="text-right">{link.clicks.toLocaleString()}</TableCell>
-                              <TableCell className="text-right">${link.earnings.toFixed(2)}</TableCell>
+                              <TableCell className="text-right">${link.earnings.toFixed(4)}</TableCell>
                            </TableRow>
                       ))}
                       {links.length === 0 && (
@@ -234,5 +234,3 @@ export default function AnalyticsPage() {
     </>
   );
 }
-
-    
