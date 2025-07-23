@@ -6,59 +6,54 @@ service cloud.firestore {
   
     // Helper function to check for admin role
     function isAdmin() {
-      // Check if the user document exists and has the role 'admin'
-      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
+    // Rules for the 'users' collection
     match /users/{userId} {
-      allow read: if request.auth.uid == userId || isAdmin();
-      allow write: if request.auth.uid == userId || isAdmin();
-      allow list: if isAdmin();
+      allow read: if true; 
+      allow create: if request.auth.uid == userId;
+      allow update: if request.auth.uid == userId || isAdmin();
     }
 
+    // Rules for the 'links' collection
     match /links/{linkId} {
-      // Allow anyone to get a link document directly. This is needed for the redirection page.
-      allow get: if true;
+      allow read: if true;
+      allow create: if request.auth.uid == request.resource.data.userId;
       
-      // Allow users to list their own links, and admins to list all links.
-      // This rule is tricky. Firestore can only enforce that a query for a user's own links is allowed.
-      // It cannot enforce that a general list operation only returns a user's own links without an index.
-      // The client-side query MUST have `where('userId', '==', request.auth.uid)`
-      allow list: if request.auth != null;
-
-      // Allow authenticated users to create links
-      allow create: if request.auth != null;
-
-      // Allow the owner or an admin to update/delete
-      allow update, delete: if resource.data.userId == request.auth.uid || isAdmin();
-      
-      // Allow public client to increment click counts
-      allow update: if request.auth == null
-                    && request.resource.data.clicks > resource.data.clicks;
+      // Allow update if the user is the owner OR if the update only targets the counters.
+      // This allows our server-side API to increment counters without being authenticated as the user.
+      allow update: if (request.auth.uid == resource.data.userId) || 
+                       (request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['clicks', 'realClicks', 'generatedEarnings']));
+                         
+      allow delete: if request.auth.uid == resource.data.userId || isAdmin();
     }
-    
+
+    // Rules for the 'clicks' collection
+    // This collection is write-only from our trusted backend. No client should read it.
     match /clicks/{clickId} {
-      allow create: if true;
-      allow read, list, delete: if isAdmin();
+      allow create: if true; // Only our backend API will call this
+      allow read: if false; 
+      allow update, delete: if false;
     }
     
-    match /notifications/{notificationId} {
-        allow create: if true; // System can create notifications
-        allow read, list: if request.auth != null && (resource.data.userId == request.auth.uid || isAdmin());
-        allow update: if isAdmin();
+    // Rules for 'payoutRequests' collection
+    match /payoutRequests/{payoutId} {
+        allow read, update: if isAdmin();
+        allow create: if request.auth.uid == request.resource.data.userId;
+    }
+    
+    // Rules for 'cpmHistory'
+    match /cpmHistory/{cpmId} {
+      allow read: if isAdmin();
+      allow create, update, delete: if isAdmin();
     }
 
-    match /payoutRequests/{requestId} {
-        allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
-        allow list: if isAdmin();
-        allow get: if resource.data.userId == request.auth.uid || isAdmin();
-        allow update: if isAdmin();
-    }
-    
-    match /cpmHistory/{historyId} {
-        allow get, list: if true;
-        allow write: if isAdmin();
+    // Rules for 'notifications'
+    match /notifications/{notificationId} {
+      allow read: if request.auth.uid == resource.data.userId || isAdmin();
+      allow create: if true; // Created by server
     }
   }
 }
