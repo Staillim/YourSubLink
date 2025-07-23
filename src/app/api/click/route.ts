@@ -1,7 +1,7 @@
 
 import { NextResponse, NextRequest } from 'next/server';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, writeBatch, doc, increment, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, writeBatch, doc, increment, serverTimestamp } from 'firebase/firestore';
 import { parse, serialize } from 'cookie';
 
 export async function POST(req: NextRequest) {
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
         const cookieName = `visit_${linkId}`;
         const hasVisitedCookie = !!cookies[cookieName];
 
-        // A "real" click is one from a user who hasn't visited in the last hour (no cookie).
+        // A "real" click is one from a user who hasn't visited in the last hour.
         const isRealClick = !hasVisitedCookie;
 
         // --- Step 3: Perform database updates in a batch ---
@@ -45,6 +45,7 @@ export async function POST(req: NextRequest) {
 
             if (linkData.monetizable && linkData.userId) {
                 // In a real app, this would come from a central config/DB
+                // For now, let's assume a fixed CPM
                 const activeCpm = 3.00; 
                 const earningsPerClick = activeCpm / 1000;
                 
@@ -62,7 +63,7 @@ export async function POST(req: NextRequest) {
             timestamp: serverTimestamp(),
             isRealClick: isRealClick,
             source: hasVisitedCookie ? 'cookie' : 'new',
-            // Note: We are not storing IP for privacy. The cookie determines uniqueness.
+            // Note: IP and user agent could be logged here for more advanced analytics
         });
 
         await batch.commit();
