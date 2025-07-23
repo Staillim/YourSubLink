@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import { notFound } from 'next/navigation';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, writeBatch, serverTimestamp, increment } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, writeBatch, serverTimestamp, increment, getDoc } from 'firebase/firestore';
 import { Loader2, ExternalLink, CheckCircle2, Lock, Link as LinkIcon, ChevronRight, Youtube, Instagram } from 'lucide-react';
 import type { Rule } from '@/components/rule-editor';
 import { Button } from '@/components/ui/button';
@@ -49,7 +49,7 @@ async function recordClick(linkData: LinkData, visitorId: string): Promise<void>
         batch.set(clickDocRef, {
             linkId: linkData.id,
             timestamp: serverTimestamp(),
-            visitorId: visitorId, // Use visitorId instead of IP
+            visitorId: visitorId,
         });
 
         // 2. Increment the total clicks counter on the link
@@ -58,8 +58,12 @@ async function recordClick(linkData: LinkData, visitorId: string): Promise<void>
         
         // 3. Handle monetization earnings for the click if applicable
         if (linkData.monetizable) {
-            const CPM = 3.00; // Cost Per Mille (1000 views)
-            const earningsPerClick = CPM / 1000;
+            // Fetch current CPM rate from global settings
+            const settingsRef = doc(db, 'settings', 'global');
+            const settingsSnap = await getDoc(settingsRef);
+            const cpm = settingsSnap.exists() ? settingsSnap.data().cpm : 3.00;
+            const earningsPerClick = cpm / 1000;
+
             const linkEarningsUpdate = { generatedEarnings: increment(earningsPerClick) };
             batch.update(linkRef, linkEarningsUpdate);
         }

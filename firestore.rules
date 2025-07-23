@@ -3,37 +3,33 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // SETTINGS
-    match /settings/{docId} {
-      allow read, write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
-
     // LINKS
     match /links/{linkId} {
       allow read: if true;
       allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
       
-      // Admins can delete any link, users can delete their own
-      allow delete: if request.auth != null && (resource.data.userId == request.auth.uid || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks', 'realClicks', 'generatedEarnings']) ||
+                      (request.auth != null && (
+                          (resource.data.userId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'rules', 'monetizable'])) ||
+                          (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+                      ));
       
-      // Allow public to update clicks/earnings, owners/admins to update details
-      allow update: if (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks', 'generatedEarnings', 'realClicks'])) ||
-                      (request.auth != null && (resource.data.userId == request.auth.uid || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') && 
-                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'rules', 'monetizable']));
+      allow delete: if request.auth != null && (resource.data.userId == request.auth.uid || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
     }
 
     // USERS
     match /users/{userId} {
-        // Allow user creation if the user is creating their own profile and not assigning themselves as admin
-        allow create: if request.auth != null && request.auth.uid == userId && 
-                       (request.resource.data.role == 'user' || request.resource.data.email == 'harrigta@gmail.com');
-                       
         allow read: if request.auth != null;
         allow list: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-      
-        // Allow users to update their own profile, or admins to update any user
-        allow update: if (request.auth != null && request.auth.uid == userId) || 
-                       (request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+        
+        allow create: if request.auth != null && request.auth.uid == userId && 
+                        request.resource.data.role != 'admin' ||
+                        request.resource.data.email == 'harrigta@gmail.com';
+
+        allow update: if (request.auth != null && (
+                        (request.auth.uid == userId && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'photoURL'])) ||
+                        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+                      ));
     }
 
     // PAYOUT REQUESTS
@@ -69,6 +65,12 @@ service cloud.firestore {
 
         // Nobody can update or delete click logs.
         allow update, delete: if false;
+    }
+
+    // SETTINGS
+    match /settings/global {
+      allow read: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
   }
 }

@@ -23,7 +23,7 @@ import {
 import { LogOut, User as UserIcon, Wallet } from 'lucide-react';
 import { Skeleton } from './ui/skeleton';
 import { useEffect, useState } from 'react';
-import { collection, query, where, onSnapshot, getDoc, doc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import type { LinkItem } from '@/app/dashboard/page';
 
 type PayoutRequest = {
@@ -36,18 +36,6 @@ export function UserNav() {
   const router = useRouter();
   const [payouts, setPayouts] = useState<PayoutRequest[]>([]);
   const [links, setLinks] = useState<LinkItem[]>([]);
-  const [cpm, setCpm] = useState(3.00);
-
-  useEffect(() => {
-    const fetchSettings = async () => {
-         const settingsRef = doc(db, 'settings', 'global');
-         const docSnap = await getDoc(settingsRef);
-         if (docSnap.exists()) {
-             setCpm(docSnap.data().cpm || 3.00);
-         }
-    }
-    fetchSettings();
-  }, [])
 
   useEffect(() => {
     if (user) {
@@ -89,13 +77,7 @@ export function UserNav() {
     return <Skeleton className="h-9 w-9 rounded-full" />;
   }
   
-  const generatedEarnings = links.reduce((acc, link) => {
-    if (link.monetizable && link.realClicks > 0) {
-        return acc + (link.realClicks / 1000) * cpm;
-    }
-    return acc;
-  }, 0);
-
+  const generatedEarnings = links.reduce((acc, link) => acc + (link.generatedEarnings || 0), 0);
   const paidEarnings = profile?.paidEarnings ?? 0;
   const payoutsPending = payouts.reduce((acc, p) => acc + p.amount, 0);
   const availableBalance = generatedEarnings - paidEarnings - payoutsPending;

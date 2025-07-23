@@ -4,9 +4,9 @@
 import { useState, useEffect } from 'react';
 import { useUser } from '@/hooks/use-user';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp, query, where, onSnapshot, getDoc, doc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, onSnapshot } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -25,7 +25,9 @@ type PayoutRequest = {
     method: string;
     details: string;
     status: 'pending' | 'completed' | 'rejected';
-    requestedAt: any;
+    requestedAt?: {
+        seconds: number;
+    };
 }
 
 export default function PayoutsPage() {
@@ -44,58 +46,60 @@ export default function PayoutsPage() {
 
     // Settings
     const [minPayoutAmount, setMinPayoutAmount] = useState(10);
-    const [cpm, setCpm] = useState(3.00);
     const [links, setLinks] = useState<LinkItem[]>([]);
     
     useEffect(() => {
-        const fetchSettings = async () => {
-             const settingsRef = doc(db, 'settings', 'global');
-             const docSnap = await getDoc(settingsRef);
-             if (docSnap.exists()) {
-                 const settingsData = docSnap.data();
-                 setMinPayoutAmount(settingsData.minPayout || 10);
-                 setCpm(settingsData.cpm || 3.00);
-             }
-        }
-        fetchSettings();
-    }, [])
+        if (!user) return;
+        
+        let unsubPayouts: () => void;
+        let unsubLinks: () => void;
+        let unsubSettings: () => void;
 
-    useEffect(() => {
-        if (user) {
-            setPayoutsLoading(true);
-            const payoutQuery = query(collection(db, "payoutRequests"), where("userId", "==", user.uid));
-            const unsubPayouts = onSnapshot(payoutQuery, (snapshot) => {
-                const requests: PayoutRequest[] = [];
-                snapshot.forEach(doc => {
-                    requests.push({ id: doc.id, ...doc.data() } as PayoutRequest);
-                });
-                setPayouts(requests.sort((a,b) => (b.requestedAt?.seconds ?? 0) - (a.requestedAt?.seconds ?? 0)));
-                setPayoutsLoading(false);
+        const fetchInitialData = async () => {
+            // Settings
+            const settingsQuery = query(collection(db, "settings"));
+            unsubSettings = onSnapshot(settingsQuery, (snapshot) => {
+                if(!snapshot.empty) {
+                    const settingsData = snapshot.docs[0].data();
+                    setMinPayoutAmount(settingsData.minPayout || 10);
+                }
             });
-            
-            const q = query(collection(db, "links"), where("userId", "==", user.uid));
-            const unsubLinks = onSnapshot(q, (querySnapshot) => {
+
+            // Links
+            const linksQuery = query(collection(db, "links"), where("userId", "==", user.uid));
+            unsubLinks = onSnapshot(linksQuery, (querySnapshot) => {
                 const linksData: LinkItem[] = [];
                 querySnapshot.forEach((doc) => {
                     linksData.push({ id: doc.id, ...doc.data() } as LinkItem);
                 });
                 setLinks(linksData);
             });
+            
+            // Payouts
+            setPayoutsLoading(true);
+            const payoutQuery = query(collection(db, "payoutRequests"), where("userId", "==", user.uid));
+            unsubPayouts = onSnapshot(payoutQuery, (snapshot) => {
+                const requests: PayoutRequest[] = [];
+                snapshot.forEach(doc => {
+                    requests.push({ id: doc.id, ...doc.data() } as PayoutRequest);
+                });
+                // Sort safely, handling potential nulls in requestedAt
+                requests.sort((a,b) => (b.requestedAt?.seconds ?? 0) - (a.requestedAt?.seconds ?? 0));
+                setPayouts(requests);
+                setPayoutsLoading(false);
+            });
+        };
 
-            return () => {
-                unsubPayouts();
-                unsubLinks();
-            }
+        fetchInitialData();
+        
+        return () => {
+            unsubPayouts?.();
+            unsubLinks?.();
+            unsubSettings?.();
         }
     }, [user]);
     
-    const generatedEarnings = links.reduce((acc, link) => {
-        if (link.monetizable && link.realClicks > 0) {
-            return acc + (link.realClicks / 1000) * cpm;
-        }
-        return acc;
-    }, 0);
-
+    const generatedEarnings = links.reduce((acc, link) => acc + (link.generatedEarnings || 0), 0);
     const paidEarnings = profile?.paidEarnings ?? 0;
     
     const payoutsPending = payouts
