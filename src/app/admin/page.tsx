@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import { collection, onSnapshot, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Users, Link2, DollarSign, Eye, CheckCircle } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -109,8 +109,11 @@ export default function AdminDashboardPage() {
              setRealClicks(totalRealClicks);
         });
         
-        const unsubPayouts = onSnapshot(payoutsQuery, (snapshot) => {
-            const payoutsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as RecentPayout));
+        const unsubPayouts = onSnapshot(payoutsQuery, async (snapshot) => {
+            const payoutsData: RecentPayout[] = [];
+            for (const payoutDoc of snapshot.docs) {
+                payoutsData.push({ id: payoutDoc.id, ...payoutDoc.data() } as RecentPayout);
+            }
             setRecentPayouts(payoutsData);
             setPayoutsLoading(false);
         });
