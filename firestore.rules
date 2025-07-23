@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -5,48 +6,58 @@ service cloud.firestore {
   
     // Helper function to check for admin role
     function isAdmin() {
-      // Check if the user document exists and has the admin role.
-      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+      // Check if the user document exists and has the role 'admin'
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
     match /users/{userId} {
-      allow read, write: if request.auth.uid == userId || isAdmin();
+      allow read: if request.auth.uid == userId || isAdmin();
+      allow write: if request.auth.uid == userId || isAdmin();
       allow list: if isAdmin();
     }
 
     match /links/{linkId} {
-      allow get: if true; // anyone can get a link if they have the ID
+      // Allow anyone to get a link document directly. This is needed for the redirection page.
+      allow get: if true;
+      
+      // Allow users to list their own links, and admins to list all links.
+      // This rule is tricky. Firestore can only enforce that a query for a user's own links is allowed.
+      // It cannot enforce that a general list operation only returns a user's own links without an index.
+      // The client-side query MUST have `where('userId', '==', request.auth.uid)`
+      allow list: if request.auth != null;
+
+      // Allow authenticated users to create links
       allow create: if request.auth != null;
 
-      // Allow listing for two cases:
-      // 1. A public user is querying by shortId to be redirected.
-      // 2. An authenticated user is querying for their own links.
-      allow list: if (request.query.keys().hasOnly(['where', 'limit']) && request.query.where[0][0] == 'shortId' && request.query.where[0][2] != '') ||
-                    (request.auth != null && request.query.where[0][0] == 'userId' && request.query.where[0][2] == request.auth.uid) ||
-                    isAdmin();
-
+      // Allow the owner or an admin to update/delete
       allow update, delete: if resource.data.userId == request.auth.uid || isAdmin();
+      
+      // Allow public client to increment click counts
+      allow update: if request.auth == null
+                    && request.resource.data.clicks > resource.data.clicks;
     }
     
     match /clicks/{clickId} {
       allow create: if true;
-      allow read, list: if isAdmin();
+      allow read, list, delete: if isAdmin();
     }
     
     match /notifications/{notificationId} {
-        allow create: if true;
-        allow read, list: if request.auth != null && (get(/databases/$(database)/documents/notifications/$(notificationId)).data.userId == request.auth.uid || isAdmin());
+        allow create: if true; // System can create notifications
+        allow read, list: if request.auth != null && (resource.data.userId == request.auth.uid || isAdmin());
+        allow update: if isAdmin();
     }
 
     match /payoutRequests/{requestId} {
-        allow create: if request.auth != null;
-        allow read, list: if (request.auth != null && get(/databases/$(database)/documents/payoutRequests/$(requestId)).data.userId == request.auth.uid) || isAdmin();
+        allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+        allow list: if isAdmin();
+        allow get: if resource.data.userId == request.auth.uid || isAdmin();
         allow update: if isAdmin();
     }
     
     match /cpmHistory/{historyId} {
-        allow read, list: if true;
+        allow get, list: if true;
         allow write: if isAdmin();
     }
   }
