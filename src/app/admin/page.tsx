@@ -59,8 +59,8 @@ export default function AdminDashboardPage() {
             snapshot.forEach((doc) => {
                 const data = doc.data() as Link;
                 clicks += data.clicks || 0;
+                revenue += data.generatedEarnings || 0;
                 if (data.monetizable) {
-                    revenue += data.generatedEarnings || 0;
                     monetizable++;
                     monetizableClicksCount += data.clicks || 0;
                 }

@@ -2,8 +2,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAuthState } from 'react-firebase-hooks/auth';
-import { auth, db } from '@/lib/firebase';
+import { useUser } from '@/hooks/use-user';
+import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import {
@@ -38,13 +38,13 @@ const chartConfig = {
 
 
 export default function AnalyticsPage() {
-  const [user, loading] = useAuthState(auth);
+  const { user, profile, loading: userLoading } = useUser();
   const [links, setLinks] = useState<LinkItem[]>([]);
   const [linksLoading, setLinksLoading] = useState(true);
   const [activeCpm, setActiveCpm] = useState<number>(3.00); // Default CPM
 
   useEffect(() => {
-    if (user) {
+    if (user && profile) {
       setLinksLoading(true);
       const q = query(collection(db, "links"), where("userId", "==", user.uid));
       const unsubscribe = onSnapshot(q, (querySnapshot) => {
@@ -70,22 +70,31 @@ export default function AnalyticsPage() {
         setLinksLoading(false);
       });
 
-      const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
-      const unsubCpm = onSnapshot(cpmQuery, (snapshot) => {
-          if (!snapshot.empty) {
-              const cpmDoc = snapshot.docs[0];
-              setActiveCpm(cpmDoc.data().rate);
-          }
-      });
-
-      return () => {
-        unsubscribe();
-        unsubCpm();
+      // Check for user-specific CPM first
+      if (profile.customCpm != null) {
+          setActiveCpm(profile.customCpm);
+      } else {
+          // Fallback to global CPM
+          const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
+          const unsubCpm = onSnapshot(cpmQuery, (snapshot) => {
+              if (!snapshot.empty) {
+                  const cpmDoc = snapshot.docs[0];
+                  setActiveCpm(cpmDoc.data().rate);
+              } else {
+                  setActiveCpm(3.00); // Default if no global is set
+              }
+          });
+           return () => {
+             unsubscribe();
+             unsubCpm();
+           }
       }
-    } else if (!loading) {
+
+      return () => unsubscribe();
+    } else if (!userLoading) {
         setLinksLoading(false);
     }
-  }, [user, loading]);
+  }, [user, userLoading, profile]);
 
   const totalClicks = links.reduce((acc, link) => acc + link.clicks, 0);
   const totalEarnings = links.reduce((acc, link) => acc + (link.generatedEarnings || 0), 0);
@@ -127,7 +136,7 @@ export default function AnalyticsPage() {
   })).sort((a,b) => b.earnings - a.earnings);
 
 
-  if (loading || linksLoading) {
+  if (userLoading || linksLoading) {
       return (
         <>
             <div className="flex items-center">
