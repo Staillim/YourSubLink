@@ -11,7 +11,6 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'shortId is required' }, { status: 400 });
         }
 
-        // --- Step 1: Find the link document ---
         const linksCollection = collection(db, 'links');
         const q = query(linksCollection, where('shortId', '==', shortId));
         const linksSnapshot = await getDocs(q);
@@ -24,20 +23,15 @@ export async function POST(req: NextRequest) {
         const linkId = linkDoc.id;
         const linkData = linkDoc.data();
 
-        // --- Step 2: Perform database updates in a batch ---
         const batch = writeBatch(db);
         const linkRef = doc(db, 'links', linkId);
 
-        // Always increment total clicks
-        batch.update(linkRef, { clicks: increment(1) });
-        
-        // If the client determined it's a real visit, increment real counters
         if (isRealVisit) {
+            // This is a "Real Click", from after the user completes the gate.
+            // We increment the real clicks counter and handle earnings.
             batch.update(linkRef, { realClicks: increment(1) });
 
-            // Handle earnings only on real visits
             if (linkData.monetizable && linkData.userId) {
-                // Find active CPM rate
                 const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
                 const cpmSnapshot = await getDocs(cpmQuery);
                 let activeCpm = 3.00; // Default fallback CPM
@@ -50,33 +44,35 @@ export async function POST(req: NextRequest) {
                 }
 
                 const earningsPerClick = activeCpm / 1000;
-
-                // Increment total earnings on link and user
-                batch.update(linkRef, { generatedEarnings: increment(earningsPerClick) });
-                const userRef = doc(db, 'users', linkData.userId);
                 batch.update(userRef, { generatedEarnings: increment(earningsPerClick) });
+                batch.update(linkRef, { generatedEarnings: increment(earningsPerClick) });
                 
-                // Increment earnings for the specific CPM period on the link
                 const cpmEarningsField = `earningsByCpm.${activeCpmId}`;
                 batch.update(linkRef, { [cpmEarningsField]: increment(earningsPerClick) });
             }
+
+        } else {
+            // This is a "Total Click", which happens on every page load.
+            // We only increment the general clicks counter.
+            batch.update(linkRef, { clicks: increment(1) });
         }
         
-        // Log the click event for auditing
         const clickDocRef = doc(collection(db, 'clicks'));
         batch.set(clickDocRef, {
             linkId: linkId,
             timestamp: serverTimestamp(),
-            isRealClick: !!isRealVisit, // Convert to boolean
-            source: 'client-storage', // Mark that client localStorage was the source of truth
+            isRealClick: !!isRealVisit,
         });
 
         await batch.commit();
+        
+        // Fetch the updated data to return to client
+        const updatedLinkSnap = await getDoc(linkRef);
+        const updatedLinkData = updatedLinkSnap.data();
 
-        // --- Step 3: Respond to client with next action ---
         const responsePayload = {
             link: {
-                ...linkData,
+                ...updatedLinkData,
                 id: linkId,
             },
             action: (linkData.rules && linkData.rules.length > 0) ? 'GATE' : 'REDIRECT',
@@ -89,3 +85,4 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }
+

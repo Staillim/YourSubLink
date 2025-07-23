@@ -107,9 +107,9 @@ function CountdownPage({ linkData }: { linkData: LinkData }) {
     );
 }
 
-export default function LinkGate({ linkData }: { linkData: LinkData }) {
+export default function LinkGate({ linkData, onUnlock, initialStatus = 'gate' }: { linkData: LinkData, onUnlock: () => void, initialStatus?: 'gate' | 'countdown' }) {
     const [completedRules, setCompletedRules] = useState<boolean[]>(Array(linkData.rules.length).fill(false));
-    const [status, setStatus] = useState<'gate' | 'countdown'>('gate');
+    const [status, setStatus] = useState<'gate' | 'countdown'>(initialStatus);
     
     const totalRules = linkData.rules.length;
     const completedCount = completedRules.filter(Boolean).length;
@@ -125,7 +125,7 @@ export default function LinkGate({ linkData }: { linkData: LinkData }) {
 
     const handleUnlockClick = () => {
         if (!allRulesCompleted) return;
-        setStatus('countdown');
+        onUnlock(); // This will trigger the "real click" count and change parent status
     }
     
     if (status === 'countdown') {
@@ -176,3 +176,4 @@ export default function LinkGate({ linkData }: { linkData: LinkData }) {
         </div>
     )
 }
+
