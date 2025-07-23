@@ -2,11 +2,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { collection, onSnapshot, query } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Users, Link2, DollarSign, Eye } from 'lucide-react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 
 const CPM = 3.00; // Cost Per Mille (1000 views)
 
@@ -15,16 +18,31 @@ type Link = {
     monetizable: boolean;
 };
 
+type RecentPayout = {
+    id: string;
+    userName: string;
+    amount: number;
+    processedAt: any;
+}
+
 export default function AdminDashboardPage() {
     const [userCount, setUserCount] = useState<number | null>(null);
     const [totalClicks, setTotalClicks] = useState<number | null>(null);
     const [totalRevenue, setTotalRevenue] = useState<number | null>(null);
     const [monetizableLinks, setMonetizableLinks] = useState<number | null>(null);
     const [loading, setLoading] = useState(true);
+    const [recentPayouts, setRecentPayouts] = useState<RecentPayout[]>([]);
+    const [payoutsLoading, setPayoutsLoading] = useState(true);
 
     useEffect(() => {
         const usersQuery = query(collection(db, 'users'));
         const linksQuery = query(collection(db, 'links'));
+        const payoutsQuery = query(
+            collection(db, 'payoutRequests'), 
+            where('status', '==', 'completed'), 
+            orderBy('processedAt', 'desc'),
+            limit(5)
+        );
 
         const unsubUsers = onSnapshot(usersQuery, (snapshot) => {
             setUserCount(snapshot.size);
@@ -46,10 +64,17 @@ export default function AdminDashboardPage() {
             setMonetizableLinks(monetizable);
             if (loading) setLoading(false);
         });
+        
+        const unsubPayouts = onSnapshot(payoutsQuery, (snapshot) => {
+            const payoutsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as RecentPayout));
+            setRecentPayouts(payoutsData);
+            setPayoutsLoading(false);
+        });
 
         return () => {
             unsubUsers();
             unsubLinks();
+            unsubPayouts();
         };
     }, []);
 
@@ -93,7 +118,34 @@ export default function AdminDashboardPage() {
                     <CardTitle>Recent Payouts</CardTitle>
                 </CardHeader>
                 <CardContent>
-                   <p className="text-muted-foreground">Payout history will be displayed here once payments are processed.</p>
+                   {payoutsLoading ? (
+                       <div className="space-y-4">
+                           {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
+                       </div>
+                   ) : recentPayouts.length > 0 ? (
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>User</TableHead>
+                                    <TableHead className="text-right">Amount</TableHead>
+                                    <TableHead className="text-right">Date</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {recentPayouts.map((payout) => (
+                                    <TableRow key={payout.id}>
+                                        <TableCell>
+                                            <div className="font-medium">{payout.userName}</div>
+                                        </TableCell>
+                                        <TableCell className="text-right font-semibold text-green-500">${payout.amount.toFixed(2)}</TableCell>
+                                        <TableCell className="text-right">{new Date(payout.processedAt.seconds * 1000).toLocaleDateString()}</TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                   ) : (
+                        <p className="text-muted-foreground">No recent payouts to display.</p>
+                   )}
                 </CardContent>
              </Card>
         </div>
