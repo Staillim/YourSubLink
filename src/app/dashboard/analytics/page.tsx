@@ -2,8 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAuthState } from 'react-firebase-hooks/auth';
-import { auth, db } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import {
@@ -27,6 +26,7 @@ import { ExternalLink, DollarSign } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { LinkItem } from '../page';
 import { format, getMonth, getYear } from 'date-fns';
+import { useUser } from '@/hooks/use-user';
 
 
 const chartConfig = {
@@ -38,7 +38,7 @@ const chartConfig = {
 
 
 export default function AnalyticsPage() {
-  const [user, loading] = useAuthState(auth);
+  const { user, profile, loading } = useUser();
   const [links, setLinks] = useState<LinkItem[]>([]);
   const [linksLoading, setLinksLoading] = useState(true);
   const [activeCpm, setActiveCpm] = useState<number>(3.00); // Default CPM
@@ -70,22 +70,28 @@ export default function AnalyticsPage() {
         setLinksLoading(false);
       });
 
-      const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
-      const unsubCpm = onSnapshot(cpmQuery, (snapshot) => {
-          if (!snapshot.empty) {
-              const cpmDoc = snapshot.docs[0];
-              setActiveCpm(cpmDoc.data().rate);
+      // Set CPM based on user profile or global settings
+      if (profile && profile.customCpm !== null && profile.customCpm !== undefined) {
+          setActiveCpm(profile.customCpm);
+      } else {
+          const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
+          const unsubCpm = onSnapshot(cpmQuery, (snapshot) => {
+              if (!snapshot.empty) {
+                  const cpmDoc = snapshot.docs[0];
+                  setActiveCpm(cpmDoc.data().rate);
+              }
+          });
+          return () => {
+            unsubscribe();
+            unsubCpm();
           }
-      });
-
-      return () => {
-        unsubscribe();
-        unsubCpm();
       }
+
+      return () => unsubscribe();
     } else if (!loading) {
         setLinksLoading(false);
     }
-  }, [user, loading]);
+  }, [user, loading, profile]);
 
   const totalClicks = links.reduce((acc, link) => acc + link.clicks, 0);
   const totalEarnings = links.reduce((acc, link) => acc + (link.generatedEarnings || 0), 0);
@@ -200,7 +206,7 @@ export default function AnalyticsPage() {
                   axisLine={false}
                   tickFormatter={(value) => value.slice(0, 3)}
                 />
-                <YAxis tickFormatter={(value) => `$${value}`} />
+                <YAxis tickFormatter={(value) => `$${Number(value).toFixed(4)}`} />
                 <ChartTooltip content={<ChartTooltipContent formatter={(value) => `$${Number(value).toFixed(4)}`} />} />
                 <Bar dataKey="earnings" fill="var(--color-earnings)" radius={4} />
               </BarChart>
@@ -211,7 +217,7 @@ export default function AnalyticsPage() {
             <CardHeader>
                 <CardTitle>Links Breakdown</CardTitle>
                 <CardDescription>Detailed statistics for each of your links.</CardDescription>
-            </CardHeader>
+            </Header>
             <CardContent>
               <Table>
                   <TableHeader>
