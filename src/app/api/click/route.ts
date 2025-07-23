@@ -2,35 +2,14 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, writeBatch, doc, increment, serverTimestamp, Timestamp } from 'firebase/firestore';
-
-// Function to get the client's IP address
-const getClientIp = (req: NextRequest): string | undefined => {
-    // Standard headers for IP detection
-    const headers = {
-        'x-forwarded-for': req.headers.get('x-forwarded-for'),
-        'x-real-ip': req.headers.get('x-real-ip'),
-    };
-    // Vercel specific header
-    if (req.headers.get('x-vercel-forwarded-for')) {
-         headers['x-forwarded-for'] = req.headers.get('x-vercel-forwarded-for');
-    }
-
-    // Use the most reliable header first
-    const ip = headers['x-forwarded-for']?.split(',')[0].trim() || headers['x-real-ip'];
-    
-    return ip;
-};
-
+import { parse, serialize } from 'cookie';
 
 export async function POST(req: NextRequest) {
     try {
         const { shortId } = await req.json();
-
         if (!shortId) {
             return NextResponse.json({ error: 'shortId is required' }, { status: 400 });
         }
-        
-        const ip = getClientIp(req);
 
         // --- Step 1: Find the link document ---
         const linksQuery = query(collection(db, 'links'), where('shortId', '==', shortId));
@@ -43,86 +22,71 @@ export async function POST(req: NextRequest) {
         const linkDoc = linksSnapshot.docs[0];
         const linkId = linkDoc.id;
         const linkData = linkDoc.data();
-        
-        // --- Step 2: Determine if the click is "real" ---
-        let isRealClick = false;
-        if (ip) {
-            const oneHourAgo = Timestamp.fromMillis(Date.now() - 60 * 60 * 1000);
-            const recentClicksQuery = query(
-                collection(db, 'clicks'), 
-                where('linkId', '==', linkId),
-                where('ipAddress', '==', ip),
-                where('timestamp', '>=', oneHourAgo)
-            );
-            const recentClicksSnapshot = await getDocs(recentClicksQuery);
-            if (recentClicksSnapshot.empty) {
-                isRealClick = true;
-            }
-        }
+
+        // --- Step 2: Check for visit cookie ---
+        const cookies = parse(req.headers.get('cookie') || '');
+        const cookieName = `visit_${linkId}`;
+        const hasVisited = !!cookies[cookieName];
+
+        // A "real" click is one from a user who hasn't visited in the last hour (no cookie).
+        const isRealClick = !hasVisited;
 
         // --- Step 3: Perform database updates in a batch ---
         const batch = writeBatch(db);
         const linkRef = doc(db, 'links', linkId);
         
-        // 3a. Increment total clicks counter
-        const linkCounters: { [key: string]: any } = {
-            clicks: increment(1)
-        };
-
-        // 3b. If it's a real click, increment real counters and handle earnings
+        // 3a. Increment total clicks counter on every hit
+        batch.update(linkRef, { clicks: increment(1) });
+        
+        // 3b. If it's a "real" click, increment real counters and handle earnings
         if (isRealClick) {
-            linkCounters.realClicks = increment(1);
+            batch.update(linkRef, { realClicks: increment(1) });
 
-            if (linkData.monetizable) {
-                // In a real app, this value should come from a central config
-                const activeCpm = 3.00; 
+            if (linkData.monetizable && linkData.userId) {
+                const activeCpm = 3.00; // This should come from a central config
                 const earningsPerClick = activeCpm / 1000;
                 
-                linkCounters.generatedEarnings = increment(earningsPerClick);
-
-                if (linkData.userId) {
-                    const userRef = doc(db, 'users', linkData.userId);
-                    batch.update(userRef, {
-                        generatedEarnings: increment(earningsPerClick)
-                    });
-                }
+                // Increment earnings on both the link and the user document
+                batch.update(linkRef, { generatedEarnings: increment(earningsPerClick) });
+                const userRef = doc(db, 'users', linkData.userId);
+                batch.update(userRef, { generatedEarnings: increment(earningsPerClick) });
             }
         }
-        batch.update(linkRef, linkCounters);
 
         // 3c. Log the click event itself
         const clickDocRef = doc(collection(db, 'clicks'));
         batch.set(clickDocRef, {
             linkId: linkId,
             timestamp: serverTimestamp(),
-            ipAddress: ip || 'unknown',
-            userAgent: req.headers.get('user-agent') || 'N/A',
             isRealClick: isRealClick,
         });
 
         await batch.commit();
-        
-        // --- Step 4: Return instructions to the client ---
-        const hasRules = linkData.rules && linkData.rules.length > 0;
 
+        // --- Step 4: Prepare and send response ---
+        const headers = new Headers();
+        
+        // If it was a real click, set a cookie to prevent another real click for 1 hour
+        if (isRealClick) {
+            const cookie = serialize(cookieName, 'true', {
+                httpOnly: true,
+                secure: process.env.NODE_ENV !== 'development',
+                maxAge: 3600, // 1 hour in seconds
+                path: '/',
+            });
+            headers.append('Set-Cookie', cookie);
+        }
+
+        const hasRules = linkData.rules && linkData.rules.length > 0;
         if (hasRules) {
             return NextResponse.json({
                 action: 'GATE',
-                linkData: {
-                    id: linkId,
-                    original: linkData.original,
-                    rules: linkData.rules,
-                    title: linkData.title,
-                    description: linkData.description,
-                    userId: linkData.userId,
-                    monetizable: linkData.monetizable
-                }
-            });
+            }, { headers });
         } else {
             return NextResponse.json({
                 action: 'REDIRECT',
-                destination: linkData.original
-            });
+                destination: linkData.original,
+            }, { headers });
         }
 
     } catch (error) {
