@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, doc, updateDoc, query, where, getDocs as getDocsFromCollection, serverTimestamp, increment } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, query, where, getDocs, serverTimestamp, increment } from 'firebase/firestore';
 import { useUser } from '@/hooks/use-user';
 import {
   Table,
@@ -62,44 +62,33 @@ export default function AdminUsersPage() {
 
 
   useEffect(() => {
-    const fetchUsers = async () => {
+    const unsubscribe = onSnapshot(collection(db, 'users'), async (snapshot) => {
       setLoading(true);
-      try {
-        const snapshot = await getDocs(collection(db, 'users'));
-        const usersData: UserProfile[] = [];
-        
-        for (const userDoc of snapshot.docs) {
-          const userData = userDoc.data();
-          const linksQuery = query(collection(db, 'links'), where('userId', '==', userDoc.id));
-          const linksSnapshot = await getDocsFromCollection(linksQuery);
+      const usersData: UserProfile[] = [];
+      
+      for (const userDoc of snapshot.docs) {
+        const userData = userDoc.data();
+        const linksQuery = query(collection(db, 'links'), where('userId', '==', userDoc.id));
+        const linksSnapshot = await getDocs(linksQuery);
 
-          usersData.push({
-            uid: userDoc.id,
-            displayName: userData.displayName,
-            email: userData.email,
-            photoURL: userData.photoURL,
-            role: userData.role,
-            linksCount: linksSnapshot.size,
-            generatedEarnings: userData.generatedEarnings || 0,
-            paidEarnings: userData.paidEarnings || 0,
-            monetizationStatus: 'active', // Placeholder
-          });
-        }
-
-        setUsers(usersData);
-      } catch (error) {
-        console.error("Error fetching users:", error);
-        toast({
-            title: "Error fetching users",
-            description: "Could not retrieve the list of users.",
-            variant: "destructive"
-        })
-      } finally {
-        setLoading(false);
+        usersData.push({
+          uid: userDoc.id,
+          displayName: userData.displayName,
+          email: userData.email,
+          photoURL: userData.photoURL,
+          role: userData.role,
+          linksCount: linksSnapshot.size,
+          generatedEarnings: userData.generatedEarnings || 0,
+          paidEarnings: userData.paidEarnings || 0,
+          monetizationStatus: 'active', // Placeholder
+        });
       }
-    };
-    
-    fetchUsers();
+
+      setUsers(usersData);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const openAddBalanceDialog = (user: UserProfile) => {
@@ -122,12 +111,6 @@ export default function AdminUsersPage() {
         const userDocRef = doc(db, 'users', selectedUser.uid);
         await updateDoc(userDocRef, { generatedEarnings: increment(amountToAdd) });
         
-        setUsers(prevUsers => prevUsers.map(u => 
-            u.uid === selectedUser.uid 
-                ? { ...u, generatedEarnings: u.generatedEarnings + amountToAdd }
-                : u
-        ));
-
         toast({
             title: 'Balance Added',
             description: `Successfully added $${amountToAdd.toFixed(2)} to ${selectedUser.displayName}'s balance.`,
@@ -291,3 +274,5 @@ export default function AdminUsersPage() {
     </>
   );
 }
+
+    

@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, doc, deleteDoc, getDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, deleteDoc, getDoc } from 'firebase/firestore';
 import {
   Table,
   TableBody,
@@ -48,59 +48,47 @@ export default function AdminLinksPage() {
   const router = useRouter();
 
   useEffect(() => {
-    const fetchLinks = async () => {
+    const unsubscribe = onSnapshot(collection(db, 'links'), async (snapshot) => {
       setLoading(true);
-      try {
-        const snapshot = await getDocs(collection(db, 'links'));
-        const linksData: Link[] = [];
-        
-        for (const linkDoc of snapshot.docs) {
-          const data = linkDoc.data();
-          let userName = 'N/A';
-          let userEmail = 'N/A'
+      const linksData: Link[] = [];
+      for (const linkDoc of snapshot.docs) {
+        const data = linkDoc.data();
+        let userName = 'N/A';
+        let userEmail = 'N/A'
 
-          if(data.userId) {
-              const userRef = doc(db, 'users', data.userId);
-              const userSnap = await getDoc(userRef);
-              if(userSnap.exists()){
-                  userName = userSnap.data().displayName;
-                  userEmail = userSnap.data().email;
-              }
-          }
-
-          linksData.push({
-            id: linkDoc.id,
-            ...data,
-            short: `${window.location.origin}/${data.shortId}`,
-            createdAt: data.createdAt,
-            userName,
-            userEmail
-          } as Link);
+        if(data.userId) {
+            const userRef = doc(db, 'users', data.userId);
+            const userSnap = await getDoc(userRef);
+            if(userSnap.exists()){
+                userName = userSnap.data().displayName;
+                userEmail = userSnap.data().email;
+            }
         }
-        setLinks(linksData.sort((a,b) => b.createdAt.seconds - a.createdAt.seconds));
-      } catch (error) {
-        console.error("Error fetching links:", error);
-        toast({
-            title: "Error fetching links",
-            description: "Could not retrieve the list of links.",
-            variant: "destructive"
-        })
-      } finally {
-        setLoading(false);
+
+        linksData.push({
+          id: linkDoc.id,
+          ...data,
+          short: `${window.location.origin}/link/${data.shortId}`,
+          createdAt: data.createdAt,
+          userName,
+          userEmail
+        } as Link);
       }
-    };
-    
-    fetchLinks();
+      setLinks(linksData.sort((a,b) => b.createdAt.seconds - a.createdAt.seconds));
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const handleDelete = async (id: string) => {
     if(!confirm('Are you sure you want to delete this link permanently?')) return;
     try {
         await deleteDoc(doc(db, "links", id));
-        setLinks(prevLinks => prevLinks.filter(link => link.id !== id));
         toast({
             title: "Link deleted",
             description: "The link has been permanently removed.",
+            variant: "destructive"
         })
     } catch (error) {
         toast({

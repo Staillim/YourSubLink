@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, doc, updateDoc, writeBatch, serverTimestamp, query, orderBy, increment, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, writeBatch, serverTimestamp, query, orderBy, increment } from 'firebase/firestore';
 import {
   Table,
   TableBody,
@@ -44,28 +44,17 @@ export default function AdminPayoutRequestsPage() {
   const [isSubmitting, setIsSubmitting] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchRequests = async () => {
-        setLoading(true);
-        try {
-            const q = query(collection(db, 'payoutRequests'), orderBy('requestedAt', 'desc'));
-            const snapshot = await getDocs(q);
-            const requestsData: PayoutRequest[] = [];
-            snapshot.forEach((doc) => {
-                requestsData.push({ id: doc.id, ...doc.data() } as PayoutRequest);
-            });
-            setRequests(requestsData);
-        } catch (error) {
-            console.error("Error fetching payout requests:", error);
-            toast({
-                title: "Error fetching requests",
-                description: "Could not retrieve payout requests.",
-                variant: "destructive"
-            });
-        } finally {
-            setLoading(false);
-        }
-    };
-    fetchRequests();
+    const q = query(collection(db, 'payoutRequests'), orderBy('requestedAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const requestsData: PayoutRequest[] = [];
+      snapshot.forEach((doc) => {
+        requestsData.push({ id: doc.id, ...doc.data() } as PayoutRequest);
+      });
+      setRequests(requestsData);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, []);
   
   const handleUpdateRequest = async (requestId: string, newStatus: 'completed' | 'rejected', userId?: string, amount?: number) => {
@@ -88,12 +77,6 @@ export default function AdminPayoutRequestsPage() {
         }
 
         await batch.commit();
-        
-        // Update local state to reflect the change immediately
-        setRequests(prevRequests => prevRequests.map(req => 
-            req.id === requestId ? { ...req, status: newStatus } : req
-        ));
-
 
         toast({
             title: 'Request Updated',
