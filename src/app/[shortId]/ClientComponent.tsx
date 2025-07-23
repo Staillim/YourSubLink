@@ -44,17 +44,7 @@ async function recordClick(linkData: LinkData, visitorId: string): Promise<void>
     try {
         const batch = writeBatch(db);
         
-        // 1. Create a historical click record with a unique visitor ID
-        const clickDocRef = doc(collection(db, 'clicks'));
-        batch.set(clickDocRef, {
-            linkId: linkData.id,
-            timestamp: serverTimestamp(),
-            visitorId: visitorId,
-        });
-
-        // 2. Increment the total clicks counter on the link
-        const linkRef = doc(db, 'links', linkData.id);
-        batch.update(linkRef, { clicks: increment(1) });
+        let cpmRateForClick = 0;
         
         // 3. Handle monetization earnings for the click if applicable
         if (linkData.monetizable) {
@@ -67,6 +57,7 @@ async function recordClick(linkData: LinkData, visitorId: string): Promise<void>
                 const cpmData = activeCpmDoc.data();
                 const cpmId = activeCpmDoc.id;
                 const cpmRate = cpmData.rate;
+                cpmRateForClick = cpmRate; // Store for the click record
                 const earningsPerClick = cpmRate / 1000;
 
                 const earningsUpdate = {
@@ -76,9 +67,23 @@ async function recordClick(linkData: LinkData, visitorId: string): Promise<void>
                     [`earningsByCpm.${cpmId}`]: increment(earningsPerClick)
                 };
                 
+                const linkRef = doc(db, 'links', linkData.id);
                 batch.update(linkRef, earningsUpdate);
             }
         }
+        
+        // 1. Create a historical click record with a unique visitor ID
+        const clickDocRef = doc(collection(db, 'clicks'));
+        batch.set(clickDocRef, {
+            linkId: linkData.id,
+            timestamp: serverTimestamp(),
+            visitorId: visitorId,
+            cpmAtClick: cpmRateForClick, // Store the CPM rate with the click
+        });
+
+        // 2. Increment the total clicks counter on the link
+        const linkRef = doc(db, 'links', linkData.id);
+        batch.update(linkRef, { clicks: increment(1) });
 
         // 4. Handle milestone notifications
         const currentClicks = linkData.clicks;
