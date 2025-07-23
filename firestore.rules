@@ -1,54 +1,76 @@
-
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    
+
+    // Helper function to check for admin role
     function isAdmin() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
+    // USERS
     match /users/{userId} {
+      // Allow user creation for any authenticated user (first-time profile setup)
       allow create: if request.auth.uid != null;
-      allow read, update: if request.auth.uid == userId || isAdmin();
-    }
-    
-    match /links/{linkId} {
-      allow read: if isAdmin();
-      allow create: if request.auth.uid != null;
-      allow read, update, delete: if request.auth.uid == resource.data.userId;
-    }
-
-    match /clicks/{clickId} {
-      allow create;
-      allow read: if isAdmin();
-    }
-
-    match /payoutRequests/{requestId} {
+      // Users can only read and update their own profiles
+      allow read, update: if request.auth.uid == userId;
+      // Admins can read and write to any user profile (to change roles, balances, etc.)
       allow read, write: if isAdmin();
-      allow create: if request.auth.uid != null;
-      allow read: if request.auth.uid == resource.data.userId;
     }
 
-    match /cpmHistory/{historyId} {
-      allow read: if request.auth.uid != null;
-      allow write: if isAdmin();
+    // LINKS
+    match /links/{linkId} {
+      // Any user can read any link (for redirection)
+      allow read: if true;
+      // Authenticated users can create links
+      allow create: if request.auth.uid != null;
+      // Users can only update/delete their own links
+      allow update, delete: if request.auth.uid == resource.data.userId;
+      // Admins have full read/write access to all links
+      allow read, write: if isAdmin();
+    }
+
+    // CLICKS
+    match /clicks/{clickId} {
+        // Clicks can be created by anyone (public API endpoint)
+        allow create: if true;
+        // Only admins can read click history
+        allow read: if isAdmin();
     }
     
-    match /notifications/{notificationId} {
-        allow read: if request.auth.uid == resource.data.userId || isAdmin();
-        allow create: if isAdmin(); // Or based on your logic for creating notifications
+    // PAYOUT REQUESTS
+    match /payoutRequests/{payoutId} {
+        // Users can create their own payout requests
+        allow create: if request.auth.uid == request.resource.data.userId;
+        // Users can read their own requests
+        allow read: if request.auth.uid == resource.data.userId;
+        // Admins can read/write all requests
+        allow read, write: if isAdmin();
     }
 
-    match /settings/{settingId} {
+    // NOTIFICATIONS
+    match /notifications/{notificationId} {
+        // Users can read their own notifications
+        allow read: if request.auth.uid == resource.data.userId;
+        // Admins can create notifications (e.g. milestones, system-wide alerts)
+        allow create: if isAdmin();
+    }
+
+    // CPM HISTORY
+    match /cpmHistory/{cpmId} {
+        // All authenticated users can read the CPM history to see rates
         allow read: if request.auth.uid != null;
+        // Only admins can create/update CPM rates
         allow write: if isAdmin();
     }
     
-    // Fallback rule for any other collection
-    match /{document=**} {
-      allow read, write: if false;
+    // SETTINGS
+    match /settings/{settingId} {
+        // All authenticated users can read settings
+        allow read: if request.auth.uid != null;
+        // Only admins can change settings
+        allow write: if isAdmin();
     }
   }
 }
-
-    
