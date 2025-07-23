@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import { updateProfile } from 'firebase/auth';
 import { auth, db, storage } from '@/lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -24,8 +23,6 @@ export default function ProfilePage() {
   const { toast } = useToast();
 
   const [displayName, setDisplayName] = useState('');
-  const [profilePhoto, setProfilePhoto] = useState<File | null>(null);
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -37,36 +34,17 @@ export default function ProfilePage() {
   useEffect(() => {
     if (user && profile) {
       setDisplayName(profile.displayName || user.displayName || '');
-      setPhotoPreview(profile.photoURL || user.photoURL);
     }
   }, [user, profile]);
-
-  const handlePhotoChange = (e: ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setProfilePhoto(file);
-      setPhotoPreview(URL.createObjectURL(file));
-    }
-  };
 
   const handleSaveProfile = async () => {
     if (!user) return;
     setIsSaving(true);
 
     try {
-      let photoURL = profile?.photoURL || user.photoURL;
-
-      // Upload new photo if selected
-      if (profilePhoto) {
-        const storageRef = ref(storage, `profile-photos/${user.uid}`);
-        await uploadBytes(storageRef, profilePhoto);
-        photoURL = await getDownloadURL(storageRef);
-      }
-
       // Update Firebase Auth profile
       await updateProfile(user, {
         displayName: displayName,
-        photoURL: photoURL,
       });
 
       // Update user document in Firestore
@@ -74,7 +52,6 @@ export default function ProfilePage() {
       
       const userData: { [key: string]: any } = {
         displayName: displayName,
-        photoURL: photoURL,
       };
 
       await setDoc(userRef, userData, { merge: true });
@@ -125,15 +102,14 @@ export default function ProfilePage() {
                     <CardDescription>Update your personal details here.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-4 sm:space-y-0 sm:space-x-4">
+                    <div className="flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-4">
                         <Avatar className="h-20 w-20">
-                            <AvatarImage src={photoPreview ?? undefined} alt="Profile photo" />
+                            <AvatarImage src={profile?.photoURL ?? user.photoURL ?? undefined} alt="Profile photo" />
                             <AvatarFallback>{displayName?.[0]?.toUpperCase() ?? 'U'}</AvatarFallback>
                         </Avatar>
-                        <div className="space-y-1 w-full">
-                              <Label htmlFor="profile-photo">Profile Photo</Label>
-                              <Input id="profile-photo" type="file" accept="image/*" onChange={handlePhotoChange} className="max-w-xs" />
-                              <p className="text-xs text-muted-foreground">PNG, JPG, GIF up to 10MB.</p>
+                        <div className="space-y-1">
+                            <p className="font-medium">Profile Photo</p>
+                            <p className="text-xs text-muted-foreground">Your profile photo is managed by your Google account.</p>
                         </div>
                     </div>
 
