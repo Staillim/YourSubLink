@@ -35,14 +35,15 @@ type LinkData = {
 
 export default function LinkStatsPage({ params }: { params: { linkId: string } }) {
     const { linkId } = params;
-    const { user, role } = useUser();
+    const { user, role, loading: userLoading } = useUser();
     const [linkData, setLinkData] = useState<LinkData | null>(null);
     const [ipStats, setIpStats] = useState<IpStat[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        if (userLoading) return;
         if (!linkId || !user || role !== 'admin') {
-            if (role && role !== 'admin') notFound();
+            if (!userLoading && role && role !== 'admin') notFound();
             return;
         };
 
@@ -69,6 +70,14 @@ export default function LinkStatsPage({ params }: { params: { linkId: string } }
                     }
                 }
                 
+                setLinkData({
+                    title: data.title,
+                    original: data.original,
+                    clicks: data.clicks || 0,
+                    realClicks: data.realClicks || 0,
+                    userName: userName,
+                });
+                
                 // Fetch click data for IP stats
                 const clicksQuery = query(collection(db, 'clicks'), where('linkId', '==', linkId), orderBy('timestamp', 'desc'));
                 const querySnapshot = await getDocs(clicksQuery);
@@ -90,16 +99,10 @@ export default function LinkStatsPage({ params }: { params: { linkId: string } }
                 const sortedIpStats = Object.values(ipCounts).sort((a, b) => b.count - a.count);
                 
                 setIpStats(sortedIpStats);
-                setLinkData({
-                    title: data.title,
-                    original: data.original,
-                    clicks: data.clicks || 0,
-                    realClicks: data.realClicks || 0,
-                    userName: userName,
-                });
 
             } catch (error) {
                 console.error("Failed to fetch link stats:", error);
+                 setLinkData(null); // Clear data on error
             } finally {
                 setLoading(false);
             }
@@ -107,9 +110,9 @@ export default function LinkStatsPage({ params }: { params: { linkId: string } }
         
         fetchData();
 
-    }, [linkId, user, role]);
+    }, [linkId, user, role, userLoading]);
     
-    if (loading) {
+    if (loading || userLoading) {
         return (
              <div className="flex flex-col gap-6">
                 <Skeleton className="h-8 w-48" />
