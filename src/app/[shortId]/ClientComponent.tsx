@@ -183,30 +183,29 @@ export default function ClientComponent() {
         isUniqueByClient = true; // Fallback to true if localStorage fails
       }
       
-      // 3. Fire off the click processing to the API in the background.
-      fetch(`/api/click`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ shortId: shortId, isUniqueByClient: isUniqueByClient }),
-      }).then(res => res.json())
-        .then(apiResponse => {
-           // 4. On successful processing, update localStorage with the new timestamp
-           if (apiResponse.success && isUniqueByClient) {
-              try {
+      try {
+          // 3. Fire off the click processing to the API in the background. AWAIT the response.
+          const apiResponse = await fetch(`/api/click`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ shortId: shortId, isUniqueByClient: isUniqueByClient }),
+          }).then(res => res.json());
+
+          // 4. On successful processing, update localStorage with the new timestamp
+          if (apiResponse.success && isUniqueByClient) {
+            try {
                 const visits = JSON.parse(localStorage.getItem('yoursublink_visits') || '{}');
                 visits[shortId] = apiResponse.timestamp;
                 localStorage.setItem('yoursublink_visits', JSON.stringify(visits));
-              } catch (e) {
+            } catch (e) {
                 console.error("Failed to update localStorage with new visit.", e);
-              }
-           }
-        })
-        .catch(error => {
+            }
+          }
+      } catch (error) {
         // Log error but don't block the user.
         console.error("Failed to record click:", error);
-      });
+      }
+      
 
       // 5. Decide whether to redirect or show the gate
       if (data.rules && data.rules.length > 0) {

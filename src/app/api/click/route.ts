@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
             const currentRealClicks = linkData.realClicks || 0;
             const newRealClicks = currentRealClicks + 1;
             const milestone = 1000; // Notify every 1000 real clicks
-            if (Math.floor(currentRealClicks / milestone) < Math.floor(newRealClicks / milestone)) {
+            if (Math.floor(newRealClicks / milestone) > Math.floor(currentRealClicks / milestone)) {
                 const reachedMilestone = Math.floor(newRealClicks / milestone) * milestone;
                 const notificationRef = doc(collection(db, 'notifications'));
                 batch.set(notificationRef, {
