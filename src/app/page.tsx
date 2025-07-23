@@ -107,10 +107,7 @@ export default function AuthenticationPage() {
       const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
       
-      // Update the user's profile in Firebase Auth
       await updateProfile(user, { displayName: values.name });
-      
-      // Create the user profile document in Firestore
       await createUserProfile(user);
 
       router.push('/dashboard');
