@@ -133,7 +133,7 @@ export default function AdminDashboardPage() {
                             ) : (
                                 <div className="text-2xl font-bold">
                                     {stat.isCurrency && '$'}
-                                    {stat.value !== null ? (stat.isCurrency ? stat.value.toFixed(2) : stat.value.toLocaleString()) : '0'}
+                                    {stat.value !== null ? (stat.isCurrency ? stat.value.toFixed(3) : stat.value.toLocaleString()) : '0'}
                                 </div>
                             )}
                             <p className="text-xs text-muted-foreground">
