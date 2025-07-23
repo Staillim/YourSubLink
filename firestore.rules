@@ -1,39 +1,43 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    function isAdmin() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
     match /users/{userId} {
-      allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow read, update, delete: if request.auth.uid == userId || isAdmin();
+      allow create: if request.auth.uid == userId;
+      allow list: if isAdmin();
     }
 
     match /links/{linkId} {
-      allow read: if true;
+      allow read: if resource.data.userId == request.auth.uid || isAdmin();
       allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
-      allow update: if (request.auth != null && resource.data.userId == request.auth.uid) ||
-                       (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks', 'realClicks', 'generatedEarnings']));
-      allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow update: if (resource.data.userId == request.auth.uid || isAdmin()) ||
+                       (request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['clicks', 'realClicks', 'generatedEarnings']));
+      allow delete: if resource.data.userId == request.auth.uid || isAdmin();
+      allow list: if isAdmin();
     }
 
     match /clicks/{clickId} {
       allow create: if true;
-      allow read: if false; // Clicks are private and should not be read by clients
+      allow read: if false;
     }
-    
+
     match /payoutRequests/{payoutId} {
-        allow read, write: if request.auth != null; // User can read/write their own, admin can read/write all (checked in code)
+      allow read, update, delete: if isAdmin();
+      allow create: if request.auth.uid == request.resource.data.userId;
+      allow list: if isAdmin();
     }
 
-    match /notifications/{notificationId} {
-        allow read: if request.auth != null && resource.data.userId == request.auth.uid;
-        allow create: if true; // Let server create them
-    }
-
-    match /cpmHistory/{cpmId} {
-        allow read: if true;
-        allow write: if request.auth != null; // Admin only logic in code
+    match /cpmHistory/{historyId} {
+        allow read, list: if isAdmin();
+        allow create, update, delete: if isAdmin();
     }
   }
 }
