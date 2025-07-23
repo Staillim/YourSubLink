@@ -40,18 +40,21 @@ export default function AdminDashboardPage() {
         });
 
         const unsubLinks = onSnapshot(linksQuery, (snapshot) => {
-            let clicks = 0;
-            let monetizable = 0;
+            let allClicks = 0;
+            let monetizedClicks = 0;
+            let monetizableCount = 0;
             snapshot.forEach((doc) => {
                 const data = doc.data() as Link;
-                clicks += data.clicks || 0;
+                const linkClicks = data.clicks || 0;
+                allClicks += linkClicks;
                 if (data.monetizable) {
-                    monetizable++;
+                    monetizableCount++;
+                    monetizedClicks += linkClicks;
                 }
             });
-            setTotalClicks(clicks);
-            setTotalRevenue((clicks / 1000) * cpm);
-            setMonetizableLinks(monetizable);
+            setTotalClicks(allClicks);
+            setTotalRevenue((monetizedClicks / 1000) * cpm);
+            setMonetizableLinks(monetizableCount);
             if (loading) setLoading(false);
         });
 
