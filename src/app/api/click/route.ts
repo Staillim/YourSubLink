@@ -37,13 +37,28 @@ export async function POST(req: NextRequest) {
 
             // Handle earnings only on real visits
             if (linkData.monetizable && linkData.userId) {
-                // In a real app, this would come from a central config/DB
-                const activeCpm = 3.00;
+                // Find active CPM rate
+                const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
+                const cpmSnapshot = await getDocs(cpmQuery);
+                let activeCpm = 3.00; // Default fallback CPM
+                let activeCpmId = 'default';
+
+                if (!cpmSnapshot.empty) {
+                    const cpmDoc = cpmSnapshot.docs[0];
+                    activeCpm = cpmDoc.data().rate;
+                    activeCpmId = cpmDoc.id;
+                }
+
                 const earningsPerClick = activeCpm / 1000;
 
+                // Increment total earnings on link and user
                 batch.update(linkRef, { generatedEarnings: increment(earningsPerClick) });
                 const userRef = doc(db, 'users', linkData.userId);
                 batch.update(userRef, { generatedEarnings: increment(earningsPerClick) });
+                
+                // Increment earnings for the specific CPM period on the link
+                const cpmEarningsField = `earningsByCpm.${activeCpmId}`;
+                batch.update(linkRef, { [cpmEarningsField]: increment(earningsPerClick) });
             }
         }
         
@@ -52,7 +67,7 @@ export async function POST(req: NextRequest) {
         batch.set(clickDocRef, {
             linkId: linkId,
             timestamp: serverTimestamp(),
-            isRealClick: isRealVisit,
+            isRealClick: !!isRealVisit, // Convert to boolean
             source: 'client-storage', // Mark that client localStorage was the source of truth
         });
 

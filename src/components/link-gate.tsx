@@ -1,13 +1,15 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import type { Rule } from '@/components/rule-editor';
 import type { LinkData } from '@/types';
-import { Loader2, ExternalLink, CheckCircle2, Lock, Link as LinkIcon, ChevronRight, Youtube, Instagram } from 'lucide-react';
+import { Loader2, ExternalLink, CheckCircle2, Lock, Link as LinkIcon, ChevronRight, Youtube, Instagram, Timer } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
 
 const RULE_DETAILS = {
   like: { text: 'Like & Comment on Video', icon: Youtube, color: 'bg-red-600 hover:bg-red-700' },
@@ -22,7 +24,8 @@ function RuleItem({ rule, onComplete, isCompleted }: { rule: Rule; onComplete: (
 
   const { text, icon: Icon, color } = RULE_DETAILS[rule.type] || RULE_DETAILS.visit;
 
-  const handleClick = () => {
+  const handleClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
     if (isCompleted || isClicked) return;
 
     window.open(rule.url, '_blank');
@@ -37,14 +40,20 @@ function RuleItem({ rule, onComplete, isCompleted }: { rule: Rule; onComplete: (
     const completionTimeout = setTimeout(() => {
       clearInterval(verifyingInterval);
       onComplete();
-    }, 10000); // Wait 10 seconds to simulate verification
+    }, 10000);
   };
 
+  const buttonClasses = cn(
+    "w-full justify-between h-auto py-4 px-5 text-base font-semibold",
+    "inline-flex items-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+    isCompleted ? 'bg-green-600 hover:bg-green-700 text-primary-foreground' : color,
+    (isClicked && !isCompleted) ? 'disabled:opacity-100 cursor-wait' : 'cursor-pointer'
+  );
+
   return (
-    <Button
+    <div
       onClick={handleClick}
-      disabled={isClicked}
-      className={`w-full justify-between h-auto py-4 px-5 text-base font-semibold ${isCompleted ? 'bg-green-600 hover:bg-green-700' : color}`}
+      className={buttonClasses}
     >
       <div className="flex items-center gap-3">
         <Icon className="h-6 w-6" />
@@ -61,14 +70,46 @@ function RuleItem({ rule, onComplete, isCompleted }: { rule: Rule; onComplete: (
             <ChevronRight className="h-6 w-6" />
         )}
       </div>
-    </Button>
+    </div>
   );
 }
 
 
+function CountdownPage({ linkData }: { linkData: LinkData }) {
+    const [countdown, setCountdown] = useState(5);
+
+    useEffect(() => {
+        if (countdown > 0) {
+            const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+            return () => clearTimeout(timer);
+        } else {
+            window.location.href = linkData.original;
+        }
+    }, [countdown, linkData.original]);
+
+    return (
+        <div className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4">
+            <Card className="w-full max-w-md shadow-2xl bg-card border-gray-800">
+                <CardHeader className="text-center items-center pt-8">
+                     <Timer className="h-12 w-12 text-primary" />
+                    <CardTitle className="text-3xl font-bold tracking-tight">Redirecting</CardTitle>
+                    <CardDescription className="text-muted-foreground text-base pt-1">
+                        Your link will be available in...
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-col items-center justify-center px-6 pb-8 pt-4">
+                    <div className="text-6xl font-bold text-primary tabular-nums">
+                        {countdown}
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+    );
+}
+
 export default function LinkGate({ linkData }: { linkData: LinkData }) {
     const [completedRules, setCompletedRules] = useState<boolean[]>(Array(linkData.rules.length).fill(false));
-    const [isRedirecting, setIsRedirecting] = useState(false);
+    const [status, setStatus] = useState<'gate' | 'countdown'>('gate');
     
     const totalRules = linkData.rules.length;
     const completedCount = completedRules.filter(Boolean).length;
@@ -83,10 +124,14 @@ export default function LinkGate({ linkData }: { linkData: LinkData }) {
     }
 
     const handleUnlockClick = () => {
-        setIsRedirecting(true);
-        window.location.href = linkData.original;
+        if (!allRulesCompleted) return;
+        setStatus('countdown');
     }
     
+    if (status === 'countdown') {
+        return <CountdownPage linkData={linkData} />;
+    }
+
     return (
         <div className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4">
             <Card className="w-full max-w-md shadow-2xl bg-card border-gray-800">
@@ -117,14 +162,13 @@ export default function LinkGate({ linkData }: { linkData: LinkData }) {
 
                     <Button
                         onClick={handleUnlockClick}
-                        disabled={!allRulesCompleted || isRedirecting}
+                        disabled={!allRulesCompleted}
                         className="w-full font-bold text-lg py-7 mt-4 bg-green-600 hover:bg-green-700 disabled:bg-gray-800 disabled:text-muted-foreground disabled:cursor-not-allowed"
                         size="lg"
                     >
-                        <div className="flex items-center justify-between w-full">
+                        <div className="flex items-center justify-center w-full gap-2">
                            <Lock className="h-5 w-5"/>
-                           {isRedirecting ? <span>Redirecting...</span> : <span>Unlock Link</span>}
-                           {isRedirecting ? <Loader2 className="h-5 w-5 animate-spin"/> : <LinkIcon className="h-5 w-5"/>}
+                           {allRulesCompleted ? <span>Unlock Link</span> : <span>Complete all actions</span>}
                         </div>
                     </Button>
                 </CardContent>
