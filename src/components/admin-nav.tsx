@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/components/ui/button';
-import { Home, Users, Link2, Shield, Settings, History, CreditCard } from 'lucide-react';
+import { Home, Users, Link2, Shield, Settings, History, CreditCard, DollarSign } from 'lucide-react';
 
 const navItems = [
     {
@@ -27,6 +27,11 @@ const navItems = [
         href: '/admin/payout-requests',
         label: 'Payout Requests',
         icon: CreditCard,
+    },
+     {
+        href: '/admin/cpm-history',
+        label: 'CPM History',
+        icon: DollarSign,
     },
     {
         href: '/admin/security',

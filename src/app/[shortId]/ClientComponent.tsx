@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import { notFound } from 'next/navigation';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, writeBatch, serverTimestamp, increment, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, writeBatch, serverTimestamp, increment, getDoc, limit, orderBy } from 'firebase/firestore';
 import { Loader2, ExternalLink, CheckCircle2, Lock, Link as LinkIcon, ChevronRight, Youtube, Instagram } from 'lucide-react';
 import type { Rule } from '@/components/rule-editor';
 import { Button } from '@/components/ui/button';
@@ -58,14 +58,26 @@ async function recordClick(linkData: LinkData, visitorId: string): Promise<void>
         
         // 3. Handle monetization earnings for the click if applicable
         if (linkData.monetizable) {
-            // Fetch current CPM rate from global settings
-            const settingsRef = doc(db, 'settings', 'global');
-            const settingsSnap = await getDoc(settingsRef);
-            const cpm = settingsSnap.exists() ? settingsSnap.data().cpm : 3.00;
-            const earningsPerClick = cpm / 1000;
+            // Fetch current active CPM rate from cpmHistory
+            const cpmQuery = query(collection(db, 'cpmHistory'), orderBy('startDate', 'desc'), limit(1));
+            const cpmSnapshot = await getDocs(cpmQuery);
+            
+            if (!cpmSnapshot.empty) {
+                const activeCpmDoc = cpmSnapshot.docs[0];
+                const cpmData = activeCpmDoc.data();
+                const cpmId = activeCpmDoc.id;
+                const cpmRate = cpmData.rate;
+                const earningsPerClick = cpmRate / 1000;
 
-            const linkEarningsUpdate = { generatedEarnings: increment(earningsPerClick) };
-            batch.update(linkRef, linkEarningsUpdate);
+                const earningsUpdate = {
+                    // Increment total earnings
+                    generatedEarnings: increment(earningsPerClick),
+                    // Increment earnings for the specific CPM period
+                    [`earningsByCpm.${cpmId}`]: increment(earningsPerClick)
+                };
+                
+                batch.update(linkRef, earningsUpdate);
+            }
         }
 
         // 4. Handle milestone notifications

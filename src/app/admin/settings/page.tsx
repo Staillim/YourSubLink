@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, query, where, orderBy, limit, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -20,6 +20,7 @@ type MonetizationSettings = {
 
 export default function AdminSettingsPage() {
     const [settings, setSettings] = useState<MonetizationSettings>({ cpm: 0, minPayout: 0, rulesToMonetize: 0 });
+    const [initialCpm, setInitialCpm] = useState<number | null>(null);
     const [loading, setLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const { toast } = useToast();
@@ -31,10 +32,13 @@ export default function AdminSettingsPage() {
                 const settingsRef = doc(db, 'settings', 'global');
                 const docSnap = await getDoc(settingsRef);
                 if (docSnap.exists()) {
-                    setSettings(docSnap.data() as MonetizationSettings);
+                    const data = docSnap.data() as MonetizationSettings;
+                    setSettings(data);
+                    setInitialCpm(data.cpm);
                 } else {
                     // Set default values if not found
                     setSettings({ cpm: 3.00, minPayout: 10, rulesToMonetize: 3 });
+                    setInitialCpm(3.00);
                 }
             } catch (error) {
                 toast({ title: 'Error fetching settings', variant: 'destructive' });
@@ -48,11 +52,39 @@ export default function AdminSettingsPage() {
 
     const handleSave = async () => {
         setIsSaving(true);
+        const batch = writeBatch(db);
+        const settingsRef = doc(db, 'settings', 'global');
+
         try {
-            const settingsRef = doc(db, 'settings', 'global');
-            await setDoc(settingsRef, settings, { merge: true });
+            // Update the main settings document
+            batch.update(settingsRef, settings);
+            
+            // Check if CPM has changed to manage history
+            if (initialCpm !== null && settings.cpm !== initialCpm) {
+                 // Find the last CPM entry to set its end date
+                const lastCpmQuery = query(collection(db, 'cpmHistory'), orderBy('startDate', 'desc'), limit(1));
+                const lastCpmSnapshot = await getDocs(lastCpmQuery);
+                
+                if (!lastCpmSnapshot.empty) {
+                    const lastCpmDoc = lastCpmSnapshot.docs[0];
+                    batch.update(lastCpmDoc.ref, { endDate: serverTimestamp() });
+                }
+
+                // Create a new CPM history entry
+                const newCpmHistoryRef = doc(collection(db, 'cpmHistory'));
+                batch.set(newCpmHistoryRef, {
+                    rate: settings.cpm,
+                    startDate: serverTimestamp()
+                });
+            }
+
+            await batch.commit();
+
+            setInitialCpm(settings.cpm); // Update initial CPM for next comparison
             toast({ title: 'Settings Saved', description: 'Global settings have been updated.' });
+
         } catch (error) {
+            console.error("Error saving settings:", error);
             toast({ title: 'Error saving settings', variant: 'destructive' });
         } finally {
             setIsSaving(false);
@@ -97,7 +129,7 @@ export default function AdminSettingsPage() {
                 <CardContent className="space-y-6">
                     <div className="space-y-2">
                         <Label htmlFor="cpm">CPM Rate ($)</Label>
-                        <p className="text-sm text-muted-foreground">Cost Per Mille. The amount paid per 1000 monetized clicks.</p>
+                        <p className="text-sm text-muted-foreground">Cost Per Mille. The amount paid per 1000 monetized clicks. Changing this creates a new entry in CPM history.</p>
                         <Input id="cpm" type="number" value={settings.cpm} onChange={handleInputChange} />
                     </div>
                      <div className="space-y-2">

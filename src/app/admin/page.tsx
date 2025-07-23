@@ -35,19 +35,11 @@ export default function AdminDashboardPage() {
     const [monetizableLinks, setMonetizableLinks] = useState<number | null>(null);
     const [recentPayouts, setRecentPayouts] = useState<Payout[]>([]);
     const [loading, setLoading] = useState(true);
-    const [cpm, setCpm] = useState(0);
 
     useEffect(() => {
         const usersQuery = query(collection(db, 'users'));
         const linksQuery = query(collection(db, 'links'));
         const payoutsQuery = query(collection(db, 'payoutRequests'), orderBy('processedAt', 'desc'), limit(5));
-        const settingsRef = doc(db, 'settings', 'global');
-
-        const unsubSettings = onSnapshot(settingsRef, (doc) => {
-            if (doc.exists()) {
-                setCpm(doc.data().cpm || 0);
-            }
-        });
 
         const unsubUsers = onSnapshot(usersQuery, (snapshot) => {
             setUserCount(snapshot.size);
@@ -57,7 +49,6 @@ export default function AdminDashboardPage() {
         const unsubLinks = onSnapshot(linksQuery, (snapshot) => {
             let allClicks = 0;
             let allRealClicks = 0;
-            let monetizableRealClicks = 0;
             let allGeneratedEarnings = 0;
             let monetizableCount = 0;
             
@@ -70,19 +61,12 @@ export default function AdminDashboardPage() {
                 allGeneratedEarnings += data.generatedEarnings || 0;
                 if (data.monetizable) {
                     monetizableCount++;
-                    monetizableRealClicks += data.realClicks || 0;
                 }
             });
             setTotalClicks(allClicks);
             setTotalRealClicks(allRealClicks);
             setMonetizableLinks(monetizableCount);
-            
-            // Calculate revenue based on monetizable real clicks and current CPM
-            if (cpm > 0) {
-                 setTotalRevenue((monetizableRealClicks / 1000) * cpm);
-            } else {
-                setTotalRevenue(0);
-            }
+            setTotalRevenue(allGeneratedEarnings); // Use the accumulated historical earnings
 
             if (loading) setLoading(false);
         });
@@ -107,15 +91,14 @@ export default function AdminDashboardPage() {
 
 
         return () => {
-            unsubSettings();
             unsubUsers();
             unsubLinks();
             unsubPayouts();
         };
-    }, [loading, cpm]);
+    }, [loading]);
 
     const stats = [
-        { title: 'Total Revenue', value: totalRevenue, icon: DollarSign, isCurrency: true, description: `Based on current $${cpm.toFixed(2)} CPM` },
+        { title: 'Total Revenue', value: totalRevenue, icon: DollarSign, isCurrency: true, description: `Historical accumulated revenue` },
         { title: 'Total Users', value: userCount, icon: Users, isCurrency: false, description: "Live user count" },
         { title: 'Total Links', value: totalLinks, icon: Link2, isCurrency: false, description: "All created links" },
         { title: 'Monetizable Links', value: monetizableLinks, icon: DollarSign, isCurrency: false, description: "Links eligible for earnings" },
@@ -140,7 +123,7 @@ export default function AdminDashboardPage() {
                             ) : (
                                 <div className="text-2xl font-bold">
                                     {stat.isCurrency && '$'}
-                                    {stat.value !== null ? (stat.isCurrency ? stat.value.toFixed(3) : stat.value.toLocaleString()) : '0'}
+                                    {stat.value !== null ? (stat.isCurrency ? stat.value.toFixed(4) : stat.value.toLocaleString()) : '0'}
                                 </div>
                             )}
                             <p className="text-xs text-muted-foreground">
