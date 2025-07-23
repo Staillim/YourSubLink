@@ -75,39 +75,44 @@ function RuleItem({ rule, onComplete, isCompleted }: { rule: Rule; onComplete: (
 }
 
 
-function CountdownPage({ linkData }: { linkData: LinkData }) {
+function CountdownPage({ onContinue }: { onContinue: () => void }) {
     const [countdown, setCountdown] = useState(5);
+    const isCountdownFinished = countdown === 0;
 
     useEffect(() => {
         if (countdown > 0) {
             const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
             return () => clearTimeout(timer);
-        } else {
-            window.location.href = linkData.original;
         }
-    }, [countdown, linkData.original]);
+    }, [countdown]);
 
     return (
         <div className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4">
             <Card className="w-full max-w-md shadow-2xl bg-card border-gray-800">
                 <CardHeader className="text-center items-center pt-8">
                      <Timer className="h-12 w-12 text-primary" />
-                    <CardTitle className="text-3xl font-bold tracking-tight">Redirecting</CardTitle>
+                    <CardTitle className="text-3xl font-bold tracking-tight">Please wait</CardTitle>
                     <CardDescription className="text-muted-foreground text-base pt-1">
-                        Your link will be available in...
+                        Your link will be available shortly.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-col items-center justify-center px-6 pb-8 pt-4">
-                    <div className="text-6xl font-bold text-primary tabular-nums">
-                        {countdown}
-                    </div>
+                   {isCountdownFinished ? (
+                        <Button onClick={onContinue} className="w-full font-bold text-lg py-7 mt-4 bg-green-600 hover:bg-green-700" size="lg">
+                            Continue to Link
+                        </Button>
+                   ) : (
+                        <div className="text-6xl font-bold text-primary tabular-nums">
+                            {countdown}
+                        </div>
+                   )}
                 </CardContent>
             </Card>
         </div>
     );
 }
 
-export default function LinkGate({ linkData, onUnlock, initialStatus = 'gate' }: { linkData: LinkData, onUnlock: () => void, initialStatus?: 'gate' | 'countdown' }) {
+export default function LinkGate({ linkData, onUnlock, onContinue, initialStatus = 'gate' }: { linkData: LinkData, onUnlock: () => void, onContinue: () => void, initialStatus?: 'gate' | 'countdown' }) {
     const [completedRules, setCompletedRules] = useState<boolean[]>(Array(linkData.rules.length).fill(false));
     const [status, setStatus] = useState<'gate' | 'countdown'>(initialStatus);
     
@@ -123,15 +128,15 @@ export default function LinkGate({ linkData, onUnlock, initialStatus = 'gate' }:
         });
     }
 
-    // This is the CRITICAL function. It is ONLY called by the button's onClick.
-    // It calls the `onUnlock` function passed from the parent, which handles the API call and state change.
+    // This is called when the user clicks the "Unlock Link" button.
+    // It calls the `onUnlock` function passed from the parent, which handles changing the view.
     const handleUnlockClick = () => {
         if (!allRulesCompleted) return;
         onUnlock(); 
     }
     
     if (status === 'countdown') {
-        return <CountdownPage linkData={linkData} />;
+        return <CountdownPage onContinue={onContinue} />;
     }
 
     return (
