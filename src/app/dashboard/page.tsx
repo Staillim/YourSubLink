@@ -91,19 +91,21 @@ export default function DashboardPage() {
     if (user) {
       setLinksLoading(true);
       const q = query(collection(db, "links"), where("userId", "==", user.uid));
-      const unsubscribe = onSnapshot(q, async (querySnapshot) => {
+      const unsubscribe = onSnapshot(q, (querySnapshot) => {
         const linksData: LinkItem[] = [];
-        for (const docSnapshot of querySnapshot.docs) {
-            const data = docSnapshot.data();
+        querySnapshot.forEach((doc) => {
+            const data = doc.data();
+            // Fallback for old links that might not have createdAt
+            const date = data.createdAt ? new Date(data.createdAt.seconds * 1000).toISOString().split('T')[0] : 'N/A';
             
             linksData.push({
-                id: docSnapshot.id,
+                id: doc.id,
                 original: data.original,
                 shortId: data.shortId,
                 short: `${window.location.origin}/${data.shortId}`,
                 clicks: data.clicks || 0,
                 realClicks: data.realClicks || 0,
-                date: new Date(data.createdAt.seconds * 1000).toISOString().split('T')[0],
+                date: date,
                 userId: data.userId,
                 title: data.title,
                 description: data.description,
@@ -111,14 +113,18 @@ export default function DashboardPage() {
                 rules: data.rules || [],
                 generatedEarnings: data.generatedEarnings || 0,
             });
-        }
+        });
         setLinks(linksData.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
         setLinksLoading(false);
+      }, (error) => {
+        console.error("Error fetching links:", error);
+        setLinksLoading(false);
+        toast({ title: "Error", description: "Could not fetch your links.", variant: "destructive" });
       });
 
       return () => unsubscribe();
     }
-  }, [user]);
+  }, [user, toast]);
 
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -186,9 +192,20 @@ export default function DashboardPage() {
   if (loading || linksLoading) {
     return (
       <div className="flex flex-col gap-4">
-        <Skeleton className="h-8 w-48" />
+        <div className="flex items-center justify-between">
+            <Skeleton className="h-8 w-48" />
+            <Skeleton className="h-10 w-40" />
+        </div>
         <div className="grid gap-6">
-            <Skeleton className="h-72 w-full" />
+            <Card>
+                <CardHeader>
+                    <Skeleton className="h-6 w-32" />
+                    <Skeleton className="h-4 w-72" />
+                </CardHeader>
+                <CardContent>
+                    <Skeleton className="h-60 w-full" />
+                </CardContent>
+            </Card>
         </div>
       </div>
     );

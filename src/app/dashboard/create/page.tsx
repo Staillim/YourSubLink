@@ -5,7 +5,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { collection, addDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -56,7 +56,8 @@ export default function CreateLinkPage() {
           original: longUrl,
           shortId: shortId,
           clicks: 0,
-          createdAt: new Date(),
+          realClicks: 0,
+          createdAt: serverTimestamp(),
           title,
           description,
           rules,
