@@ -1,0 +1,24 @@
+
+{
+  "AuthenticationPage": {
+    "welcome": "Bienvenido a YourSubLink",
+    "description": "Ingresa tus credenciales para acceder a tu cuenta",
+    "resetPasswordTitle": "Restablecer Contraseña",
+    "resetPasswordDescription": "Ingresa tu email para recibir un enlace de restablecimiento.",
+    "signIn": "Iniciar Sesión",
+    "signUp": "Registrarse",
+    "emailLabel": "Correo electrónico",
+    "passwordLabel": "Contraseña",
+    "nameLabel": "Nombre",
+    "forgotPassword": "¿Olvidaste tu contraseña?",
+    "sendResetEmail": "Enviar Email de Restablecimiento",
+    "backToSignIn": "Volver a Iniciar Sesión",
+    "continueWith": "O continuar con",
+    "terms": "Al continuar, aceptas nuestros <link>Términos de Servicio</link>."
+  },
+  "UserNav": {
+    "balance": "Saldo",
+    "profile": "Perfil",
+    "logout": "Cerrar sesión"
+  }
+}

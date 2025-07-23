@@ -1,0 +1,24 @@
+
+{
+  "AuthenticationPage": {
+    "welcome": "Welcome to YourSubLink",
+    "description": "Enter your credentials to access your account",
+    "resetPasswordTitle": "Reset Password",
+    "resetPasswordDescription": "Enter your email to receive a reset link.",
+    "signIn": "Sign In",
+    "signUp": "Sign Up",
+    "emailLabel": "Email",
+    "passwordLabel": "Password",
+    "nameLabel": "Name",
+    "forgotPassword": "Forgot password?",
+    "sendResetEmail": "Send Reset Email",
+    "backToSignIn": "Back to Sign In",
+    "continueWith": "Or continue with",
+    "terms": "By continuing, you agree to our <link>Terms of Service</link>."
+  },
+  "UserNav": {
+    "balance": "Balance",
+    "profile": "Profile",
+    "logout": "Log out"
+  }
+}
