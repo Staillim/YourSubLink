@@ -107,6 +107,7 @@ function RuleItem({ rule, onComplete, isCompleted }: { rule: Rule; onComplete: (
 
   return (
     <Button
+      type="button"
       onClick={handleClick}
       disabled={isClicked}
       className={`w-full justify-between h-auto py-4 px-5 text-base font-semibold ${isCompleted ? 'bg-green-600 hover:bg-green-700' : color}`}
@@ -181,6 +182,7 @@ function LinkGate({ linkData }: { linkData: LinkData }) {
                     </div>
 
                     <Button
+                        type="button"
                         onClick={handleUnlockClick}
                         disabled={!allRulesCompleted || isRedirecting}
                         className="w-full font-bold text-lg py-7 mt-4 bg-green-600 hover:bg-green-700 disabled:bg-gray-800 disabled:text-muted-foreground disabled:cursor-not-allowed"
