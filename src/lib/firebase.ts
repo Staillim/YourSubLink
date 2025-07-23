@@ -36,6 +36,7 @@ const createUserProfile = async (user: User) => {
                 createdAt: serverTimestamp(),
                 generatedEarnings: 0,
                 paidEarnings: 0,
+                customCpm: null, // Initialize customCpm as null
             });
         } catch (error) {
             console.error("Error creating user profile:", error);

@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, doc, updateDoc, query, where, getDocs, serverTimestamp, increment } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, query, where, getDocs, serverTimestamp, increment, setDoc } from 'firebase/firestore';
 import { useUser } from '@/hooks/use-user';
 import {
   Table,
@@ -17,7 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
-import { MoreVertical, UserX, UserCheck, Eye, Loader2, DollarSign } from 'lucide-react';
+import { MoreVertical, UserX, UserCheck, Eye, Loader2, DollarSign, Percent } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
     DropdownMenu,
@@ -47,6 +47,7 @@ type UserProfile = {
   generatedEarnings: number;
   paidEarnings: number;
   monetizationStatus: 'active' | 'inactive';
+  customCpm?: number;
 };
 
 export default function AdminUsersPage() {
@@ -55,10 +56,13 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Add Balance Dialog State
+  // Dialog States
   const [isAddBalanceDialogOpen, setIsAddBalanceDialogOpen] = useState(false);
+  const [isCpmDialogOpen, setIsCpmDialogOpen] = useState(false);
+
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [balanceAmount, setBalanceAmount] = useState('');
+  const [cpmAmount, setCpmAmount] = useState('');
 
 
   useEffect(() => {
@@ -81,6 +85,7 @@ export default function AdminUsersPage() {
           generatedEarnings: userData.generatedEarnings || 0,
           paidEarnings: userData.paidEarnings || 0,
           monetizationStatus: 'active', // Placeholder
+          customCpm: userData.customCpm
         });
       }
 
@@ -95,6 +100,12 @@ export default function AdminUsersPage() {
     setSelectedUser(user);
     setBalanceAmount(''); // Reset amount on open
     setIsAddBalanceDialogOpen(true);
+  }
+  
+  const openCpmDialog = (user: UserProfile) => {
+    setSelectedUser(user);
+    setCpmAmount(user.customCpm?.toString() || '');
+    setIsCpmDialogOpen(true);
   }
 
   const handleAddBalance = async () => {
@@ -129,6 +140,44 @@ export default function AdminUsersPage() {
         setIsSubmitting(false);
     }
   }
+  
+   const handleSetCpm = async () => {
+    if (!selectedUser) return;
+    
+    const newCpm = parseFloat(cpmAmount);
+    // Allow setting CPM to 0 or an empty string to remove it.
+    if (cpmAmount !== '' && (isNaN(newCpm) || newCpm < 0)) {
+        toast({ title: 'Invalid CPM', description: 'Please enter a valid positive number, or leave it blank to use the global rate.', variant: 'destructive' });
+        return;
+    }
+
+    setIsSubmitting(true);
+    try {
+        const userDocRef = doc(db, 'users', selectedUser.uid);
+        const rateToSet = cpmAmount === '' ? null : newCpm;
+        
+        await setDoc(userDocRef, { customCpm: rateToSet }, { merge: true });
+        
+        toast({
+            title: 'Custom CPM Updated',
+            description: rateToSet 
+                ? `Set custom CPM of $${newCpm.toFixed(4)} for ${selectedUser.displayName}.`
+                : `Removed custom CPM for ${selectedUser.displayName}. The global rate will now apply.`,
+        });
+        
+        setIsCpmDialogOpen(false);
+        setSelectedUser(null);
+        setCpmAmount('');
+    } catch (error) {
+         toast({
+            title: 'Error updating CPM',
+            description: 'There was a problem updating the custom CPM.',
+            variant: 'destructive',
+        });
+    } finally {
+        setIsSubmitting(false);
+    }
+  }
 
 
   if (loading) {
@@ -144,13 +193,13 @@ export default function AdminUsersPage() {
              <Table>
                 <TableHeader>
                     <TableRow>
-                        {[...Array(7)].map((_, i) => <TableHead key={i}><Skeleton className="h-5 w-24" /></TableHead>)}
+                        {[...Array(8)].map((_, i) => <TableHead key={i}><Skeleton className="h-5 w-24" /></TableHead>)}
                     </TableRow>
                 </TableHeader>
                 <TableBody>
                     {[...Array(5)].map((_, i) => (
                          <TableRow key={i}>
-                            {[...Array(6)].map((_, j) => <TableCell key={j}><Skeleton className="h-5 w-full" /></TableCell>)}
+                            {[...Array(7)].map((_, j) => <TableCell key={j}><Skeleton className="h-5 w-full" /></TableCell>)}
                             <TableCell className="text-right"><Skeleton className="h-8 w-8" /></TableCell>
                          </TableRow>
                     ))}
@@ -180,6 +229,7 @@ export default function AdminUsersPage() {
                             <TableHead>Generated Earnings</TableHead>
                             <TableHead>Paid Earnings</TableHead>
                             <TableHead>Current Balance</TableHead>
+                            <TableHead>Custom CPM</TableHead>
                             <TableHead>Role</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
@@ -196,6 +246,13 @@ export default function AdminUsersPage() {
                                 <TableCell className="text-green-500 font-semibold">${u.paidEarnings.toFixed(4)}</TableCell>
                                 <TableCell className="font-bold">${(u.generatedEarnings - u.paidEarnings).toFixed(4)}</TableCell>
                                 <TableCell>
+                                    {u.customCpm !== undefined && u.customCpm !== null ? (
+                                        <Badge variant="secondary">${u.customCpm.toFixed(4)}</Badge>
+                                    ) : (
+                                        <span className="text-muted-foreground text-xs">Global</span>
+                                    )}
+                                </TableCell>
+                                <TableCell>
                                     <Badge variant={u.role === 'admin' ? 'default' : 'secondary'} className={u.role === 'admin' ? 'bg-primary' : ''}>
                                         {u.role}
                                     </Badge>
@@ -208,9 +265,9 @@ export default function AdminUsersPage() {
                                             </Button>
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align="end">
-                                            <DropdownMenuItem disabled>
-                                                <Eye className="mr-2 h-4 w-4" />
-                                                <span>View Details</span>
+                                             <DropdownMenuItem onClick={() => openCpmDialog(u)}>
+                                                <Percent className="mr-2 h-4 w-4" />
+                                                <span>Set Custom CPM</span>
                                             </DropdownMenuItem>
                                             <DropdownMenuItem onClick={() => openAddBalanceDialog(u)}>
                                                 <DollarSign className="mr-2 h-4 w-4" />
@@ -260,6 +317,42 @@ export default function AdminUsersPage() {
                     <Button onClick={handleAddBalance} disabled={isSubmitting}>
                         {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         Add Balance
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+        
+        {/* Set CPM Dialog */}
+        <Dialog open={isCpmDialogOpen} onOpenChange={setIsCpmDialogOpen}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Set Custom CPM for {selectedUser?.displayName}</DialogTitle>
+                    <DialogDescription>
+                       Set a specific CPM rate for this user. Leave blank to use the global CPM rate.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="cpm-amount">Custom CPM Rate</Label>
+                        <Input 
+                            id="cpm-amount"
+                            type="number"
+                            value={cpmAmount}
+                            onChange={(e) => setCpmAmount(e.target.value)}
+                            placeholder="e.g. 4.50"
+                            step="0.0001"
+                        />
+                    </div>
+                </div>
+                <DialogFooter>
+                    <DialogClose asChild>
+                        <Button type="button" variant="secondary" onClick={() => setIsCpmDialogOpen(false)}>
+                            Cancel
+                        </Button>
+                    </DialogClose>
+                    <Button onClick={handleSetCpm} disabled={isSubmitting}>
+                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Save CPM
                     </Button>
                 </DialogFooter>
             </DialogContent>
