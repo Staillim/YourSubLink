@@ -89,7 +89,11 @@ export default function UserLinkStatsPage() {
                     return acc;
                 }, {} as { [key: string]: IpStat });
 
-                const sortedIpStats = Object.values(ipCounts).sort((a, b) => b.count - a.count);
+                const sortedIpStats = Object.values(ipCounts).sort((a, b) => {
+                    const dateA = a.timestamps.length > 0 ? Math.max(...a.timestamps.map(t => t.getTime())) : 0;
+                    const dateB = b.timestamps.length > 0 ? Math.max(...b.timestamps.map(t => t.getTime())) : 0;
+                    return dateB - dateA;
+                });
                 
                 setIpStats(sortedIpStats);
                 setStatus('success');

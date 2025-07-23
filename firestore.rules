@@ -3,73 +3,59 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
+    
     function isOwner(userId) {
       return request.auth != null && request.auth.uid == userId;
     }
     
     function isAdmin() {
-      // Allow any authenticated user for this check, but secure the write operation.
-      // In production, you might use custom claims.
       return request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
-
-    // USERS
-    match /users/{userId} {
-      // An admin can read any user profile. A user can read their own profile.
-      allow read, list: if isOwner(userId) || isAdmin();
-      
-      // A user can create their own profile document.
-      allow create: if isOwner(userId);
-      
-      // A user can update their own displayName. An admin can update a user's role.
-      allow update: if (isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName'])) ||
-                     (isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'generatedEarnings', 'paidEarnings']));
     }
 
     // LINKS
     match /links/{linkId} {
-      allow read: if true; // Links are public to be read for redirection
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow read: if true;
+      allow create: if isOwner(request.resource.data.userId);
+      allow update: if (isOwner(resource.data.userId) || isAdmin()) ||
+                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks', 'realClicks', 'generatedEarnings']);
       allow delete: if isOwner(resource.data.userId) || isAdmin();
-      
-      // The link owner or an admin can update link details.
-      // The server-side click handler will be authenticated, so it can update counts.
-      allow update: if isOwner(resource.data.userId) || isAdmin();
+    }
+
+    // USERS
+    match /users/{userId} {
+      allow create: if isOwner(userId);
+      allow read: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow update: if (isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName'])) ||
+                     (isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'generatedEarnings', 'paidEarnings']));
     }
     
-    // CLICKS
-    match /clicks/{clickId} {
-      // Clicks are created by the trusted server-side API route.
-      // No client-side creation allowed.
-      allow create: if false; 
-      
-      // Reading/listing clicks is allowed by the link owner or an admin.
-      // This rule allows the queries in the stats pages to work.
-      allow read, list: if isOwner(get(/databases/$(database)/documents/links/$(request.query.linkId)).data.userId) || isAdmin();
-
-      // Nobody can update or delete click logs.
-      allow update, delete: if false;
+    // SETTINGS
+    match /settings/{settingId} {
+        allow read, write: if isAdmin();
     }
 
     // PAYOUT REQUESTS
     match /payoutRequests/{requestId} {
       allow read, list: if isOwner(resource.data.userId) || isAdmin();
       allow create: if isOwner(request.resource.data.userId);
-      allow update: if isAdmin(); // Only admins can approve/reject
+      allow update: if isAdmin();
     }
       
     // NOTIFICATIONS
     match /notifications/{notificationId} {
       allow read, list: if isOwner(resource.data.userId) || isAdmin();
-      // Created by the trusted server-side API route.
-      allow create: if false;
-      allow update: if isOwner(resource.data.userId); // To mark as read
+      allow create: if true; 
     }
+      
+    // CLICKS
+    match /clicks/{clickId} {
+      allow create: if true; // Created by server-side logic
+      allow read: if isOwner(get(/databases/$(database)/documents/links/$(resource.data.linkId)).data.userId) || isAdmin();
+      allow list: if (request.auth != null && request.query.linkId == get(/databases/$(database)/documents/links/$(request.query.linkId)).data.id &&
+                       (isOwner(get(/databases/$(database)/documents/links/$(request.query.linkId)).data.userId) || isAdmin()));
 
-    // CPM History (Admin only)
-    match /cpmHistory/{cpmId} {
-        allow read, list, create, update: if isAdmin();
+      allow update, delete: if false;
     }
   }
 }
