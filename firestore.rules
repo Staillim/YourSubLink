@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -11,43 +12,39 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if request.auth != null;
       allow write: if request.auth.uid == userId || isAdmin();
-      // Admins can list all users
       allow list: if isAdmin();
     }
 
     match /links/{linkId} {
-      allow read: if true;
-      allow create: if request.auth != null;
+      allow get, list: if true;
+      allow create: if request.auth.uid == request.resource.data.userId;
 
-      // Allow listing for:
-      // 1. Public queries finding a single link by shortId (for redirection)
-      // 2. Authenticated users querying for their own links
-      // 3. Admins querying all links
-      allow list: if (request.query.where.size == 1 && request.query.where.keys()[0] == 'shortId') ||
-                   (request.auth != null && request.query.where.userId == request.auth.uid) || 
-                   isAdmin();
+      // Allow owner/admin to update/delete.
+      // Also allow public client to increment click counts, but not set them arbitrarily.
+      allow update: if (resource.data.userId == request.auth.uid || isAdmin()) ||
+                    (request.auth == null && request.resource.data.clicks == resource.data.clicks + 1);
       
-      // Allow the owner or an admin to update/delete
-      allow update, delete: if resource.data.userId == request.auth.uid || isAdmin();
-      
-      // Allow public client to increment click counts and earnings, but not set them arbitrarily.
-      allow update: if request.auth == null
-                    && request.resource.data.clicks == resource.data.clicks + 1;
+      allow delete: if resource.data.userId == request.auth.uid || isAdmin();
     }
     
     match /clicks/{clickId} {
       allow create: if true;
-      allow read, list: if isAdmin();
+      allow read, list: if request.auth != null;
+    }
+
+    match /dailyStats/{day} {
+        allow create, update: if true;
+        allow read, list: if isAdmin();
     }
     
     match /notifications/{notificationId} {
         allow create: if true;
-        allow read, list: if request.auth != null && (resource.data.userId == request.auth.uid || isAdmin());
+        allow read, list: if request.auth != null;
     }
 
     match /payoutRequests/{requestId} {
-        allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
-        allow read, list: if (request.auth != null && resource.data.userId == request.auth.uid) || isAdmin();
+        allow create: if request.auth != null;
+        allow read, list: if request.auth.uid == resource.data.userId || isAdmin();
         allow update: if isAdmin();
     }
     
