@@ -1,10 +1,10 @@
 
 'use client';
 
-import { useEffect, useState, use } from 'react';
+import { useEffect, useState } from 'react';
 import { notFound, useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
-import type { Rule } from '@/components/rule-editor';
+import { Rule } from '@/components/rule-editor';
 
 type ServerResponse = {
   action: 'GATE' | 'REDIRECT';
@@ -39,22 +39,20 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
         });
 
         if (!res.ok) {
-          throw new Error('Failed to process click');
+          throw new Error(`Failed to process click: ${res.statusText}`);
         }
 
         const data: ServerResponse = await res.json();
 
-        if (data.action === 'GATE' && data.linkData) {
+        if (data.action === 'GATE') {
           // The server decided we need to show the gate.
-          // We can redirect to a dedicated gate page, passing the data along.
-          // For simplicity, we'll use a client-side route change.
-          // A more robust solution might involve query params or state management.
-          
-          // Let's use router to navigate to a specific link gate page
+          // The page /link/[shortId] will render the gate component.
           router.push(`/link/${shortId}`);
         } else if (data.action === 'REDIRECT' && data.destination) {
+          // The server says to redirect immediately.
           window.location.href = data.destination;
         } else {
+            // Invalid response from server.
             throw new Error('Invalid server response');
         }
 
@@ -71,7 +69,7 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
     notFound();
   }
 
-  // Fallback loading state
+  // Fallback loading state while we process the click and redirect.
   return (
     <div className="flex h-screen w-full flex-col items-center justify-center bg-background text-foreground">
       <Loader2 className="h-12 w-12 animate-spin text-primary" />

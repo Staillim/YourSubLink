@@ -12,8 +12,9 @@ export async function POST(req: NextRequest) {
         }
 
         // --- Step 1: Find the link document ---
-        const linksQuery = query(collection(db, 'links'), where('shortId', '==', shortId));
-        const linksSnapshot = await getDocs(linksQuery);
+        const linksCollection = collection(db, 'links');
+        const q = query(linksCollection, where('shortId', '==', shortId));
+        const linksSnapshot = await getDocs(q);
 
         if (linksSnapshot.empty) {
             return NextResponse.json({ error: 'Link not found' }, { status: 404 });
@@ -26,10 +27,10 @@ export async function POST(req: NextRequest) {
         // --- Step 2: Check for visit cookie ---
         const cookies = parse(req.headers.get('cookie') || '');
         const cookieName = `visit_${linkId}`;
-        const hasVisited = !!cookies[cookieName];
+        const hasVisitedCookie = !!cookies[cookieName];
 
         // A "real" click is one from a user who hasn't visited in the last hour (no cookie).
-        const isRealClick = !hasVisited;
+        const isRealClick = !hasVisitedCookie;
 
         // --- Step 3: Perform database updates in a batch ---
         const batch = writeBatch(db);
@@ -43,7 +44,8 @@ export async function POST(req: NextRequest) {
             batch.update(linkRef, { realClicks: increment(1) });
 
             if (linkData.monetizable && linkData.userId) {
-                const activeCpm = 3.00; // This should come from a central config
+                // In a real app, this would come from a central config/DB
+                const activeCpm = 3.00; 
                 const earningsPerClick = activeCpm / 1000;
                 
                 // Increment earnings on both the link and the user document
@@ -53,12 +55,14 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        // 3c. Log the click event itself
+        // 3c. Log the click event itself for auditing
         const clickDocRef = doc(collection(db, 'clicks'));
         batch.set(clickDocRef, {
             linkId: linkId,
             timestamp: serverTimestamp(),
             isRealClick: isRealClick,
+            source: hasVisitedCookie ? 'cookie' : 'new',
+            // Note: We are not storing IP for privacy. The cookie determines uniqueness.
         });
 
         await batch.commit();
@@ -79,10 +83,10 @@ export async function POST(req: NextRequest) {
 
         const hasRules = linkData.rules && linkData.rules.length > 0;
         if (hasRules) {
-            return NextResponse.json({
-                action: 'GATE',
-            }, { headers });
+            // Tell the client to show the gate page
+            return NextResponse.json({ action: 'GATE' }, { headers });
         } else {
+            // Tell the client to redirect immediately
             return NextResponse.json({
                 action: 'REDIRECT',
                 destination: linkData.original,
