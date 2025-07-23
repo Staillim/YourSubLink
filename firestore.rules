@@ -1,54 +1,65 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
+  
+    // Helper function to check if a user is an admin
     function isAdmin() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
-    
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
 
+    // Users can only manage their own profile, admins can read all
     match /users/{userId} {
-      allow read: if isOwner(userId) || isAdmin();
-      allow create: if isOwner(userId);
-      allow update: if isOwner(userId);
-      // No allow delete for users
+      allow read: if request.auth.uid == userId || isAdmin();
+      allow write: if request.auth.uid == userId;
     }
 
+    // Links can be created by auth users. Clicks/earnings can be updated by anyone (for the public redirect page).
+    // Only owner or admin can update other details or delete.
     match /links/{linkId} {
-      allow read;
-      allow create: if isOwner(request.resource.data.userId);
-      // Allow owner to update, or allow anyone to update (for public click tracking)
-      allow update: if isOwner(resource.data.userId) || request.auth == null;
-      allow delete: if isOwner(resource.data.userId) || isAdmin();
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update: if request.auth.uid == resource.data.userId 
+                      || isAdmin() 
+                      || (request.auth == null && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks', 'realClicks', 'generatedEarnings', 'earningsByCpm']));
+      allow delete: if request.auth.uid == resource.data.userId || isAdmin();
     }
-
+    
+    // Anyone can create a click record. Only link owner or admin can read them.
     match /clicks/{clickId} {
-      allow create; // Anyone can create a click
-      allow read: if isAdmin() || get(/databases/$(database)/documents/links/$(resource.data.linkId)).data.userId == request.auth.uid;
-    }
-    
-    match /cpmHistory/{cpmId} {
-        allow read; // Anyone can read CPM rates
-        allow write: if isAdmin(); // Only admins can change them
+      allow create: if true;
+      allow read: if get(/databases/$(database)/documents/links/$(request.resource.data.linkId)).data.userId == request.auth.uid || isAdmin();
+      allow write, delete: if false;
     }
 
+    // Auth users can create payout requests for themselves. Admins can manage all.
     match /payoutRequests/{payoutId} {
-        allow create: if isOwner(request.resource.data.userId);
-        allow read, write: if isAdmin() || isOwner(resource.data.userId);
+        allow read, update: if isAdmin() || request.auth.uid == resource.data.userId;
+        allow create: if request.auth.uid == request.resource.data.userId;
     }
     
-    match /settings/global {
-      allow read;
-      allow write: if isAdmin();
+    // Settings can only be managed by admins.
+    match /settings/{docId} {
+      allow read, write: if isAdmin();
+    }
+    
+    // CPM History is public to read (for earnings calculation), but only admins can change it.
+    match /cpmHistory/{cpmId} {
+        allow read: if true;
+        allow create, update: if isAdmin();
     }
 
+    // Notifications: System can create them. Users can read their own.
     match /notifications/{notificationId} {
-      allow read: if isOwner(resource.data.userId) || isAdmin();
-      allow create; // System/anyone can create notifications (e.g., for milestones)
+      allow create: if true; // System-generated, so allow open write.
+      allow read, update: if request.auth.uid == resource.data.userId;
+    }
+
+    // Daily Stats: System (public client) can write/update. Admins can read.
+    match /dailyStats/{day} {
+      allow read: if isAdmin();
+      allow write: if true; // Updated on every click by anyone
     }
   }
 }

@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import { notFound } from 'next/navigation';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, writeBatch, serverTimestamp, increment, getDoc, limit, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, writeBatch, serverTimestamp, increment, getDoc, limit, orderBy, setDoc } from 'firebase/firestore';
 import { Loader2, ExternalLink, CheckCircle2, Lock, Link as LinkIcon, ChevronRight, Youtube, Instagram } from 'lucide-react';
 import type { Rule } from '@/components/rule-editor';
 import { Button } from '@/components/ui/button';
@@ -46,9 +46,8 @@ async function recordClick(linkData: LinkData, visitorId: string): Promise<void>
         
         let cpmRateForClick = 0;
         
-        // 3. Handle monetization earnings for the click if applicable
+        // Handle monetization earnings and daily stats
         if (linkData.monetizable) {
-            // Fetch current active CPM rate from cpmHistory
             const cpmQuery = query(collection(db, 'cpmHistory'), orderBy('startDate', 'desc'), limit(1));
             const cpmSnapshot = await getDocs(cpmQuery);
             
@@ -56,36 +55,43 @@ async function recordClick(linkData: LinkData, visitorId: string): Promise<void>
                 const activeCpmDoc = cpmSnapshot.docs[0];
                 const cpmData = activeCpmDoc.data();
                 const cpmId = activeCpmDoc.id;
-                const cpmRate = cpmData.rate;
-                cpmRateForClick = cpmRate; // Store for the click record
-                const earningsPerClick = cpmRate / 1000;
+                cpmRateForClick = cpmData.rate;
+                const earningsPerClick = cpmRateForClick / 1000;
 
-                const earningsUpdate = {
-                    // Increment total earnings
-                    generatedEarnings: increment(earningsPerClick),
-                    // Increment earnings for the specific CPM period
-                    [`earningsByCpm.${cpmId}`]: increment(earningsPerClick)
-                };
-                
+                // Update link-specific earnings
                 const linkRef = doc(db, 'links', linkData.id);
-                batch.update(linkRef, earningsUpdate);
+                batch.update(linkRef, {
+                    generatedEarnings: increment(earningsPerClick),
+                    [`earningsByCpm.${cpmId}`]: increment(earningsPerClick)
+                });
+
+                // Update daily statistics
+                const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+                const dailyStatRef = doc(db, 'dailyStats', today);
+                // Use set with merge to create or update the daily stat document
+                batch.set(dailyStatRef, { 
+                    totalClicks: increment(1),
+                    totalEarnings: increment(earningsPerClick),
+                    cpmRate: cpmRateForClick, // Store the CPM rate for this day
+                    date: serverTimestamp() // To know when it was last updated
+                }, { merge: true });
             }
         }
         
-        // 1. Create a historical click record with a unique visitor ID
+        // Create a historical click record
         const clickDocRef = doc(collection(db, 'clicks'));
         batch.set(clickDocRef, {
             linkId: linkData.id,
             timestamp: serverTimestamp(),
             visitorId: visitorId,
-            cpmAtClick: cpmRateForClick, // Store the CPM rate with the click
+            cpmAtClick: cpmRateForClick,
         });
 
-        // 2. Increment the total clicks counter on the link
+        // Increment the total clicks counter on the link
         const linkRef = doc(db, 'links', linkData.id);
         batch.update(linkRef, { clicks: increment(1) });
 
-        // 4. Handle milestone notifications
+        // Handle milestone notifications
         const currentClicks = linkData.clicks;
         const newClicks = currentClicks + 1;
         const milestone = 1000;
@@ -105,7 +111,7 @@ async function recordClick(linkData: LinkData, visitorId: string): Promise<void>
         }
 
         await batch.commit();
-        console.log("Click recorded successfully.");
+        console.log("Click and daily stats recorded successfully.");
         
     } catch (error) {
         console.error("Error processing click:", error);
