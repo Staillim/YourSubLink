@@ -1,11 +1,11 @@
 
 'use client';
 
-import { useEffect, useState, use } from 'react';
-import { notFound } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { notFound, useParams } from 'next/navigation';
 import { useUser } from '@/hooks/use-user';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, orderBy } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -33,8 +33,9 @@ type LinkData = {
     realClicks: number; // Real Clicks (from Firestore)
 };
 
-export default function UserLinkStatsPage({ params }: { params: { linkId: string } }) {
-    const { linkId } = use(params);
+export default function UserLinkStatsPage() {
+    const params = useParams();
+    const linkId = params.linkId as string;
     const { user, loading: userLoading } = useUser();
     const [linkData, setLinkData] = useState<LinkData | null>(null);
     const [ipStats, setIpStats] = useState<IpStat[]>([]);
@@ -64,11 +65,12 @@ export default function UserLinkStatsPage({ params }: { params: { linkId: string
                 const data = linkSnap.data();
                 
                 // Fetch click data for IP stats
-                const clicksQuery = query(collection(db, 'clicks'), where('linkId', '==', linkId));
+                const clicksQuery = query(collection(db, 'clicks'), where('linkId', '==', linkId), orderBy('timestamp', 'desc'));
                 const querySnapshot = await getDocs(clicksQuery);
                 const clicks: Click[] = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Click));
 
                 const ipCounts = clicks.reduce((acc, click) => {
+                    if(!click.ipAddress) return acc;
                     const ip = click.ipAddress;
                     if (!acc[ip]) {
                         acc[ip] = { ip: ip, count: 0, timestamps: [] };

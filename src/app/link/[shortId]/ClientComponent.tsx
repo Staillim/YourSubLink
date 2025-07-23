@@ -39,7 +39,6 @@ async function recordClick(linkId: string): Promise<void> {
             },
             body: JSON.stringify({ linkId }),
         });
-        console.log(`Click record request sent for linkId: ${linkId}`);
     } catch (error) {
         console.error("Error sending click record request:", error);
     }
@@ -200,7 +199,7 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
         };
         
         // Record the click via the API route
-        await recordClick(fetchedLinkData.id);
+        recordClick(fetchedLinkData.id);
 
         if (fetchedLinkData.rules.length > 0) {
             setLinkData(fetchedLinkData);

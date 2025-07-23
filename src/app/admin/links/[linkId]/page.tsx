@@ -41,7 +41,7 @@ export default function LinkStatsPage({ params }: { params: { linkId: string } }
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (!linkId || role !== 'admin') {
+        if (!linkId || !user || role !== 'admin') {
             if (role && role !== 'admin') notFound();
             return;
         };
@@ -70,6 +70,7 @@ export default function LinkStatsPage({ params }: { params: { linkId: string } }
                 const clicks: Click[] = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Click));
 
                 const ipCounts = clicks.reduce((acc, click) => {
+                    if(!click.ipAddress) return acc;
                     const ip = click.ipAddress;
                     if (!acc[ip]) {
                         acc[ip] = { ip: ip, count: 0, timestamps: [] };
@@ -208,4 +209,3 @@ export default function LinkStatsPage({ params }: { params: { linkId: string } }
         </div>
     );
 }
-

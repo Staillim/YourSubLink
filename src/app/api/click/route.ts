@@ -17,7 +17,6 @@ export async function POST(request: Request) {
         // Use a combination of headers for a more unique identifier
         const ip = (headersList.get('x-forwarded-for') ?? '127.0.0.1').split(',')[0];
         const userAgent = headersList.get('user-agent') ?? 'unknown';
-        const visitorId = `${ip}-${userAgent}`; // Create a more unique ID
 
         const linkRef = doc(db, 'links', linkId);
         const linkSnap = await getDoc(linkRef);
@@ -70,6 +69,14 @@ export async function POST(request: Request) {
             const CPM = 3.00; // Cost Per Mille (1000 views)
             const earningsPerClick = CPM / 1000;
             linkCounters.generatedEarnings = increment(earningsPerClick);
+
+            // Also increment on the user's total earnings
+            if (linkData.userId) {
+                const userRef = doc(db, 'users', linkData.userId);
+                batch.update(userRef, {
+                    generatedEarnings: increment(earningsPerClick)
+                });
+            }
         }
         
         batch.update(linkRef, linkCounters);
