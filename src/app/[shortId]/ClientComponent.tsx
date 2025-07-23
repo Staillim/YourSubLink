@@ -19,8 +19,7 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
 
     const processLinkVisit = async () => {
       try {
-        // This is the initial fetch to get link data. No click is counted here.
-        const response = await fetch('/api/get-link-data', { // A new, simple API route just to fetch data
+        const response = await fetch('/api/get-link-data', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ shortId }), 
@@ -37,7 +36,6 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
         if (data.action === 'GATE') {
             setStatus('gate');
         } else if (data.action === 'REDIRECT') {
-            // For links with no rules, count the click now and redirect
             await fetch('/api/click', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -56,11 +54,9 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
     processLinkVisit();
   }, [shortId]);
   
-  // This function is called only when the user unlocks the link.
   const handleUnlock = async () => {
     if (!shortId) return;
     
-    // This is the "Total Click" - happens only when the user unlocks the link.
     await fetch('/api/click', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -91,7 +87,6 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
       return <LinkGate linkData={linkData} onUnlock={handleUnlock} initialStatus="countdown" />;
   }
 
-  // Fallback state, should be brief
   return (
     <div className="flex h-screen w-full flex-col items-center justify-center bg-background text-foreground">
       <Loader2 className="h-12 w-12 animate-spin text-primary" />
