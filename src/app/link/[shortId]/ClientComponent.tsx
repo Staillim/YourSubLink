@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { notFound } from 'next/navigation';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, doc, writeBatch, serverTimestamp, increment } from 'firebase/firestore';
-import { Loader2, ExternalLink, CheckCircle2, Lock, Link as LinkIcon, ChevronRight, Youtube, Instagram } from 'lucide-react';
+import { Loader2, ExternalLink, CheckCircle2, Lock, Link as LinkIcon, ChevronRight, Youtube, Instagram, Timer } from 'lucide-react';
 import type { Rule } from '@/components/rule-editor';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -140,9 +140,8 @@ function RuleItem({ rule, onComplete, isCompleted }: { rule: Rule; onComplete: (
 }
 
 
-function LinkGate({ linkData }: { linkData: LinkData }) {
+function LinkGate({ linkData, onAllRulesCompleted }: { linkData: LinkData, onAllRulesCompleted: () => void }) {
     const [completedRules, setCompletedRules] = useState<boolean[]>(Array(linkData.rules.length).fill(false));
-    const [isRedirecting, setIsRedirecting] = useState(false);
     
     const totalRules = linkData.rules.length;
     const completedCount = completedRules.filter(Boolean).length;
@@ -155,11 +154,16 @@ function LinkGate({ linkData }: { linkData: LinkData }) {
             return newCompleted;
         });
     }
-
-    const handleUnlockClick = () => {
-        setIsRedirecting(true);
-        window.location.href = linkData.original;
-    }
+    
+    useEffect(() => {
+        if(allRulesCompleted) {
+            // Give a moment for the UI to update before triggering the next step
+            const timer = setTimeout(() => {
+                 onAllRulesCompleted();
+            }, 500);
+            return () => clearTimeout(timer);
+        }
+    }, [allRulesCompleted, onAllRulesCompleted]);
     
     return (
         <div className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4">
@@ -190,16 +194,13 @@ function LinkGate({ linkData }: { linkData: LinkData }) {
                     </div>
 
                     <Button
-                        type="button"
-                        onClick={handleUnlockClick}
-                        disabled={!allRulesCompleted || isRedirecting}
+                        disabled={!allRulesCompleted}
                         className="w-full font-bold text-lg py-7 mt-4 bg-green-600 hover:bg-green-700 disabled:bg-gray-800 disabled:text-muted-foreground disabled:cursor-not-allowed"
                         size="lg"
                     >
-                        <div className="flex items-center justify-between w-full">
+                        <div className="flex items-center justify-center w-full gap-2">
                            <Lock className="h-5 w-5"/>
-                           {isRedirecting ? <span>Redirecting...</span> : <span>Unlock Link</span>}
-                           {isRedirecting ? <Loader2 className="h-5 w-5 animate-spin"/> : <LinkIcon className="h-5 w-5"/>}
+                           {allRulesCompleted ? <span>Link Unlocked!</span> : <span>Unlock Link</span>}
                         </div>
                     </Button>
                 </CardContent>
@@ -208,9 +209,41 @@ function LinkGate({ linkData }: { linkData: LinkData }) {
     )
 }
 
+function CountdownPage({ linkData }: { linkData: LinkData }) {
+    const [countdown, setCountdown] = useState(5);
+
+    useEffect(() => {
+        if (countdown > 0) {
+            const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+            return () => clearTimeout(timer);
+        } else {
+            window.location.href = linkData.original;
+        }
+    }, [countdown, linkData.original]);
+
+    return (
+        <div className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4">
+            <Card className="w-full max-w-md shadow-2xl bg-card border-gray-800">
+                <CardHeader className="text-center items-center pt-8">
+                     <Timer className="h-12 w-12 text-primary" />
+                    <CardTitle className="text-3xl font-bold tracking-tight">Redirecting</CardTitle>
+                    <CardDescription className="text-muted-foreground text-base pt-1">
+                        Your link will be available in...
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-col items-center justify-center px-6 pb-8 pt-4">
+                    <div className="text-6xl font-bold text-primary tabular-nums">
+                        {countdown}
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+    );
+}
+
 
 export default function ClientComponent({ shortId }: { shortId: string }) {
-  const [status, setStatus] = useState<'loading' | 'gate' | 'redirecting' | 'not-found'>('loading');
+  const [status, setStatus] = useState<'loading' | 'gate' | 'countdown' | 'redirecting' | 'not-found'>('loading');
   const [linkData, setLinkData] = useState<LinkData | null>(null);
   
   useEffect(() => {
@@ -243,14 +276,12 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
             clicks: data.clicks || 0,
         };
         
-        // Record the click immediately upon fetching the link data
         await recordClick(fetchedLinkData);
 
         if (fetchedLinkData.rules.length > 0) {
             setLinkData(fetchedLinkData);
             setStatus('gate');
         } else {
-            // For non-gate links, redirect immediately.
             setStatus('redirecting');
             window.location.href = fetchedLinkData.original;
         }
@@ -278,14 +309,17 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
   }
   
   if (status === 'gate' && linkData) {
-      return <LinkGate linkData={linkData} />;
+      return <LinkGate linkData={linkData} onAllRulesCompleted={() => setStatus('countdown')} />;
+  }
+  
+  if (status === 'countdown' && linkData) {
+      return <CountdownPage linkData={linkData} />;
   }
 
-  // Fallback state, should be brief
   return (
      <div className="flex h-screen w-full flex-col items-center justify-center bg-background text-foreground">
         <Loader2 className="h-12 w-12 animate-spin text-primary"/>
-        <p className="mt-4 text-lg text-muted-foreground">Redirecting...</p>
+        <p className="mt-4 text-lg text-muted-foreground">Please wait...</p>
     </div>
   );
 }
