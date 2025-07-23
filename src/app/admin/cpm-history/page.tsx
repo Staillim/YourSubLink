@@ -27,32 +27,46 @@ export default function CpmHistoryPage() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        setLoading(true);
-        const historyQuery = query(collection(db, 'cpmHistory'), orderBy('startDate', 'desc'));
+        const fetchData = async () => {
+            setLoading(true);
 
-        const unsubscribe = onSnapshot(historyQuery, async (snapshot) => {
-            const historyData: CpmHistory[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CpmHistory));
-            
-            // Now, fetch all links to calculate earnings for each CPM period
-            const linksSnapshot = await getDocs(collection(db, 'links'));
-            const links: LinkEarnings[] = linksSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LinkEarnings));
+            // Fetch CPM History first
+            const historyQuery = query(collection(db, 'cpmHistory'), orderBy('startDate', 'desc'));
+            const historySnapshot = await getDocs(historyQuery);
+            const historyData: CpmHistory[] = historySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CpmHistory));
 
-            // Calculate earnings for each history entry
-            const historyWithEarnings = historyData.map(cpmEntry => {
-                const totalEarnings = links.reduce((acc, link) => {
-                    if (link.earningsByCpm && link.earningsByCpm[cpmEntry.id]) {
-                        return acc + link.earningsByCpm[cpmEntry.id];
-                    }
-                    return acc;
-                }, 0);
-                return { ...cpmEntry, earnings: totalEarnings };
-            });
+            if (historyData.length > 0) {
+                // Then fetch all links
+                const linksSnapshot = await getDocs(collection(db, 'links'));
+                const links: LinkEarnings[] = linksSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LinkEarnings));
 
-            setHistory(historyWithEarnings);
+                // Calculate earnings for each history entry
+                const historyWithEarnings = historyData.map(cpmEntry => {
+                    const totalEarnings = links.reduce((acc, link) => {
+                        if (link.earningsByCpm && link.earningsByCpm[cpmEntry.id]) {
+                            return acc + link.earningsByCpm[cpmEntry.id];
+                        }
+                        return acc;
+                    }, 0);
+                    return { ...cpmEntry, earnings: totalEarnings };
+                });
+                setHistory(historyWithEarnings);
+            } else {
+                 setHistory([]);
+            }
+
             setLoading(false);
-        });
+        };
 
+        fetchData();
+        
+        // We can also add a snapshot listener to refetch data if something changes
+        const unsubscribe = onSnapshot(query(collection(db, 'cpmHistory')), (snapshot) => {
+             fetchData();
+        });
+        
         return () => unsubscribe();
+
     }, []);
 
     if (loading) {
