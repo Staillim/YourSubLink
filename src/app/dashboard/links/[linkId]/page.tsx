@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { notFound, useParams } from 'next/navigation';
 import { useUser } from '@/hooks/use-user';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, getDoc, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -53,6 +53,7 @@ export default function UserLinkStatsPage() {
 
         const fetchData = async () => {
             try {
+                setStatus('loading');
                 // 1. Fetch link data and verify ownership
                 const linkRef = doc(db, 'links', linkId);
                 const linkSnap = await getDoc(linkRef);
@@ -71,7 +72,7 @@ export default function UserLinkStatsPage() {
                 });
 
                 // 2. If ownership is confirmed, fetch clicks
-                const clicksQuery = query(collection(db, 'clicks'), where('linkId', '==', linkId), orderBy('timestamp', 'desc'));
+                const clicksQuery = query(collection(db, 'clicks'), where('linkId', '==', linkId));
                 const querySnapshot = await getDocs(clicksQuery);
                 const clicks: Click[] = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Click));
 

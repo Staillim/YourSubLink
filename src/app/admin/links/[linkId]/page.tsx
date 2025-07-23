@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, getDoc, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -52,6 +52,7 @@ export default function LinkStatsPage({ params }: { params: { linkId: string } }
 
         const fetchData = async () => {
             try {
+                setStatus('loading');
                 // 1. Fetch link and user data
                 const linkRef = doc(db, 'links', linkId);
                 const linkSnap = await getDoc(linkRef);
@@ -80,7 +81,7 @@ export default function LinkStatsPage({ params }: { params: { linkId: string } }
                 });
                 
                 // 2. Fetch click data for IP stats
-                const clicksQuery = query(collection(db, 'clicks'), where('linkId', '==', linkId), orderBy('timestamp', 'desc'));
+                const clicksQuery = query(collection(db, 'clicks'), where('linkId', '==', linkId));
                 const querySnapshot = await getDocs(clicksQuery);
                 const clicks: Click[] = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Click));
 
