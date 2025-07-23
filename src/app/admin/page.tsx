@@ -6,7 +6,7 @@ import { collection, onSnapshot, query, doc, getDoc, orderBy, limit } from 'fire
 import { db } from '@/lib/firebase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Users, Link2, DollarSign, Eye } from 'lucide-react';
+import { Users, Link2, DollarSign, Eye, CheckCircle } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 
@@ -28,6 +28,7 @@ type Payout = {
 export default function AdminDashboardPage() {
     const [userCount, setUserCount] = useState<number | null>(null);
     const [totalClicks, setTotalClicks] = useState<number | null>(null);
+    const [totalRealClicks, setTotalRealClicks] = useState<number | null>(null);
     const [totalRevenue, setTotalRevenue] = useState<number | null>(null);
     const [monetizableLinks, setMonetizableLinks] = useState<number | null>(null);
     const [recentPayouts, setRecentPayouts] = useState<Payout[]>([]);
@@ -56,11 +57,13 @@ export default function AdminDashboardPage() {
 
         const unsubLinks = onSnapshot(linksQuery, (snapshot) => {
             let allClicks = 0;
+            let allRealClicks = 0;
             let monetizedRealClicks = 0;
             let monetizableCount = 0;
             snapshot.forEach((doc) => {
                 const data = doc.data() as Link;
                 allClicks += data.clicks || 0;
+                allRealClicks += data.realClicks || 0;
                 if (data.monetizable) {
                     monetizableCount++;
                     // Use realClicks if available for revenue calculation
@@ -68,19 +71,27 @@ export default function AdminDashboardPage() {
                 }
             });
             setTotalClicks(allClicks);
+            setTotalRealClicks(allRealClicks);
             setTotalRevenue((monetizedRealClicks / 1000) * cpm);
             setMonetizableLinks(monetizableCount);
             if (loading) setLoading(false);
         });
         
-        const unsubPayouts = onSnapshot(payoutsQuery, (snapshot) => {
+        const unsubPayouts = onSnapshot(payoutsQuery, async (snapshot) => {
             const payoutsData: Payout[] = [];
-            snapshot.forEach((doc) => {
-                // We only want to show processed payouts in this recent list
-                if (doc.data().status !== 'pending') {
-                    payoutsData.push({ id: doc.id, ...doc.data() } as Payout)
+            for (const payoutDoc of snapshot.docs) {
+                 // We only want to show processed payouts in this recent list
+                if (payoutDoc.data().status !== 'pending') {
+                    const data = payoutDoc.data();
+                    let userName = 'Unknown User';
+                    if (data.userId) {
+                        const userRef = doc(db, 'users', data.userId);
+                        const userSnap = await getDoc(userRef);
+                        userName = userSnap.exists() ? userSnap.data().displayName : 'Unknown User';
+                    }
+                    payoutsData.push({ id: payoutDoc.id, ...data, userName } as Payout)
                 }
-            });
+            }
             setRecentPayouts(payoutsData);
         });
 
@@ -93,10 +104,10 @@ export default function AdminDashboardPage() {
     }, [cpm, loading]);
 
     const stats = [
-        { title: 'Total Users', value: userCount, icon: Users },
-        { title: 'Total Clicks', value: totalClicks, icon: Eye },
-        { title: 'Total Revenue', value: totalRevenue, icon: DollarSign, isCurrency: true },
-        { title: 'Monetizable Links', value: monetizableLinks, icon: Link2 },
+        { title: 'Total Users', value: userCount, icon: Users, isCurrency: false, description: "Live count" },
+        { title: 'Total Clicks', value: totalClicks, icon: Eye, isCurrency: false, description: "All clicks recorded" },
+        { title: 'Real Clicks', value: totalRealClicks, icon: CheckCircle, isCurrency: false, description: "Unique clicks per hour" },
+        { title: 'Total Revenue', value: totalRevenue, icon: DollarSign, isCurrency: true, description: `Based on $${cpm.toFixed(2)} CPM & real clicks` },
     ];
 
     return (
@@ -120,7 +131,7 @@ export default function AdminDashboardPage() {
                                 </div>
                             )}
                             <p className="text-xs text-muted-foreground">
-                                {index === 2 ? `Based on $${cpm.toFixed(2)} CPM & real clicks` : 'Live count'}
+                                {stat.description}
                             </p>
                         </CardContent>
                     </Card>
@@ -130,6 +141,7 @@ export default function AdminDashboardPage() {
              <Card>
                 <CardHeader>
                     <CardTitle>Recent Payouts</CardTitle>
+                    <CardDescription>A summary of the latest completed or rejected payouts.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <Table>
@@ -143,11 +155,13 @@ export default function AdminDashboardPage() {
                         </TableHeader>
                         <TableBody>
                             {loading ? (
-                                <TableRow>
-                                    <TableCell colSpan={4}>
-                                        <Skeleton className="h-5 w-full" />
-                                    </TableCell>
-                                </TableRow>
+                                [...Array(5)].map((_, i) => (
+                                    <TableRow key={i}>
+                                        <TableCell colSpan={4}>
+                                            <Skeleton className="h-5 w-full" />
+                                        </TableCell>
+                                    </TableRow>
+                                ))
                             ) : recentPayouts.length > 0 ? (
                                 recentPayouts.map((payout) => (
                                     <TableRow key={payout.id}>
@@ -175,3 +189,5 @@ export default function AdminDashboardPage() {
         </div>
     );
 }
+
+    
