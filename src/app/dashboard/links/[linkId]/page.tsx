@@ -1,8 +1,8 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
-import { notFound, useParams } from 'next/navigation';
+import { useEffect, useState, use } from 'react';
+import { notFound } from 'next/navigation';
 import { useUser } from '@/hooks/use-user';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
@@ -29,77 +29,100 @@ type LinkData = {
     userId: string;
     title: string;
     original: string;
-    clicks: number;
-    realClicks: number;
+    clicks: number; // Total Clicks
+    realClicks: number; // Real Clicks (calculated)
 };
 
-type PageStatus = 'loading' | 'error' | 'success';
+const calculateRealClicks = (clicks: Click[]): number => {
+    if (clicks.length === 0) return 0;
 
-export default function UserLinkStatsPage() {
-    const params = useParams();
-    const linkId = params.linkId as string;
+    const clicksByIp: { [key: string]: Date[] } = {};
+    clicks.forEach(click => {
+        if (!clicksByIp[click.ipAddress]) {
+            clicksByIp[click.ipAddress] = [];
+        }
+        clicksByIp[click.ipAddress].push(new Date(click.timestamp.seconds * 1000));
+    });
+
+    let realClickCount = 0;
+    for (const ip in clicksByIp) {
+        const timestamps = clicksByIp[ip].sort((a,b) => a.getTime() - b.getTime());
+        let lastCountedTimestamp: Date | null = null;
+
+        timestamps.forEach(timestamp => {
+            if (!lastCountedTimestamp || (timestamp.getTime() - lastCountedTimestamp.getTime()) > 3600000) { // 1 hour in ms
+                realClickCount++;
+                lastCountedTimestamp = timestamp;
+            }
+        });
+    }
+
+    return realClickCount;
+}
+
+export default function UserLinkStatsPage({ params }: { params: { linkId: string } }) {
+    const { linkId } = use(params);
     const { user, loading: userLoading } = useUser();
-    
-    const [status, setStatus] = useState<PageStatus>('loading');
     const [linkData, setLinkData] = useState<LinkData | null>(null);
     const [ipStats, setIpStats] = useState<IpStat[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [accessDenied, setAccessDenied] = useState(false);
 
     useEffect(() => {
-        if (userLoading) return;
-        if (!user || !linkId) {
-            if (!userLoading) setStatus('error');
+        if (userLoading || !user) return;
+        if (!linkId) {
+            setLoading(false);
             return;
         }
 
         const fetchData = async () => {
+            setLoading(true);
             try {
-                setStatus('loading');
-                // 1. Fetch link data and verify ownership
+                // Fetch link data
                 const linkRef = doc(db, 'links', linkId);
                 const linkSnap = await getDoc(linkRef);
 
                 if (!linkSnap.exists() || linkSnap.data().userId !== user.uid) {
-                    setStatus('error');
+                    setAccessDenied(true);
+                    setLoading(false);
                     return;
                 }
-                const data = linkSnap.data();
-                 setLinkData({
-                    userId: data.userId,
-                    title: data.title,
-                    original: data.original,
-                    clicks: data.clicks || 0,
-                    realClicks: data.realClicks || 0,
-                });
 
-                // 2. If ownership is confirmed, fetch clicks
+                const data = linkSnap.data();
+                
+                // Fetch click data
                 const clicksQuery = query(collection(db, 'clicks'), where('linkId', '==', linkId));
                 const querySnapshot = await getDocs(clicksQuery);
                 const clicks: Click[] = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Click));
 
+                // Calculate stats
+                const realClicks = calculateRealClicks(clicks);
+
                 const ipCounts = clicks.reduce((acc, click) => {
-                    if(!click.ipAddress) return acc;
                     const ip = click.ipAddress;
                     if (!acc[ip]) {
                         acc[ip] = { ip: ip, count: 0, timestamps: [] };
                     }
                     acc[ip].count++;
-                    if(click.timestamp?.seconds) {
-                        acc[ip].timestamps.push(new Date(click.timestamp.seconds * 1000));
-                    }
+                    acc[ip].timestamps.push(new Date(click.timestamp.seconds * 1000));
                     return acc;
                 }, {} as { [key: string]: IpStat });
 
-                const sortedIpStats = Object.values(ipCounts).sort((a, b) => {
-                    const dateA = a.timestamps.length > 0 ? Math.max(...a.timestamps.map(t => t.getTime())) : 0;
-                    const dateB = b.timestamps.length > 0 ? Math.max(...b.timestamps.map(t => t.getTime())) : 0;
-                    return dateB - dateA;
-                });
+                const sortedIpStats = Object.values(ipCounts).sort((a, b) => b.count - a.count);
                 
                 setIpStats(sortedIpStats);
-                setStatus('success');
+                setLinkData({
+                    userId: data.userId,
+                    title: data.title,
+                    original: data.original,
+                    clicks: data.clicks,
+                    realClicks: realClicks,
+                });
+
             } catch (error) {
                 console.error("Failed to fetch link stats:", error);
-                setStatus('error');
+            } finally {
+                setLoading(false);
             }
         };
         
@@ -107,7 +130,7 @@ export default function UserLinkStatsPage() {
 
     }, [linkId, user, userLoading]);
 
-    if (status === 'loading' || userLoading) {
+    if (loading || userLoading) {
         return (
              <div className="flex flex-col gap-6">
                 <Skeleton className="h-8 w-48" />
@@ -121,8 +144,12 @@ export default function UserLinkStatsPage() {
         );
     }
     
-    if(status === 'error' || !linkData) {
-        return notFound();
+    if(accessDenied) {
+        notFound();
+    }
+    
+    if(!linkData) {
+        return <p>Link not found or you don't have permission to view it.</p>
     }
 
     return (
@@ -154,7 +181,7 @@ export default function UserLinkStatsPage() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{linkData.realClicks.toLocaleString()}</div>
-                         <p className="text-xs text-muted-foreground">Unique clicks per hour.</p>
+                         <p className="text-xs text-muted-foreground">Unique IPs per hour.</p>
                     </CardContent>
                 </Card>
                 <Card>

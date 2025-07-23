@@ -55,7 +55,7 @@ export default function AnalyticsPage() {
             id: doc.id,
             original: data.original,
             shortId: data.shortId,
-            short: `${window.location.origin}/${data.shortId}`,
+            short: `${window.location.origin}/link/${data.shortId}`,
             clicks: data.clicks,
             date: new Date(data.createdAt.seconds * 1000).toISOString(),
             userId: data.userId,
@@ -64,7 +64,7 @@ export default function AnalyticsPage() {
             monetizable: data.monetizable || false,
             rules: data.rules || [],
             generatedEarnings: data.generatedEarnings || 0,
-            realClicks: data.realClicks || 0,
+            realClicks: 0, // Note: This page doesn't calculate real-time real clicks for simplicity
           });
         });
         setLinks(linksData);
@@ -78,22 +78,23 @@ export default function AnalyticsPage() {
   }, [user, loading]);
 
   const totalClicks = links.reduce((acc, link) => acc + link.clicks, 0);
-  const totalEarnings = links.reduce((acc, link) => acc + link.generatedEarnings, 0);
+  const totalEarnings = links.reduce((acc, link) => acc + (link.monetizable ? (link.clicks / 1000) * CPM : 0), 0);
 
   const getChartData = () => {
     const monthlyEarnings: { [key: string]: number } = {};
 
     links.forEach(link => {
-        if (link.generatedEarnings > 0) {
+        if (link.clicks > 0 && link.monetizable) {
             const date = new Date(link.date);
             const year = getYear(date);
             const month = getMonth(date);
             const monthKey = `${year}-${month}`;
+            const earnings = (link.clicks / 1000) * CPM;
             
             if (monthlyEarnings[monthKey]) {
-                monthlyEarnings[monthKey] += link.generatedEarnings;
+                monthlyEarnings[monthKey] += earnings;
             } else {
-                monthlyEarnings[monthKey] = link.generatedEarnings;
+                monthlyEarnings[monthKey] = earnings;
             }
         }
     });
@@ -113,7 +114,7 @@ export default function AnalyticsPage() {
   
   const linksWithEarnings = links.map(link => ({
       ...link,
-      earnings: link.generatedEarnings
+      earnings: link.monetizable ? (link.clicks / 1000) * CPM : 0
   })).sort((a,b) => b.earnings - a.earnings);
 
 
@@ -149,7 +150,7 @@ export default function AnalyticsPage() {
                       <span className="text-sm text-muted-foreground">$</span>
                   </CardHeader>
                   <CardContent>
-                      <div className="text-2xl font-bold">${totalEarnings.toFixed(4)}</div>
+                      <div className="text-2xl font-bold">${totalEarnings.toFixed(2)}</div>
                       <p className="text-xs text-muted-foreground">Based on total monetizable clicks</p>
                   </CardContent>
               </Card>
@@ -169,7 +170,7 @@ export default function AnalyticsPage() {
                        <span className="text-sm text-muted-foreground">$</span>
                   </CardHeader>
                   <CardContent>
-                      <div className="text-2xl font-bold">${CPM.toFixed(4)}</div>
+                      <div className="text-2xl font-bold">${CPM.toFixed(2)}</div>
                       <p className="text-xs text-muted-foreground">Fixed rate per 1000 monetized views</p>
                   </CardContent>
               </Card>
@@ -191,7 +192,7 @@ export default function AnalyticsPage() {
                   tickFormatter={(value) => value.slice(0, 3)}
                 />
                 <YAxis tickFormatter={(value) => `$${value}`} />
-                <ChartTooltip content={<ChartTooltipContent formatter={(value) => `$${Number(value).toFixed(4)}`} />} />
+                <ChartTooltip content={<ChartTooltipContent formatter={(value) => `$${Number(value).toFixed(2)}`} />} />
                 <Bar dataKey="earnings" fill="var(--color-earnings)" radius={4} />
               </BarChart>
             </ChartContainer>
@@ -216,7 +217,7 @@ export default function AnalyticsPage() {
                            <TableRow key={link.id}>
                               <TableCell className="font-medium">{link.title}</TableCell>
                               <TableCell className="text-right">{link.clicks.toLocaleString()}</TableCell>
-                              <TableCell className="text-right">${link.earnings.toFixed(4)}</TableCell>
+                              <TableCell className="text-right">${link.earnings.toFixed(2)}</TableCell>
                            </TableRow>
                       ))}
                       {links.length === 0 && (

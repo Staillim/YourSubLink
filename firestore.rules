@@ -3,59 +3,62 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    function isOwner(userId) {
-      return request.auth != null && request.auth.uid == userId;
-    }
-    
+  
+    // Helper function to check for admin role
     function isAdmin() {
-      return request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      // Check if the user document exists and has the role 'admin'
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // LINKS
-    match /links/{linkId} {
-      allow read: if true;
-      allow create: if isOwner(request.resource.data.userId);
-      allow update: if (isOwner(resource.data.userId) || isAdmin()) ||
-                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks', 'realClicks', 'generatedEarnings']);
-      allow delete: if isOwner(resource.data.userId) || isAdmin();
-    }
-
-    // USERS
     match /users/{userId} {
-      allow create: if isOwner(userId);
-      allow read: if isOwner(userId) || isAdmin();
+      allow read: if request.auth.uid == userId || isAdmin();
+      allow write: if request.auth.uid == userId || isAdmin();
       allow list: if isAdmin();
-      allow update: if (isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName'])) ||
-                     (isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'generatedEarnings', 'paidEarnings']));
+    }
+
+    match /links/{linkId} {
+      // Allow anyone to get a link document directly. This is needed for the redirection page.
+      allow get: if true;
+      
+      // Allow users to list their own links, and admins to list all links.
+      // This rule is tricky. Firestore can only enforce that a query for a user's own links is allowed.
+      // It cannot enforce that a general list operation only returns a user's own links without an index.
+      // The client-side query MUST have `where('userId', '==', request.auth.uid)`
+      allow list: if request.auth != null;
+
+      // Allow authenticated users to create links
+      allow create: if request.auth != null;
+
+      // Allow the owner or an admin to update/delete
+      allow update, delete: if resource.data.userId == request.auth.uid || isAdmin();
+      
+      // Allow public client to increment click counts
+      allow update: if request.auth == null
+                    && request.resource.data.clicks > resource.data.clicks;
     }
     
-    // SETTINGS
-    match /settings/{settingId} {
-        allow read, write: if isAdmin();
-    }
-
-    // PAYOUT REQUESTS
-    match /payoutRequests/{requestId} {
-      allow read, list: if isOwner(resource.data.userId) || isAdmin();
-      allow create: if isOwner(request.resource.data.userId);
-      allow update: if isAdmin();
-    }
-      
-    // NOTIFICATIONS
-    match /notifications/{notificationId} {
-      allow read, list: if isOwner(resource.data.userId) || isAdmin();
-      allow create: if true; 
-    }
-      
-    // CLICKS
     match /clicks/{clickId} {
-      allow create: if true; // Created by server-side logic
-      allow read: if isOwner(get(/databases/$(database)/documents/links/$(resource.data.linkId)).data.userId) || isAdmin();
-      allow list: if (request.auth != null && request.query.linkId == get(/databases/$(database)/documents/links/$(request.query.linkId)).data.id &&
-                       (isOwner(get(/databases/$(database)/documents/links/$(request.query.linkId)).data.userId) || isAdmin()));
+      allow create: if true;
+      allow read, list, delete: if isAdmin();
+    }
+    
+    match /notifications/{notificationId} {
+        allow create: if true; // System can create notifications
+        allow read, list: if request.auth != null && (resource.data.userId == request.auth.uid || isAdmin());
+        allow update: if isAdmin();
+    }
 
-      allow update, delete: if false;
+    match /payoutRequests/{requestId} {
+        allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+        allow list: if isAdmin();
+        allow get: if resource.data.userId == request.auth.uid || isAdmin();
+        allow update: if isAdmin();
+    }
+    
+    match /cpmHistory/{historyId} {
+        allow get, list: if true;
+        allow write: if isAdmin();
     }
   }
 }

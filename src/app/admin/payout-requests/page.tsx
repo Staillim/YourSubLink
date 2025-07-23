@@ -44,8 +44,7 @@ export default function AdminPayoutRequestsPage() {
   const [isSubmitting, setIsSubmitting] = useState<string | null>(null);
 
   useEffect(() => {
-    // Order by status first to allow filtering in the UI if needed and avoid complex indexes
-    const q = query(collection(db, 'payoutRequests'), orderBy('status'), orderBy('requestedAt', 'desc'));
+    const q = query(collection(db, 'payoutRequests'), orderBy('requestedAt', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const requestsData: PayoutRequest[] = [];
       snapshot.forEach((doc) => {
@@ -156,7 +155,7 @@ export default function AdminPayoutRequestsPage() {
                     <div className="font-medium">{req.userName}</div>
                     <div className="text-xs text-muted-foreground">{req.userEmail}</div>
                   </TableCell>
-                  <TableCell className="font-semibold">${req.amount.toFixed(4)}</TableCell>
+                  <TableCell className="font-semibold">${req.amount.toFixed(2)}</TableCell>
                   <TableCell className="capitalize">{req.method}</TableCell>
                   <TableCell>{req.details}</TableCell>
                   <TableCell>{req.requestedAt ? new Date(req.requestedAt.seconds * 1000).toLocaleDateString() : 'N/A'}</TableCell>

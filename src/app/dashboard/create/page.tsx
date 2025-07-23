@@ -56,7 +56,6 @@ export default function CreateLinkPage() {
           original: longUrl,
           shortId: shortId,
           clicks: 0,
-          realClicks: 0,
           createdAt: new Date(),
           title,
           description,
@@ -65,7 +64,7 @@ export default function CreateLinkPage() {
           generatedEarnings: 0,
         };
         await addDoc(collection(db, "links"), newLink);
-        const url = `${window.location.origin}/${shortId}`;
+        const url = `${window.location.origin}/link/${shortId}`;
         setShortenedUrl(url);
 
         // Automatically copy to clipboard and show toast
@@ -152,5 +151,3 @@ export default function CreateLinkPage() {
     </>
   );
 }
-
-    

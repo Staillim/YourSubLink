@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, use } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -10,8 +10,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ArrowLeft, Eye, User, Hash, Check, Bot } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { useUser } from '@/hooks/use-user';
-import { notFound, useParams } from 'next/navigation';
 
 type Click = {
     id: string;
@@ -28,97 +26,106 @@ type IpStat = {
 type LinkData = {
     title: string;
     original: string;
-    clicks: number;
-    realClicks: number;
+    clicks: number; // Total Clicks
+    realClicks: number; // Real Clicks (calculated)
     userName: string;
 };
 
-type PageStatus = 'loading' | 'error' | 'success';
+const calculateRealClicks = (clicks: Click[]): number => {
+    if (clicks.length === 0) return 0;
 
-export default function LinkStatsPage() {
-    const params = useParams();
-    const linkId = params.linkId as string;
-    const { user, role, loading: userLoading } = useUser();
-    
-    const [status, setStatus] = useState<PageStatus>('loading');
+    const clicksByIp: { [key: string]: Date[] } = {};
+    clicks.forEach(click => {
+        if (!clicksByIp[click.ipAddress]) {
+            clicksByIp[click.ipAddress] = [];
+        }
+        clicksByIp[click.ipAddress].push(new Date(click.timestamp.seconds * 1000));
+    });
+
+    let realClickCount = 0;
+    for (const ip in clicksByIp) {
+        const timestamps = clicksByIp[ip].sort((a,b) => a.getTime() - b.getTime());
+        let lastCountedTimestamp: Date | null = null;
+
+        timestamps.forEach(timestamp => {
+            if (!lastCountedTimestamp || (timestamp.getTime() - lastCountedTimestamp.getTime()) > 3600000) { // 1 hour in ms
+                realClickCount++;
+                lastCountedTimestamp = timestamp;
+            }
+        });
+    }
+
+    return realClickCount;
+}
+
+export default function LinkStatsPage({ params }: { params: { linkId: string } }) {
+    const { linkId } = use(params);
     const [linkData, setLinkData] = useState<LinkData | null>(null);
     const [ipStats, setIpStats] = useState<IpStat[]>([]);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (userLoading) return;
-        if (!linkId || !user || role !== 'admin') {
-            if (!userLoading) setStatus('error');
-            return;
-        };
+        if (!linkId) return;
 
         const fetchData = async () => {
+            setLoading(true);
             try {
-                setStatus('loading');
-                // 1. Fetch link and user data
+                // Fetch link and user data
                 const linkRef = doc(db, 'links', linkId);
                 const linkSnap = await getDoc(linkRef);
 
                 if (!linkSnap.exists()) {
-                    setStatus('error');
+                    setLinkData(null);
+                    setLoading(false);
                     return;
                 }
 
                 const data = linkSnap.data();
-                let userName = 'Unknown User';
-                if (data.userId) {
-                    const userRef = doc(db, 'users', data.userId);
-                    const userSnap = await getDoc(userRef);
-                    if (userSnap.exists()) {
-                        userName = userSnap.data().displayName;
-                    }
-                }
+                const userRef = doc(db, 'users', data.userId);
+                const userSnap = await getDoc(userRef);
+                const userName = userSnap.exists() ? userSnap.data().displayName : 'Unknown User';
                 
-                setLinkData({
-                    title: data.title,
-                    original: data.original,
-                    clicks: data.clicks || 0,
-                    realClicks: data.realClicks || 0,
-                    userName: userName,
-                });
-                
-                // 2. Fetch click data for IP stats
+                // Fetch click data
                 const clicksQuery = query(collection(db, 'clicks'), where('linkId', '==', linkId));
                 const querySnapshot = await getDocs(clicksQuery);
                 const clicks: Click[] = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Click));
 
+                // Calculate stats
+                const realClicks = calculateRealClicks(clicks);
+
                 const ipCounts = clicks.reduce((acc, click) => {
-                    if(!click.ipAddress) return acc;
                     const ip = click.ipAddress;
                     if (!acc[ip]) {
                         acc[ip] = { ip: ip, count: 0, timestamps: [] };
                     }
                     acc[ip].count++;
-                    if (click.timestamp?.seconds) {
-                       acc[ip].timestamps.push(new Date(click.timestamp.seconds * 1000));
-                    }
+                    acc[ip].timestamps.push(new Date(click.timestamp.seconds * 1000));
                     return acc;
                 }, {} as { [key: string]: IpStat });
 
-                const sortedIpStats = Object.values(ipCounts).sort((a, b) => {
-                    const dateA = a.timestamps.length > 0 ? Math.max(...a.timestamps.map(t => t.getTime())) : 0;
-                    const dateB = b.timestamps.length > 0 ? Math.max(...b.timestamps.map(t => t.getTime())) : 0;
-                    return dateB - dateA;
-                });
+                const sortedIpStats = Object.values(ipCounts).sort((a, b) => b.count - a.count);
                 
                 setIpStats(sortedIpStats);
-                setStatus('success');
+                setLinkData({
+                    title: data.title,
+                    original: data.original,
+                    clicks: data.clicks,
+                    realClicks: realClicks,
+                    userName: userName,
+                });
 
             } catch (error) {
                 console.error("Failed to fetch link stats:", error);
-                setStatus('error');
+            } finally {
+                setLoading(false);
             }
         };
         
         fetchData();
 
-    }, [linkId, user, role, userLoading]);
+    }, [linkId]);
     
-    if (status === 'loading' || userLoading) {
+    if (loading) {
         return (
              <div className="flex flex-col gap-6">
                 <Skeleton className="h-8 w-48" />
@@ -133,8 +140,8 @@ export default function LinkStatsPage() {
         );
     }
     
-    if(status === 'error' || !linkData) {
-        return notFound();
+    if(!linkData) {
+        return <p>Link not found.</p>
     }
 
     return (
@@ -166,7 +173,7 @@ export default function LinkStatsPage() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{linkData.realClicks.toLocaleString()}</div>
-                         <p className="text-xs text-muted-foreground">Unique clicks per hour.</p>
+                         <p className="text-xs text-muted-foreground">Unique IPs per hour.</p>
                     </CardContent>
                 </Card>
                 <Card>
