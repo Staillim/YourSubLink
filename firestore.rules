@@ -5,63 +5,43 @@ service cloud.firestore {
   
     // Helper function to check for admin role
     function isAdmin() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      // Check if the user document exists and has the admin role.
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
     match /users/{userId} {
-      // Any authenticated user can read a user's profile
-      allow read: if request.auth != null;
-      // A user can write to their own document, or an admin can write to any.
-      allow write: if request.auth.uid == userId || isAdmin();
-      // Only admins can list all users.
+      allow read, write: if request.auth.uid == userId || isAdmin();
       allow list: if isAdmin();
     }
 
     match /links/{linkId} {
-      // Anyone can read a link document for redirection.
-      allow get: if true;
-      
-      // Different list rules for different scenarios
-      allow list: if 
-                  // 1. Allow public queries to find a link by its shortId
-                  (request.auth == null && request.query.where.shortId is string) ||
-                  // 2. Allow authenticated users to list their own links
-                  (request.auth != null && request.query.where.userId == request.auth.uid) ||
-                  // 3. Allow admins to list all links without filters
-                  isAdmin();
-                  
+      allow get: if true; // anyone can get a link if they have the ID
       allow create: if request.auth != null;
-      
-      // Allow update for two scenarios:
-      // 1. The owner of the link or an admin can update any field.
-      // 2. A public client can ONLY increment clicks and earnings.
-      allow update: if (resource.data.userId == request.auth.uid || isAdmin()) || 
-                     (request.auth == null &&
-                      request.resource.data.clicks > resource.data.clicks &&
-                      request.resource.data.keys().hasAny(['clicks', 'realClicks', 'generatedEarnings']));
-                      
-      allow delete: if resource.data.userId == request.auth.uid || isAdmin();
+
+      // Allow listing for two cases:
+      // 1. A public user is querying by shortId to be redirected.
+      // 2. An authenticated user is querying for their own links.
+      allow list: if (request.query.keys().hasOnly(['where', 'limit']) && request.query.where[0][0] == 'shortId' && request.query.where[0][2] != '') ||
+                    (request.auth != null && request.query.where[0][0] == 'userId' && request.query.where[0][2] == request.auth.uid) ||
+                    isAdmin();
+
+      allow update, delete: if resource.data.userId == request.auth.uid || isAdmin();
     }
     
     match /clicks/{clickId} {
-      allow create: if true; // Anyone can create a click record
-      // Allow the system to check for recent clicks for a specific visitor.
-      allow list: if true;
-      // Admins can read individual click documents for analysis
-      allow get: if isAdmin();
+      allow create: if true;
+      allow read, list: if isAdmin();
     }
     
     match /notifications/{notificationId} {
-        allow create: if true; // System can create notifications
-        // An authenticated user can read notifications intended for them
-        allow list, get: if request.auth != null && (resource.data.userId == request.auth.uid || isAdmin());
+        allow create: if true;
+        allow read, list: if request.auth != null && (get(/databases/$(database)/documents/notifications/$(notificationId)).data.userId == request.auth.uid || isAdmin());
     }
 
     match /payoutRequests/{requestId} {
         allow create: if request.auth != null;
-        // A user can read/list their own requests, admins can see all.
-        allow read, list: if request.auth != null && (resource.data.userId == request.auth.uid || isAdmin());
-        // Only admins can approve/reject requests
+        allow read, list: if (request.auth != null && get(/databases/$(database)/documents/payoutRequests/$(requestId)).data.userId == request.auth.uid) || isAdmin();
         allow update: if isAdmin();
     }
     
