@@ -14,6 +14,7 @@ type Link = {
     clicks: number;
     realClicks?: number;
     monetizable: boolean;
+    generatedEarnings: number;
 };
 
 type Payout = {
@@ -33,19 +34,9 @@ export default function AdminDashboardPage() {
     const [totalRevenue, setTotalRevenue] = useState<number | null>(null);
     const [monetizableLinks, setMonetizableLinks] = useState<number | null>(null);
     const [recentPayouts, setRecentPayouts] = useState<Payout[]>([]);
-    const [cpm, setCpm] = useState(3.00); // Default CPM
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const fetchSettings = async () => {
-             const settingsRef = doc(db, 'settings', 'global');
-             const docSnap = await getDoc(settingsRef);
-             if (docSnap.exists()) {
-                 setCpm(docSnap.data().cpm || 3.00);
-             }
-        }
-        fetchSettings();
-
         const usersQuery = query(collection(db, 'users'));
         const linksQuery = query(collection(db, 'links'));
         const payoutsQuery = query(collection(db, 'payoutRequests'), orderBy('processedAt', 'desc'), limit(5));
@@ -59,7 +50,7 @@ export default function AdminDashboardPage() {
         const unsubLinks = onSnapshot(linksQuery, (snapshot) => {
             let allClicks = 0;
             let allRealClicks = 0;
-            let monetizedRealClicks = 0;
+            let allGeneratedEarnings = 0;
             let monetizableCount = 0;
             
             setTotalLinks(snapshot.size);
@@ -68,15 +59,14 @@ export default function AdminDashboardPage() {
                 const data = doc.data() as Link;
                 allClicks += data.clicks || 0;
                 allRealClicks += data.realClicks || 0;
+                allGeneratedEarnings += data.generatedEarnings || 0;
                 if (data.monetizable) {
                     monetizableCount++;
-                    // Use realClicks if available for revenue calculation
-                    monetizedRealClicks += data.realClicks || 0;
                 }
             });
             setTotalClicks(allClicks);
             setTotalRealClicks(allRealClicks);
-            setTotalRevenue((monetizedRealClicks / 1000) * cpm);
+            setTotalRevenue(allGeneratedEarnings);
             setMonetizableLinks(monetizableCount);
             if (loading) setLoading(false);
         });
@@ -105,10 +95,10 @@ export default function AdminDashboardPage() {
             unsubLinks();
             unsubPayouts();
         };
-    }, [cpm, loading]);
+    }, [loading]);
 
     const stats = [
-        { title: 'Total Revenue', value: totalRevenue, icon: DollarSign, isCurrency: true, description: `Based on $${cpm.toFixed(2)} CPM` },
+        { title: 'Total Revenue', value: totalRevenue, icon: DollarSign, isCurrency: true, description: "Total generated earnings" },
         { title: 'Total Users', value: userCount, icon: Users, isCurrency: false, description: "Live user count" },
         { title: 'Total Links', value: totalLinks, icon: Link2, isCurrency: false, description: "All created links" },
         { title: 'Monetizable Links', value: monetizableLinks, icon: DollarSign, isCurrency: false, description: "Links eligible for earnings" },
