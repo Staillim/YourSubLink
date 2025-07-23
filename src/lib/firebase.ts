@@ -1,7 +1,7 @@
 
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
 import { getAuth, User } from "firebase/auth";
-import { getFirestore, doc, setDoc, getDoc } from "firebase/firestore";
+import { getFirestore, doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
@@ -32,8 +32,10 @@ const createUserProfile = async (user: User) => {
                 email,
                 displayName: displayName || email?.split('@')[0] || 'New User',
                 photoURL: photoURL || `https://avatar.vercel.sh/${email}.png`,
-                role: email === 'harrigta@gmail.com' ? 'admin' : 'user',
-                createdAt: new Date(),
+                role: 'user', // Always assign 'user' role on creation
+                createdAt: serverTimestamp(),
+                generatedEarnings: 0,
+                paidEarnings: 0,
             });
         } catch (error) {
             console.error("Error creating user profile:", error);
