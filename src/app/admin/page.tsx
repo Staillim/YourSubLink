@@ -19,6 +19,7 @@ export default function AdminDashboardPage() {
     const [totalClicks, setTotalClicks] = useState<number | null>(null);
     const [totalRevenue, setTotalRevenue] = useState<number | null>(null);
     const [monetizableLinks, setMonetizableLinks] = useState<number | null>(null);
+    const [monetizableClicks, setMonetizableClicks] = useState<number | null>(null);
     const [activeCpm, setActiveCpm] = useState<number>(3.00); // Default CPM
     const [loading, setLoading] = useState(true);
 
@@ -36,17 +37,20 @@ export default function AdminDashboardPage() {
             let clicks = 0;
             let monetizable = 0;
             let revenue = 0;
+            let monetizableClicksCount = 0;
             snapshot.forEach((doc) => {
                 const data = doc.data() as Link;
                 clicks += data.clicks || 0;
                 revenue += data.generatedEarnings || 0;
                 if (data.monetizable) {
                     monetizable++;
+                    monetizableClicksCount += data.clicks || 0;
                 }
             });
             setTotalClicks(clicks);
             setTotalRevenue(revenue);
             setMonetizableLinks(monetizable);
+            setMonetizableClicks(monetizableClicksCount);
             if (loading) setLoading(false);
         });
 
@@ -65,10 +69,10 @@ export default function AdminDashboardPage() {
     }, []);
 
     const stats = [
-        { title: 'Total Users', value: userCount, icon: Users },
-        { title: 'Total Clicks', value: totalClicks, icon: Eye },
-        { title: 'Total Revenue', value: totalRevenue, icon: DollarSign, isCurrency: true },
-        { title: 'Monetizable Links', value: monetizableLinks, icon: Link2 },
+        { title: 'Total Users', value: userCount, icon: Users, description: 'Live count' },
+        { title: 'Total Clicks', value: totalClicks, icon: Eye, description: 'All clicks in the system' },
+        { title: 'Monetizable Clicks', value: monetizableClicks, icon: Eye, description: 'Clicks on monetizable links' },
+        { title: 'Total Revenue', value: totalRevenue, icon: DollarSign, isCurrency: true, description: `Based on $${activeCpm.toFixed(2)} CPM` },
     ];
 
     return (
@@ -92,7 +96,7 @@ export default function AdminDashboardPage() {
                                 </div>
                             )}
                             <p className="text-xs text-muted-foreground">
-                                {index === 2 ? `Based on $${activeCpm.toFixed(2)} CPM` : 'Live count'}
+                                {stat.description}
                             </p>
                         </CardContent>
                     </Card>
