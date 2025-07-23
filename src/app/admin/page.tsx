@@ -27,6 +27,7 @@ type Payout = {
 
 export default function AdminDashboardPage() {
     const [userCount, setUserCount] = useState<number | null>(null);
+    const [totalLinks, setTotalLinks] = useState<number | null>(null);
     const [totalClicks, setTotalClicks] = useState<number | null>(null);
     const [totalRealClicks, setTotalRealClicks] = useState<number | null>(null);
     const [totalRevenue, setTotalRevenue] = useState<number | null>(null);
@@ -60,6 +61,9 @@ export default function AdminDashboardPage() {
             let allRealClicks = 0;
             let monetizedRealClicks = 0;
             let monetizableCount = 0;
+            
+            setTotalLinks(snapshot.size);
+
             snapshot.forEach((doc) => {
                 const data = doc.data() as Link;
                 allClicks += data.clicks || 0;
@@ -104,17 +108,19 @@ export default function AdminDashboardPage() {
     }, [cpm, loading]);
 
     const stats = [
-        { title: 'Total Users', value: userCount, icon: Users, isCurrency: false, description: "Live count" },
+        { title: 'Total Revenue', value: totalRevenue, icon: DollarSign, isCurrency: true, description: `Based on $${cpm.toFixed(2)} CPM` },
+        { title: 'Total Users', value: userCount, icon: Users, isCurrency: false, description: "Live user count" },
+        { title: 'Total Links', value: totalLinks, icon: Link2, isCurrency: false, description: "All created links" },
+        { title: 'Monetizable Links', value: monetizableLinks, icon: DollarSign, isCurrency: false, description: "Links eligible for earnings" },
         { title: 'Total Clicks', value: totalClicks, icon: Eye, isCurrency: false, description: "All clicks recorded" },
         { title: 'Real Clicks', value: totalRealClicks, icon: CheckCircle, isCurrency: false, description: "Unique clicks per hour" },
-        { title: 'Total Revenue', value: totalRevenue, icon: DollarSign, isCurrency: true, description: `Based on $${cpm.toFixed(2)} CPM & real clicks` },
     ];
 
     return (
         <div className="flex flex-col gap-6">
             <h1 className="text-2xl font-bold">Admin Dashboard</h1>
             
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {stats.map((stat, index) => (
                     <Card key={index}>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -189,5 +195,3 @@ export default function AdminDashboardPage() {
         </div>
     );
 }
-
-    
