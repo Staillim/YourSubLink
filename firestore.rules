@@ -3,84 +3,77 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // --- Helper Functions ---
+    function isAdmin() {
+      // Check if the user making the request has the 'admin' role in their user document.
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
     function isOwner(userId) {
+      // Check if the authenticated user's ID matches the provided userId.
       return request.auth.uid == userId;
     }
 
-    function isAdmin() {
-      // Check if the requesting user has the 'admin' role in their user document.
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
-
-    // --- Collection Rules ---
-
-    // Users can only read or update their own profile. Only admins can view all profiles.
+    // Rules for the 'users' collection
     match /users/{userId} {
+      // Users can read and update their own profile. Admins can read/update any profile.
       allow read, update: if isOwner(userId) || isAdmin();
+      // Users can create their own profile document.
       allow create: if isOwner(userId);
-      // Deleting users should be handled server-side or with extreme caution.
-      allow delete: if isAdmin();
+      // Deleting user documents is not allowed from the client to preserve data integrity.
     }
 
-    // Link documents can be read by anyone (as they are public).
-    // Creation and deletion are restricted.
-    // Updates are restricted to owners/admins, with a special case for unauthenticated
-    // API calls to increment click counters.
+    // Rules for the 'links' collection
     match /links/{linkId} {
+      // Anyone can read link data (needed for the redirection page).
       allow read;
+      // Only the owner can create a new link.
       allow create: if isOwner(request.resource.data.userId);
-      // Owners and Admins can update their own link's mutable fields (title, rules, etc.).
-      allow update: if isOwner(resource.data.userId) || isAdmin();
+      // The owner or an admin can update the link document (e.g., title, rules).
+      // The API route (unauthenticated) can only update specific counter fields.
+      allow update: if (isOwner(resource.data.userId) || isAdmin()) || 
+                     (request.auth == null && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks', 'realClicks', 'generatedEarnings', 'earningsByCpm']));
+      // The owner or an admin can delete a link.
       allow delete: if isOwner(resource.data.userId) || isAdmin();
     }
 
-    // This rule allows our unauthenticated API route to safely increment counters
-    // without being able to change other critical link data.
-    match /links/{linkId} {
-        allow update: if request.auth == null &&
-            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-                'clicks', 'realClicks', 'generatedEarnings', 'earningsByCpm'
-            ]);
-    }
-
-
-    // Click documents can be created by our server-side API route.
-    // They can only be read by admins or the owner of the associated link.
+    // Rules for the 'clicks' collection
     match /clicks/{clickId} {
-      allow create; // Anyone (specifically our API route) can create a click.
-      allow read: if isAdmin() || isOwner(get(/databases/$(database)/documents/links/$(resource.data.linkId)).data.userId);
-      // No one should update/delete raw click data from the client.
-      allow update, delete: if false;
+      // The API route (unauthenticated) can create click documents.
+      allow create; 
+      // Only the owner of the corresponding link or an admin can read the click details.
+      allow read: if isAdmin() || get(/databases/$(database)/documents/links/$(resource.data.linkId)).data.userId == request.auth.uid;
+    }
+    
+    // Rules for CPM history
+    match /cpmHistory/{cpmId} {
+        // Anyone can read CPM rates.
+        allow read;
+        // Only admins can create or modify CPM history.
+        allow write: if isAdmin(); 
     }
 
-    // CPM history is public to read, but only admins can modify it.
-    match /cpmHistory/{cpmId} {
-        allow read;
+    // Rules for payout requests
+    match /payoutRequests/{payoutId} {
+        // A user can create their own payout request.
+        allow create: if isOwner(request.resource.data.userId);
+        // A user can read their own requests. An admin can read any request.
+        allow read: if isOwner(resource.data.userId) || isAdmin();
+        // Only an admin can update a request (e.g., to approve or reject it).
         allow write: if isAdmin();
     }
-
-    // Users can create their own payout requests and view them.
-    // Only admins can modify the status of a request (approve/reject).
-    match /payoutRequests/{payoutId} {
-        allow create: if isOwner(request.resource.data.userId);
-        allow read: if isOwner(resource.data.userId) || isAdmin();
-        allow update: if isAdmin(); // Only admins can change status.
-        allow delete: if isAdmin();
-    }
-
-    // Global settings can be read by anyone but only written by admins.
+    
+    // Rules for global settings document
     match /settings/global {
       allow read;
       allow write: if isAdmin();
     }
 
-    // Notifications can be created by the system (via server-side logic).
-    // Users can only read their own notifications. Admins can read all.
+    // Rules for notifications
     match /notifications/{notificationId} {
+      // Users can read their own notifications. Admins can read any.
       allow read: if isOwner(resource.data.userId) || isAdmin();
-      allow create;
-      allow update, delete: if isOwner(resource.data.userId) || isAdmin();
+      // The system (via the API route, unauthenticated) can create notifications.
+      allow create; 
     }
   }
 }
