@@ -176,4 +176,3 @@ export default function LinkGate({ linkData, onUnlock, initialStatus = 'gate' }:
         </div>
     )
 }
-
