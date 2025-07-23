@@ -64,18 +64,25 @@ async function recordClick(linkData: LinkData, visitorId: string): Promise<void>
                     generatedEarnings: increment(earningsPerClick),
                     [`earningsByCpm.${cpmId}`]: increment(earningsPerClick)
                 });
-
-                // Update daily statistics
+                
+                // Update daily statistics for monetized clicks
                 const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
                 const dailyStatRef = doc(db, 'dailyStats', today);
-                // Use set with merge to create or update the daily stat document
                 batch.set(dailyStatRef, { 
                     totalClicks: increment(1),
                     totalEarnings: increment(earningsPerClick),
-                    cpmRate: cpmRateForClick, // Store the CPM rate for this day
-                    date: serverTimestamp() // To know when it was last updated
+                    cpmRate: cpmRateForClick,
+                    date: serverTimestamp() 
                 }, { merge: true });
             }
+        } else {
+             // For non-monetized clicks, still update daily stats for clicks but not earnings
+             const today = new Date().toISOString().split('T')[0];
+             const dailyStatRef = doc(db, 'dailyStats', today);
+             batch.set(dailyStatRef, {
+                totalClicks: increment(1),
+                date: serverTimestamp()
+             }, { merge: true });
         }
         
         // Create a historical click record
@@ -84,7 +91,7 @@ async function recordClick(linkData: LinkData, visitorId: string): Promise<void>
             linkId: linkData.id,
             timestamp: serverTimestamp(),
             visitorId: visitorId,
-            cpmAtClick: cpmRateForClick,
+            cpmAtClick: cpmRateForClick, // This ensures the CPM rate is stored with the click
         });
 
         // Increment the total clicks counter on the link
