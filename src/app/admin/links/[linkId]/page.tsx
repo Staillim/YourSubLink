@@ -1,25 +1,24 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useEffect, useState, use } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, getDoc, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowLeft, Eye, User, Check, Bot } from 'lucide-react';
+import { ArrowLeft, Eye, User, Hash, Check, Bot } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
 type Click = {
     id: string;
-    deviceId: string;
+    ipAddress: string;
     timestamp: any;
 };
 
-type DeviceStat = {
-    deviceId: string;
+type IpStat = {
+    ip: string;
     count: number;
     timestamps: Date[];
 };
@@ -27,16 +26,42 @@ type DeviceStat = {
 type LinkData = {
     title: string;
     original: string;
-    clicks: number; 
-    realClicks: number;
+    clicks: number; // Total Clicks
+    realClicks: number; // Real Clicks (calculated)
     userName: string;
 };
 
-export default function LinkStatsPage() {
-    const params = useParams();
-    const linkId = params.linkId as string;
+const calculateRealClicks = (clicks: Click[]): number => {
+    if (clicks.length === 0) return 0;
+
+    const clicksByIp: { [key: string]: Date[] } = {};
+    clicks.forEach(click => {
+        if (!clicksByIp[click.ipAddress]) {
+            clicksByIp[click.ipAddress] = [];
+        }
+        clicksByIp[click.ipAddress].push(new Date(click.timestamp.seconds * 1000));
+    });
+
+    let realClickCount = 0;
+    for (const ip in clicksByIp) {
+        const timestamps = clicksByIp[ip].sort((a,b) => a.getTime() - b.getTime());
+        let lastCountedTimestamp: Date | null = null;
+
+        timestamps.forEach(timestamp => {
+            if (!lastCountedTimestamp || (timestamp.getTime() - lastCountedTimestamp.getTime()) > 3600000) { // 1 hour in ms
+                realClickCount++;
+                lastCountedTimestamp = timestamp;
+            }
+        });
+    }
+
+    return realClickCount;
+}
+
+export default function LinkStatsPage({ params }: { params: { linkId: string } }) {
+    const { linkId } = use(params);
     const [linkData, setLinkData] = useState<LinkData | null>(null);
-    const [deviceStats, setDeviceStats] = useState<DeviceStat[]>([]);
+    const [ipStats, setIpStats] = useState<IpStat[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -61,32 +86,31 @@ export default function LinkStatsPage() {
                 const userName = userSnap.exists() ? userSnap.data().displayName : 'Unknown User';
                 
                 // Fetch click data
-                const clicksQuery = query(
-                    collection(db, 'clicks'), 
-                    where('linkId', '==', linkId)
-                );
+                const clicksQuery = query(collection(db, 'clicks'), where('linkId', '==', linkId));
                 const querySnapshot = await getDocs(clicksQuery);
                 const clicks: Click[] = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Click));
 
-                // Aggregate stats by device ID
-                const deviceCounts = clicks.reduce((acc, click) => {
-                    const id = click.deviceId;
-                    if (!acc[id]) {
-                        acc[id] = { deviceId: id, count: 0, timestamps: [] };
-                    }
-                    acc[id].count++;
-                    acc[id].timestamps.push(new Date(click.timestamp.seconds * 1000));
-                    return acc;
-                }, {} as { [key: string]: DeviceStat });
+                // Calculate stats
+                const realClicks = calculateRealClicks(clicks);
 
-                const sortedDeviceStats = Object.values(deviceCounts).sort((a, b) => b.count - a.count);
+                const ipCounts = clicks.reduce((acc, click) => {
+                    const ip = click.ipAddress;
+                    if (!acc[ip]) {
+                        acc[ip] = { ip: ip, count: 0, timestamps: [] };
+                    }
+                    acc[ip].count++;
+                    acc[ip].timestamps.push(new Date(click.timestamp.seconds * 1000));
+                    return acc;
+                }, {} as { [key: string]: IpStat });
+
+                const sortedIpStats = Object.values(ipCounts).sort((a, b) => b.count - a.count);
                 
-                setDeviceStats(sortedDeviceStats);
+                setIpStats(sortedIpStats);
                 setLinkData({
                     title: data.title,
                     original: data.original,
                     clicks: data.clicks,
-                    realClicks: data.realClicks || 0,
+                    realClicks: realClicks,
                     userName: userName,
                 });
 
@@ -149,7 +173,7 @@ export default function LinkStatsPage() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{linkData.realClicks.toLocaleString()}</div>
-                         <p className="text-xs text-muted-foreground">Unique devices per hour.</p>
+                         <p className="text-xs text-muted-foreground">Unique IPs per hour.</p>
                     </CardContent>
                 </Card>
                 <Card>
@@ -175,25 +199,25 @@ export default function LinkStatsPage() {
             
              <Card>
                 <CardHeader>
-                    <CardTitle>Clicks by Device</CardTitle>
-                    <CardDescription>A list of unique devices and how many times each has clicked the link.</CardDescription>
+                    <CardTitle>Clicks by IP Address</CardTitle>
+                    <CardDescription>A list of unique IP addresses and how many times each has clicked the link.</CardDescription>
                 </CardHeader>
                 <CardContent>
                    <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead>Device ID</TableHead>
+                                <TableHead>IP Address</TableHead>
                                 <TableHead className="text-right">Click Count</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {deviceStats.map((stat) => (
-                                <TableRow key={stat.deviceId}>
-                                    <TableCell className="font-mono text-xs">{stat.deviceId}</TableCell>
+                            {ipStats.map((stat) => (
+                                <TableRow key={stat.ip}>
+                                    <TableCell className="font-mono">{stat.ip}</TableCell>
                                     <TableCell className="text-right font-semibold">{stat.count}</TableCell>
                                 </TableRow>
                             ))}
-                            {deviceStats.length === 0 && (
+                            {ipStats.length === 0 && (
                                 <TableRow>
                                     <TableCell colSpan={2} className="h-24 text-center">
                                         No click data available for this link yet.

@@ -1,5 +1,6 @@
 
-'use client';
+import { getDoc, doc, collection, getDocs } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import ClientComponent from './ClientComponent';
 
 /**
@@ -8,6 +9,6 @@ import ClientComponent from './ClientComponent';
  * and render the corresponding ClientComponent, which handles all
  * interactive logic.
  */
-export default function ShortLinkPage() {
-  return <ClientComponent />;
+export default function ShortLinkPage({ params }: { params: { shortId: string } }) {
+  return <ClientComponent shortId={params.shortId} />;
 }

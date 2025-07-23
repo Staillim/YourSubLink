@@ -1,17 +1,14 @@
 
-'use client';
-import LinkGate from './ClientComponent';
+import { getDoc, doc, collection, getDocs } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import ClientComponent from './ClientComponent';
 
 /**
- * This page acts as the container for the "Link Gate".
- * It receives link data from the parent component and renders the gate.
+ * This is the main Server Component for the short link page.
+ * Its only job is to receive the `shortId` from the URL parameters
+ * and render the corresponding ClientComponent, which handles all
+ * interactive logic.
  */
-export default function LinkGatePage({ linkData }: { linkData: any }) {
-  if (!linkData) {
-    // This can happen if the page is accessed directly.
-    // In a real app, you might want to redirect or show an error.
-    return <p>Loading link...</p>;
-  }
-  return <LinkGate linkData={linkData} />;
+export default function ShortLinkPage({ params }: { params: { shortId: string } }) {
+  return <ClientComponent shortId={params.shortId} />;
 }
-

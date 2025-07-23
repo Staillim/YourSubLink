@@ -1,7 +1,10 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { notFound } from 'next/navigation';
+import { db } from '@/lib/firebase';
+import { collection, query, where, getDocs, doc, writeBatch, serverTimestamp, increment } from 'firebase/firestore';
 import { Loader2, ExternalLink, CheckCircle2, Lock, Link as LinkIcon, ChevronRight, Youtube, Instagram } from 'lucide-react';
 import type { Rule } from '@/components/rule-editor';
 import { Button } from '@/components/ui/button';
@@ -16,6 +19,7 @@ type LinkData = {
   description?: string;
   userId: string;
   monetizable: boolean;
+  clicks: number;
 };
 
 const RULE_DETAILS = {
@@ -24,6 +28,57 @@ const RULE_DETAILS = {
   follow: { text: 'Follow On Instagram', icon: Instagram, color: 'bg-blue-600 hover:bg-blue-700' },
   visit: { text: 'Visit Website', icon: ExternalLink, color: 'bg-gray-500 hover:bg-gray-600' },
 };
+
+async function recordClick(linkData: LinkData): Promise<void> {
+    try {
+        const batch = writeBatch(db);
+        
+        // 1. Create a historical click record
+        const clickDocRef = doc(collection(db, 'clicks'));
+        batch.set(clickDocRef, {
+            linkId: linkData.id,
+            timestamp: serverTimestamp(),
+            ipAddress: 'x.x.x.x', // Placeholder for server-side IP
+        });
+
+        // 2. Increment the total clicks counter on the link
+        const linkRef = doc(db, 'links', linkData.id);
+        batch.update(linkRef, { clicks: increment(1) });
+        
+        // 3. Handle monetization earnings for the click if applicable
+        if (linkData.monetizable) {
+            const CPM = 3.00; // Cost Per Mille (1000 views)
+            const earningsPerClick = CPM / 1000;
+            const linkEarningsUpdate = { generatedEarnings: increment(earningsPerClick) };
+            batch.update(linkRef, linkEarningsUpdate);
+        }
+
+        // 4. Handle milestone notifications
+        const currentClicks = linkData.clicks;
+        const newClicks = currentClicks + 1;
+        const milestone = 1000;
+        if (Math.floor(currentClicks / milestone) < Math.floor(newClicks / milestone)) {
+            const reachedMilestone = Math.floor(newClicks / milestone) * milestone;
+            const notificationRef = doc(collection(db, 'notifications'));
+            batch.set(notificationRef, {
+                userId: linkData.userId,
+                linkId: linkData.id,
+                linkTitle: linkData.title,
+                type: 'milestone',
+                milestone: reachedMilestone,
+                message: `Your link "${linkData.title}" reached ${reachedMilestone.toLocaleString()} visits!`,
+                createdAt: serverTimestamp(),
+                read: false
+            });
+        }
+
+        await batch.commit();
+        console.log("Click recorded successfully.");
+        
+    } catch (error) {
+        console.error("Error processing click:", error);
+    }
+}
 
 
 function RuleItem({ rule, onComplete, isCompleted }: { rule: Rule; onComplete: () => void; isCompleted: boolean }) {
@@ -76,7 +131,7 @@ function RuleItem({ rule, onComplete, isCompleted }: { rule: Rule; onComplete: (
 }
 
 
-export default function LinkGate({ linkData }: { linkData: LinkData }) {
+function LinkGate({ linkData }: { linkData: LinkData }) {
     const [completedRules, setCompletedRules] = useState<boolean[]>(Array(linkData.rules.length).fill(false));
     const [isRedirecting, setIsRedirecting] = useState(false);
     
@@ -141,4 +196,86 @@ export default function LinkGate({ linkData }: { linkData: LinkData }) {
             </Card>
         </div>
     )
+}
+
+
+export default function ClientComponent({ shortId }: { shortId: string }) {
+  const [status, setStatus] = useState<'loading' | 'gate' | 'redirecting' | 'not-found'>('loading');
+  const [linkData, setLinkData] = useState<LinkData | null>(null);
+  
+  useEffect(() => {
+    if (!shortId) {
+        setStatus('not-found');
+        return;
+    };
+
+    const getLink = async () => {
+      try {
+        const q = query(collection(db, 'links'), where('shortId', '==', shortId));
+        const querySnapshot = await getDocs(q);
+
+        if (querySnapshot.empty) {
+          setStatus('not-found');
+          return;
+        }
+        
+        const linkDoc = querySnapshot.docs[0];
+        const data = linkDoc.data();
+        
+        const fetchedLinkData: LinkData = {
+            id: linkDoc.id,
+            original: data.original,
+            rules: data.rules || [],
+            title: data.title,
+            description: data.description,
+            userId: data.userId,
+            monetizable: data.monetizable || false,
+            clicks: data.clicks || 0,
+        };
+        
+        // Record the click immediately upon fetching the link data
+        await recordClick(fetchedLinkData);
+
+        if (fetchedLinkData.rules.length > 0) {
+            setLinkData(fetchedLinkData);
+            setStatus('gate');
+        } else {
+            // For non-gate links, redirect immediately.
+            setStatus('redirecting');
+            window.location.href = fetchedLinkData.original;
+        }
+
+      } catch (error) {
+        console.error("Error getting link:", error);
+        setStatus('not-found');
+      }
+    };
+
+    getLink();
+  }, [shortId]);
+  
+  if (status === 'not-found') {
+      notFound();
+  }
+
+  if (status === 'loading' || status === 'redirecting') {
+    return (
+        <div className="flex h-screen w-full flex-col items-center justify-center bg-background text-foreground">
+            <Loader2 className="h-12 w-12 animate-spin text-primary"/>
+            <p className="mt-4 text-lg text-muted-foreground">Redirecting...</p>
+        </div>
+      );
+  }
+  
+  if (status === 'gate' && linkData) {
+      return <LinkGate linkData={linkData} />;
+  }
+
+  // Fallback state, should be brief
+  return (
+     <div className="flex h-screen w-full flex-col items-center justify-center bg-background text-foreground">
+        <Loader2 className="h-12 w-12 animate-spin text-primary"/>
+        <p className="mt-4 text-lg text-muted-foreground">Redirecting...</p>
+    </div>
+  );
 }

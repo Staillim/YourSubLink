@@ -1,52 +1,64 @@
 
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Users: Can read their own profile, admins can read any.
-    // Anyone can create a user profile (on signup).
-    // Users can update their own profile. Admins can update any.
+  
+    // Helper function to check for admin role
+    function isAdmin() {
+      // Check if the user document exists and has the role 'admin'
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
     match /users/{userId} {
-      allow read: if request.auth.uid == userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-      allow create: if request.auth != null;
-      allow update: if request.auth.uid == userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      allow read: if request.auth.uid == userId || isAdmin();
+      allow write: if request.auth.uid == userId || isAdmin();
+      allow list: if isAdmin();
     }
 
-    // Links: Anyone can read link data.
-    // Authenticated users can create links.
-    // Users can only update/delete their own links. Admins can manage any.
     match /links/{linkId} {
-      allow read;
-      allow create: if request.auth != null;
-      allow update, delete: if resource.data.userId == request.auth.uid 
-        || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
+      // Allow anyone to get a link document directly. This is needed for the redirection page.
+      allow get: if true;
+      
+      // Allow users to list their own links, and admins to list all links.
+      // This rule is tricky. Firestore can only enforce that a query for a user's own links is allowed.
+      // It cannot enforce that a general list operation only returns a user's own links without an index.
+      // The client-side query MUST have `where('userId', '==', request.auth.uid)`
+      allow list: if request.auth != null;
 
-    // Clicks: Anyone can create a click log (via server API).
-    // Users can read clicks associated with their own links for stats pages.
-    // Admins can read any click log.
+      // Allow authenticated users to create links
+      allow create: if request.auth != null;
+
+      // Allow the owner or an admin to update/delete
+      allow update, delete: if resource.data.userId == request.auth.uid || isAdmin();
+      
+      // Allow public client to increment click counts
+      allow update: if request.auth == null
+                    && request.resource.data.clicks > resource.data.clicks;
+    }
+    
     match /clicks/{clickId} {
-      allow create: if request.auth != null;
-      allow read: if get(/databases/$(database)/documents/links/$(resource.data.linkId)).data.userId == request.auth.uid
-        || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      allow create: if true;
+      allow read, list, delete: if isAdmin();
     }
     
-    // Payout Requests: Users can create/read their own. Admins can manage all.
-    match /payoutRequests/{requestId} {
-      allow create: if request.auth.uid == request.resource.data.userId;
-      allow read, update: if resource.data.userId == request.auth.uid 
-        || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
-    
-    // Notifications: Can only be read by the assigned user or an admin.
     match /notifications/{notificationId} {
-        allow read: if resource.data.userId == request.auth.uid
-        || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+        allow create: if true; // System can create notifications
+        allow read, list: if request.auth != null && (resource.data.userId == request.auth.uid || isAdmin());
+        allow update: if isAdmin();
     }
 
-    // CPM History: Admin-only read/write access.
+    match /payoutRequests/{requestId} {
+        allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+        allow list: if isAdmin();
+        allow get: if resource.data.userId == request.auth.uid || isAdmin();
+        allow update: if isAdmin();
+    }
+    
     match /cpmHistory/{historyId} {
-        allow read, write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+        allow get, list: if true;
+        allow write: if isAdmin();
     }
   }
 }
