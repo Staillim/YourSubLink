@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import { notFound } from 'next/navigation';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, writeBatch, serverTimestamp, increment, getDoc, limit, orderBy, setDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, writeBatch, serverTimestamp, increment, getDoc, limit, orderBy } from 'firebase/firestore';
 import { Loader2, ExternalLink, CheckCircle2, Lock, Link as LinkIcon, ChevronRight, Youtube, Instagram } from 'lucide-react';
 import type { Rule } from '@/components/rule-editor';
 import { Button } from '@/components/ui/button';
@@ -20,12 +20,13 @@ type LinkData = {
   userId: string;
   monetizable: boolean;
   clicks: number;
+  realClicks: number;
 };
 
 const RULE_DETAILS = {
   like: { text: 'Like & Comment on Video', icon: Youtube, color: 'bg-red-600 hover:bg-red-700' },
   subscribe: { text: 'Subscribe On Youtube', icon: Youtube, color: 'bg-red-600 hover:bg-red-700' },
-  follow: { text: 'Follow On Instagram', icon: Instagram, color: 'bg-blue-600 hover:bg-blue-700' },
+  follow: { text: 'Follow On Instagram', icon: Instagram, color: 'bg-blue-600 hover:blue-700' },
   visit: { text: 'Visit Website', icon: ExternalLink, color: 'bg-gray-500 hover:bg-gray-600' },
 };
 
@@ -39,8 +40,21 @@ const getVisitorId = (): string => {
     return visitorId;
 }
 
+const isRealClick = async (linkId: string, visitorId: string): Promise<boolean> => {
+    const oneHourAgo = new Date(Date.now() - 3600000); // 1 hour in ms
+    const q = query(
+        collection(db, 'clicks'),
+        where('linkId', '==', linkId),
+        where('visitorId', '==', visitorId),
+        where('timestamp', '>', oneHourAgo),
+        limit(1)
+    );
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.empty;
+};
 
-async function recordClick(linkData: LinkData, visitorId: string): Promise<void> {
+
+async function recordClick(linkData: LinkData, visitorId: string, isReal: boolean): Promise<void> {
     try {
         const batch = writeBatch(db);
         const linkRef = doc(db, 'links', linkData.id);
@@ -59,32 +73,31 @@ async function recordClick(linkData: LinkData, visitorId: string): Promise<void>
                 const cpmData = activeCpmDoc.data();
                 const cpmId = activeCpmDoc.id;
                 cpmRateForClick = cpmData.rate;
-                const earningsPerClick = cpmRateForClick / 1000;
 
-                // Update link-specific earnings
-                batch.update(linkRef, {
-                    generatedEarnings: increment(earningsPerClick),
-                    [`earningsByCpm.${cpmId}`]: increment(earningsPerClick)
-                });
-                
-                // Update daily statistics for monetized clicks
-                batch.set(dailyStatRef, { 
-                    totalClicks: increment(1),
-                    totalEarnings: increment(earningsPerClick),
-                    cpmRate: cpmRateForClick,
-                    date: serverTimestamp() 
-                }, { merge: true });
-            } else {
-                 // If no CPM is set, still count the click for daily stats
-                 batch.set(dailyStatRef, { totalClicks: increment(1), date: serverTimestamp() }, { merge: true });
+                // Only generate earnings for real clicks
+                if (isReal) {
+                    const earningsPerClick = cpmRateForClick / 1000;
+
+                    // Update link-specific earnings
+                    batch.update(linkRef, {
+                        generatedEarnings: increment(earningsPerClick),
+                        [`earningsByCpm.${cpmId}`]: increment(earningsPerClick)
+                    });
+                    
+                    // Update daily statistics for monetized clicks
+                    batch.set(dailyStatRef, { 
+                        totalEarnings: increment(earningsPerClick),
+                        cpmRate: cpmRateForClick,
+                    }, { merge: true });
+                }
             }
-        } else {
-             // For non-monetized clicks, still update daily stats for clicks but not earnings
-             batch.set(dailyStatRef, {
-                totalClicks: increment(1),
-                date: serverTimestamp()
-             }, { merge: true });
         }
+        
+        // Always update total clicks on daily stats regardless of monetization or real status
+        batch.set(dailyStatRef, { 
+            totalClicks: increment(1),
+            date: serverTimestamp() 
+        }, { merge: true });
         
         // Create a historical click record
         const clickDocRef = doc(collection(db, 'clicks'));
@@ -96,7 +109,17 @@ async function recordClick(linkData: LinkData, visitorId: string): Promise<void>
         });
 
         // Increment the total clicks counter on the link
-        batch.update(linkRef, { clicks: increment(1) });
+        const updatePayload: { clicks: any, realClicks?: any } = {
+            clicks: increment(1)
+        };
+        
+        // Increment real clicks only if it's a real click
+        if (isReal) {
+            updatePayload.realClicks = increment(1);
+        }
+
+        batch.update(linkRef, updatePayload);
+
 
         // Handle milestone notifications
         const currentClicks = linkData.clicks;
@@ -278,16 +301,16 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
             userId: data.userId,
             monetizable: data.monetizable || false,
             clicks: data.clicks || 0,
+            realClicks: data.realClicks || 0,
         };
         
-        // Record the click immediately upon fetching the link data
-        await recordClick(fetchedLinkData, visitorId);
+        const isReal = await isRealClick(fetchedLinkData.id, visitorId);
+        await recordClick(fetchedLinkData, visitorId, isReal);
 
         if (fetchedLinkData.rules.length > 0) {
             setLinkData(fetchedLinkData);
             setStatus('gate');
         } else {
-            // For non-gate links, redirect immediately.
             setStatus('redirecting');
             window.location.href = fetchedLinkData.original;
         }
@@ -318,7 +341,6 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
       return <LinkGate linkData={linkData} />;
   }
 
-  // Fallback state, should be brief
   return (
      <div className="flex h-screen w-full flex-col items-center justify-center bg-background text-foreground">
         <Loader2 className="h-12 w-12 animate-spin text-primary"/>
