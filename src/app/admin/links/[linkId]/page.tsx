@@ -1,15 +1,17 @@
 
 'use client';
 
-import { useEffect, useState, use } from 'react';
+import { useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, orderBy } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ArrowLeft, Eye, User, Hash, Check, Bot } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { useUser } from '@/hooks/use-user';
+import { notFound } from 'next/navigation';
 
 type Click = {
     id: string;
@@ -32,13 +34,17 @@ type LinkData = {
 };
 
 export default function LinkStatsPage({ params }: { params: { linkId: string } }) {
-    const { linkId } = use(params);
+    const { linkId } = params;
+    const { user, role } = useUser();
     const [linkData, setLinkData] = useState<LinkData | null>(null);
     const [ipStats, setIpStats] = useState<IpStat[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (!linkId) return;
+        if (!linkId || role !== 'admin') {
+            if (role && role !== 'admin') notFound();
+            return;
+        };
 
         const fetchData = async () => {
             setLoading(true);
@@ -59,7 +65,7 @@ export default function LinkStatsPage({ params }: { params: { linkId: string } }
                 const userName = userSnap.exists() ? userSnap.data().displayName : 'Unknown User';
                 
                 // Fetch click data for IP stats
-                const clicksQuery = query(collection(db, 'clicks'), where('linkId', '==', linkId));
+                const clicksQuery = query(collection(db, 'clicks'), where('linkId', '==', linkId), orderBy('timestamp', 'desc'));
                 const querySnapshot = await getDocs(clicksQuery);
                 const clicks: Click[] = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Click));
 
@@ -93,7 +99,7 @@ export default function LinkStatsPage({ params }: { params: { linkId: string } }
         
         fetchData();
 
-    }, [linkId]);
+    }, [linkId, user, role]);
     
     if (loading) {
         return (
@@ -202,3 +208,4 @@ export default function LinkStatsPage({ params }: { params: { linkId: string } }
         </div>
     );
 }
+

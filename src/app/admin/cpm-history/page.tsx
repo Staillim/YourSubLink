@@ -3,11 +3,13 @@
 
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, query, orderBy, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, getDocs, doc, getDoc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DollarSign, History } from 'lucide-react';
+import { useUser } from '@/hooks/use-user';
+import { notFound } from 'next/navigation';
 
 type CpmHistory = {
     id: string;
@@ -23,10 +25,16 @@ type LinkEarnings = {
 }
 
 export default function CpmHistoryPage() {
+    const { user, role } = useUser();
     const [history, setHistory] = useState<CpmHistory[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        if (!user || role !== 'admin') {
+            if (role && role !== 'admin') notFound();
+            return;
+        }
+
         const fetchData = async () => {
             setLoading(true);
 
@@ -67,7 +75,7 @@ export default function CpmHistoryPage() {
         
         return () => unsubscribe();
 
-    }, []);
+    }, [user, role]);
 
     if (loading) {
         return (

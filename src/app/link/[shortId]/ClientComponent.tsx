@@ -30,73 +30,18 @@ const RULE_DETAILS = {
   visit: { text: 'Visit Website', icon: ExternalLink, color: 'bg-gray-500 hover:bg-gray-600' },
 };
 
-async function recordClick(linkData: LinkData): Promise<void> {
+async function recordClick(linkId: string): Promise<void> {
     try {
-        const batch = writeBatch(db);
-        const linkRef = doc(db, 'links', linkData.id);
-        const clickDocRef = doc(collection(db, 'clicks'));
-
-        // --- Real Click Logic ---
-        const lastClickTimestamp = localStorage.getItem(`real_click_${linkData.id}`);
-        const now = new Date().getTime();
-        const oneHour = 60 * 60 * 1000;
-        let isRealClick = false;
-
-        if (!lastClickTimestamp || (now - parseInt(lastClickTimestamp, 10)) > oneHour) {
-            isRealClick = true;
-            localStorage.setItem(`real_click_${linkData.id}`, now.toString());
-        }
-
-        // --- Firestore Updates ---
-        // 1. Create a historical click record
-        batch.set(clickDocRef, {
-            linkId: linkData.id,
-            timestamp: serverTimestamp(),
-            ipAddress: 'x.x.x.x', // Placeholder for server-side IP
-            isRealClick: isRealClick,
+        await fetch('/api/click', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ linkId }),
         });
-
-        // 2. Increment counters on the link
-        const linkCounters: { [key: string]: any } = {
-            clicks: increment(1)
-        };
-        if (isRealClick) {
-            linkCounters.realClicks = increment(1);
-        }
-        
-        // 3. Handle monetization earnings for the real click if applicable
-        if (isRealClick && linkData.monetizable) {
-            const CPM = 3.00; // Cost Per Mille (1000 views)
-            const earningsPerClick = CPM / 1000;
-            linkCounters.generatedEarnings = increment(earningsPerClick);
-        }
-
-        batch.update(linkRef, linkCounters);
-
-        // 4. Handle milestone notifications (based on real clicks)
-        const currentRealClicks = linkData.realClicks || 0;
-        const newRealClicks = currentRealClicks + (isRealClick ? 1 : 0);
-        const milestone = 1000;
-        if (isRealClick && Math.floor(currentRealClicks / milestone) < Math.floor(newRealClicks / milestone)) {
-            const reachedMilestone = Math.floor(newRealClicks / milestone) * milestone;
-            const notificationRef = doc(collection(db, 'notifications'));
-            batch.set(notificationRef, {
-                userId: linkData.userId,
-                linkId: linkData.id,
-                linkTitle: linkData.title,
-                type: 'milestone',
-                milestone: reachedMilestone,
-                message: `Your link "${linkData.title}" reached ${reachedMilestone.toLocaleString()} visits!`,
-                createdAt: serverTimestamp(),
-                read: false
-            });
-        }
-
-        await batch.commit();
-        console.log(`Click recorded. Real click: ${isRealClick}`);
-        
+        console.log(`Click record request sent for linkId: ${linkId}`);
     } catch (error) {
-        console.error("Error processing click:", error);
+        console.error("Error sending click record request:", error);
     }
 }
 
@@ -254,8 +199,8 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
             realClicks: data.realClicks || 0,
         };
         
-        // Record the click immediately upon fetching the link data
-        await recordClick(fetchedLinkData);
+        // Record the click via the API route
+        await recordClick(fetchedLinkData.id);
 
         if (fetchedLinkData.rules.length > 0) {
             setLinkData(fetchedLinkData);
@@ -300,3 +245,4 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
     </div>
   );
 }
+
