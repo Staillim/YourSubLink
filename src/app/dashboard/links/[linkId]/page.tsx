@@ -29,42 +29,36 @@ type LinkData = {
     userId: string;
     title: string;
     original: string;
-    clicks: number; // Total Clicks
-    realClicks: number; // Real Clicks (from Firestore)
+    clicks: number;
+    realClicks: number;
 };
+
+type PageStatus = 'loading' | 'error' | 'success';
 
 export default function UserLinkStatsPage() {
     const params = useParams();
     const linkId = params.linkId as string;
     const { user, loading: userLoading } = useUser();
+    
+    const [status, setStatus] = useState<PageStatus>('loading');
     const [linkData, setLinkData] = useState<LinkData | null>(null);
     const [ipStats, setIpStats] = useState<IpStat[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [isError, setIsError] = useState(false);
 
     useEffect(() => {
         if (userLoading) return;
-        if (!user) {
-            setLoading(false);
-            setIsError(true);
-            return;
-        }
-        if (!linkId) {
-            setLoading(false);
-            setIsError(true);
+        if (!user || !linkId) {
+            if (!userLoading) setStatus('error');
             return;
         }
 
         const fetchData = async () => {
-            setLoading(true);
             try {
                 // 1. Fetch link data and verify ownership
                 const linkRef = doc(db, 'links', linkId);
                 const linkSnap = await getDoc(linkRef);
 
                 if (!linkSnap.exists() || linkSnap.data().userId !== user.uid) {
-                    setIsError(true);
-                    setLoading(false);
+                    setStatus('error');
                     return;
                 }
                 const data = linkSnap.data();
@@ -97,11 +91,10 @@ export default function UserLinkStatsPage() {
                 const sortedIpStats = Object.values(ipCounts).sort((a, b) => b.count - a.count);
                 
                 setIpStats(sortedIpStats);
+                setStatus('success');
             } catch (error) {
                 console.error("Failed to fetch link stats:", error);
-                setIsError(true);
-            } finally {
-                setLoading(false);
+                setStatus('error');
             }
         };
         
@@ -109,7 +102,7 @@ export default function UserLinkStatsPage() {
 
     }, [linkId, user, userLoading]);
 
-    if (loading || userLoading) {
+    if (status === 'loading' || userLoading) {
         return (
              <div className="flex flex-col gap-6">
                 <Skeleton className="h-8 w-48" />
@@ -123,7 +116,7 @@ export default function UserLinkStatsPage() {
         );
     }
     
-    if(isError || !linkData) {
+    if(status === 'error' || !linkData) {
         return notFound();
     }
 

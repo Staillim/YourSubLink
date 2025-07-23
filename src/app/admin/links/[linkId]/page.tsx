@@ -28,36 +28,36 @@ type IpStat = {
 type LinkData = {
     title: string;
     original: string;
-    clicks: number; // Total Clicks
-    realClicks: number; // Real Clicks (calculated)
+    clicks: number;
+    realClicks: number;
     userName: string;
 };
+
+type PageStatus = 'loading' | 'error' | 'success';
 
 export default function LinkStatsPage({ params }: { params: { linkId: string } }) {
     const { linkId } = params;
     const { user, role, loading: userLoading } = useUser();
+    
+    const [status, setStatus] = useState<PageStatus>('loading');
     const [linkData, setLinkData] = useState<LinkData | null>(null);
     const [ipStats, setIpStats] = useState<IpStat[]>([]);
-    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         if (userLoading) return;
         if (!linkId || !user || role !== 'admin') {
-            if (!userLoading && role && role !== 'admin') notFound();
+            if (!userLoading) setStatus('error');
             return;
         };
 
         const fetchData = async () => {
-            setLoading(true);
             try {
-                // Fetch link and user data
+                // 1. Fetch link and user data
                 const linkRef = doc(db, 'links', linkId);
                 const linkSnap = await getDoc(linkRef);
 
                 if (!linkSnap.exists()) {
-                    // This will trigger the notFound() call below
-                    setLinkData(null); 
-                    setLoading(false);
+                    setStatus('error');
                     return;
                 }
 
@@ -79,7 +79,7 @@ export default function LinkStatsPage({ params }: { params: { linkId: string } }
                     userName: userName,
                 });
                 
-                // Fetch click data for IP stats
+                // 2. Fetch click data for IP stats
                 const clicksQuery = query(collection(db, 'clicks'), where('linkId', '==', linkId), orderBy('timestamp', 'desc'));
                 const querySnapshot = await getDocs(clicksQuery);
                 const clicks: Click[] = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Click));
@@ -100,12 +100,11 @@ export default function LinkStatsPage({ params }: { params: { linkId: string } }
                 const sortedIpStats = Object.values(ipCounts).sort((a, b) => b.count - a.count);
                 
                 setIpStats(sortedIpStats);
+                setStatus('success');
 
             } catch (error) {
                 console.error("Failed to fetch link stats:", error);
-                 setLinkData(null); // Clear data on error
-            } finally {
-                setLoading(false);
+                setStatus('error');
             }
         };
         
@@ -113,7 +112,7 @@ export default function LinkStatsPage({ params }: { params: { linkId: string } }
 
     }, [linkId, user, role, userLoading]);
     
-    if (loading || userLoading) {
+    if (status === 'loading' || userLoading) {
         return (
              <div className="flex flex-col gap-6">
                 <Skeleton className="h-8 w-48" />
@@ -128,7 +127,7 @@ export default function LinkStatsPage({ params }: { params: { linkId: string } }
         );
     }
     
-    if(!linkData) {
+    if(status === 'error' || !linkData) {
         return notFound();
     }
 
