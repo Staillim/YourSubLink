@@ -2,7 +2,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { notFound } from 'next/navigation';
+import { notFound, useParams } from 'next/navigation';
 import { Loader2, ExternalLink, CheckCircle2, Lock, Link as LinkIcon, ChevronRight, Youtube, Instagram } from 'lucide-react';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -147,13 +147,16 @@ function LinkGate({ linkData }: { linkData: LinkData }) {
 }
 
 
-export default function ClientComponent({ shortId }: { shortId: string }) {
+export default function ClientComponent() {
+  const params = useParams();
+  const shortId = params.shortId as string;
   const [status, setStatus] = useState<'loading' | 'gate' | 'redirecting' | 'not-found'>('loading');
   const [linkData, setLinkData] = useState<LinkData | null>(null);
   
   useEffect(() => {
     if (!shortId) {
-        setStatus('not-found');
+        // This can happen briefly on initial render before params are available.
+        // We let the 'loading' state handle this.
         return;
     };
 

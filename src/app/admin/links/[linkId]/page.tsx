@@ -11,7 +11,7 @@ import { ArrowLeft, Eye, User, Hash, Check, Bot } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useUser } from '@/hooks/use-user';
-import { notFound } from 'next/navigation';
+import { notFound, useParams } from 'next/navigation';
 
 type Click = {
     id: string;
@@ -35,8 +35,9 @@ type LinkData = {
 
 type PageStatus = 'loading' | 'error' | 'success';
 
-export default function LinkStatsPage({ params }: { params: { linkId: string } }) {
-    const { linkId } = params;
+export default function LinkStatsPage() {
+    const params = useParams();
+    const linkId = params.linkId as string;
     const { user, role, loading: userLoading } = useUser();
     
     const [status, setStatus] = useState<PageStatus>('loading');
@@ -98,7 +99,11 @@ export default function LinkStatsPage({ params }: { params: { linkId: string } }
                     return acc;
                 }, {} as { [key: string]: IpStat });
 
-                const sortedIpStats = Object.values(ipCounts).sort((a, b) => b.count - a.count);
+                const sortedIpStats = Object.values(ipCounts).sort((a, b) => {
+                    const dateA = a.timestamps.length > 0 ? Math.max(...a.timestamps.map(t => t.getTime())) : 0;
+                    const dateB = b.timestamps.length > 0 ? Math.max(...b.timestamps.map(t => t.getTime())) : 0;
+                    return dateB - dateA;
+                });
                 
                 setIpStats(sortedIpStats);
                 setStatus('success');
