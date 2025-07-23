@@ -37,10 +37,11 @@ export default function AdminDashboardPage() {
         const usersQuery = query(collection(db, 'users'));
         const linksQuery = query(collection(db, 'links'));
         
+        // This query requires a composite index on (status, processedAt)
+        // We will remove the orderBy and sort on the client side to avoid this.
         const payoutsQuery = query(
             collection(db, 'payoutRequests'), 
             where('status', '==', 'completed'), 
-            orderBy('processedAt', 'desc'),
             limit(5)
         );
 
@@ -87,6 +88,8 @@ export default function AdminDashboardPage() {
                     userName: userName,
                 } as RecentPayout);
             }
+            // Sort client-side
+            payoutsData.sort((a, b) => b.processedAt.seconds - a.processedAt.seconds);
             setRecentPayouts(payoutsData);
             setPayoutsLoading(false);
         });
