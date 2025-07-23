@@ -2,11 +2,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { collection, onSnapshot, query } from 'firebase/firestore';
+import { collection, getDocs, query } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Users, Link2, DollarSign, Eye } from 'lucide-react';
+import { toast } from '@/hooks/use-toast';
 
 const CPM = 3.00; // Cost Per Mille (1000 views)
 
@@ -23,34 +24,44 @@ export default function AdminDashboardPage() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const usersQuery = query(collection(db, 'users'));
-        const linksQuery = query(collection(db, 'links'));
+        const fetchData = async () => {
+            setLoading(true);
+            try {
+                const usersQuery = query(collection(db, 'users'));
+                const linksQuery = query(collection(db, 'links'));
 
-        const unsubUsers = onSnapshot(usersQuery, (snapshot) => {
-            setUserCount(snapshot.size);
-            if (loading) setLoading(false);
-        });
+                const [usersSnapshot, linksSnapshot] = await Promise.all([
+                    getDocs(usersQuery),
+                    getDocs(linksQuery),
+                ]);
 
-        const unsubLinks = onSnapshot(linksQuery, (snapshot) => {
-            let clicks = 0;
-            let monetizable = 0;
-            snapshot.forEach((doc) => {
-                const data = doc.data() as Link;
-                clicks += data.clicks || 0;
-                if (data.monetizable) {
-                    monetizable++;
-                }
-            });
-            setTotalClicks(clicks);
-            setTotalRevenue((clicks / 1000) * CPM);
-            setMonetizableLinks(monetizable);
-            if (loading) setLoading(false);
-        });
+                setUserCount(usersSnapshot.size);
 
-        return () => {
-            unsubUsers();
-            unsubLinks();
+                let clicks = 0;
+                let monetizable = 0;
+                linksSnapshot.forEach((doc) => {
+                    const data = doc.data() as Link;
+                    clicks += data.clicks || 0;
+                    if (data.monetizable) {
+                        monetizable++;
+                    }
+                });
+                setTotalClicks(clicks);
+                setTotalRevenue((clicks / 1000) * CPM);
+                setMonetizableLinks(monetizable);
+
+            } catch (error) {
+                console.error("Error fetching admin dashboard data:", error);
+                toast({
+                    title: "Error fetching data",
+                    description: "Could not load dashboard statistics.",
+                    variant: "destructive"
+                });
+            } finally {
+                setLoading(false);
+            }
         };
+        fetchData();
     }, []);
 
     const stats = [
