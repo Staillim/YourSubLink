@@ -37,8 +37,6 @@ export default function AdminDashboardPage() {
         const usersQuery = query(collection(db, 'users'));
         const linksQuery = query(collection(db, 'links'));
         
-        // This query requires a composite index on (status, processedAt)
-        // We will remove the orderBy and sort on the client side to avoid this.
         const payoutsQuery = query(
             collection(db, 'payoutRequests'), 
             where('status', '==', 'completed'), 
@@ -53,20 +51,23 @@ export default function AdminDashboardPage() {
         const unsubLinks = onSnapshot(linksQuery, (snapshot) => {
             let clicks = 0;
             let realClicksCount = 0;
-            let monetizable = 0;
+            let monetizableCount = 0;
+            let monetizedClicks = 0;
+
             snapshot.forEach((doc) => {
                 const data = doc.data() as Link;
                 clicks += data.clicks || 0;
                 realClicksCount += data.realClicks || 0;
                 if (data.monetizable) {
-                    monetizable++;
+                    monetizableCount++;
+                    monetizedClicks += data.realClicks || 0;
                 }
             });
             setTotalLinks(snapshot.size);
             setTotalClicks(clicks);
             setRealClicks(realClicksCount);
-            setTotalRevenue((realClicksCount / 1000) * 3.00); // Revenue based on real clicks
-            setMonetizableLinks(monetizable);
+            setTotalRevenue((monetizedClicks / 1000) * 3.00); // Revenue based on real, monetizable clicks
+            setMonetizableLinks(monetizableCount);
             if (loading) setLoading(false);
         });
         
@@ -88,7 +89,7 @@ export default function AdminDashboardPage() {
                     userName: userName,
                 } as RecentPayout);
             }
-            // Sort client-side
+            // Sort client-side to avoid needing a composite index
             payoutsData.sort((a, b) => b.processedAt.seconds - a.processedAt.seconds);
             setRecentPayouts(payoutsData);
             setPayoutsLoading(false);
@@ -106,7 +107,7 @@ export default function AdminDashboardPage() {
         { title: 'Total Links', value: totalLinks, icon: Link2, description: 'All links created' },
         { title: 'Total Clicks', value: totalClicks, icon: Eye, description: 'All page loads' },
         { title: 'Real Clicks', value: realClicks, icon: CheckCircle, description: 'Unique clicks per hour' },
-        { title: 'Total Revenue', value: totalRevenue, icon: DollarSign, isCurrency: true, description: `Based on $3.00 CPM on real clicks` },
+        { title: 'Total Revenue', value: totalRevenue, icon: DollarSign, isCurrency: true, description: `Based on $3.00 CPM on real, monetizable clicks` },
         { title: 'Monetizable Links', value: monetizableLinks, icon: Link2, description: 'Links with >=3 rules' },
     ];
 
