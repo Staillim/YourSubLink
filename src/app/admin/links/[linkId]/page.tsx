@@ -2,7 +2,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, doc, getDoc, orderBy } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -38,7 +38,6 @@ export default function LinkStatsPage() {
     const [linkData, setLinkData] = useState<LinkData | null>(null);
     const [deviceStats, setDeviceStats] = useState<DeviceStat[]>([]);
     const [loading, setLoading] = useState(true);
-    const router = useRouter();
 
     useEffect(() => {
         if (!linkId) return;
@@ -61,11 +60,10 @@ export default function LinkStatsPage() {
                 const userSnap = await getDoc(userRef);
                 const userName = userSnap.exists() ? userSnap.data().displayName : 'Unknown User';
                 
-                // Fetch click data, ordered by timestamp
+                // Fetch click data
                 const clicksQuery = query(
                     collection(db, 'clicks'), 
-                    where('linkId', '==', linkId),
-                    orderBy('timestamp', 'desc')
+                    where('linkId', '==', linkId)
                 );
                 const querySnapshot = await getDocs(clicksQuery);
                 const clicks: Click[] = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Click));

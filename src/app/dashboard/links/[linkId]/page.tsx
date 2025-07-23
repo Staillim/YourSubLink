@@ -69,11 +69,10 @@ export default function UserLinkStatsPage() {
 
                 const data = linkSnap.data();
                 
-                // 2. Fetch all click data for this link, ordered by time
+                // 2. Fetch all click data for this link
                 const clicksQuery = query(
                     collection(db, 'clicks'), 
-                    where('linkId', '==', linkId),
-                    orderBy('timestamp', 'desc')
+                    where('linkId', '==', linkId)
                 );
                 const querySnapshot = await getDocs(clicksQuery);
                 const clicks: Click[] = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Click));
