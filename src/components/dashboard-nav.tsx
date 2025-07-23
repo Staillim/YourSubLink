@@ -33,11 +33,6 @@ const navItems = [
         href: '/dashboard/profile',
         label: 'Profile',
         icon: User,
-    },
-    {
-        href: '#', // Placeholder for future settings page
-        label: 'Settings',
-        icon: Settings,
     }
 ]
 
