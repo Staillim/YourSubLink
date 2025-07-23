@@ -5,7 +5,7 @@ import { useState, useTransition, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, deleteDoc, doc, updateDoc, getDocs } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -14,7 +14,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Table,
@@ -46,13 +45,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Rule, RuleEditor } from '@/components/rule-editor';
 import { Label } from '@/components/ui/label';
-
-
-type Click = {
-    id: string;
-    ipAddress: string;
-    timestamp: any;
-};
+import { Input } from '@/components/ui/input';
 
 export type LinkItem = {
   id: string;
@@ -69,33 +62,6 @@ export type LinkItem = {
   rules: Rule[];
   generatedEarnings: number;
 };
-
-const calculateRealClicks = (clicks: Click[]): number => {
-    if (clicks.length === 0) return 0;
-
-    const clicksByIp: { [key: string]: Date[] } = {};
-    clicks.forEach(click => {
-        if (!clicksByIp[click.ipAddress]) {
-            clicksByIp[click.ipAddress] = [];
-        }
-        clicksByIp[click.ipAddress].push(new Date(click.timestamp.seconds * 1000));
-    });
-
-    let realClickCount = 0;
-    for (const ip in clicksByIp) {
-        const timestamps = clicksByIp[ip].sort((a,b) => a.getTime() - b.getTime());
-        let lastCountedTimestamp: Date | null = null;
-
-        timestamps.forEach(timestamp => {
-            if (!lastCountedTimestamp || (timestamp.getTime() - lastCountedTimestamp.getTime()) > 3600000) { // 1 hour in ms
-                realClickCount++;
-                lastCountedTimestamp = timestamp;
-            }
-        });
-    }
-
-    return realClickCount;
-}
 
 export default function DashboardPage() {
   const [user, loading] = useAuthState(auth);
@@ -129,20 +95,13 @@ export default function DashboardPage() {
         const linksData: LinkItem[] = [];
         for (const docSnapshot of querySnapshot.docs) {
             const data = docSnapshot.data();
-            
-            // Fetch clicks for each link to calculate real clicks
-            const clicksQuery = query(collection(db, 'clicks'), where('linkId', '==', docSnapshot.id));
-            const clicksSnapshot = await getDocs(clicksQuery);
-            const clicks: Click[] = clicksSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Click));
-            const realClicks = calculateRealClicks(clicks);
-
             linksData.push({
                 id: docSnapshot.id,
                 original: data.original,
                 shortId: data.shortId,
                 short: `${window.location.origin}/link/${data.shortId}`,
-                clicks: data.clicks,
-                realClicks: realClicks,
+                clicks: data.clicks || 0,
+                realClicks: data.realClicks || 0,
                 date: new Date(data.createdAt.seconds * 1000).toISOString().split('T')[0],
                 userId: data.userId,
                 title: data.title,

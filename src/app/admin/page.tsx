@@ -9,16 +9,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Users, Link2, DollarSign, Eye, CheckCircle } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
-const CPM = 3.00; // Cost Per Mille (1000 views)
-
 type Link = {
     clicks: number;
+    realClicks: number;
     monetizable: boolean;
-};
-
-type Click = {
-    ipAddress: string;
-    timestamp: any;
 };
 
 type RecentPayout = {
@@ -27,37 +21,6 @@ type RecentPayout = {
     amount: number;
     processedAt: any;
 }
-
-// This function will live here for now, but for a large-scale app, 
-// this calculation should be handled by a backend process (e.g., Cloud Function).
-const calculateRealClicks = (clicks: Click[]): number => {
-    if (clicks.length === 0) return 0;
-
-    const clicksByIp: { [key: string]: Date[] } = {};
-    clicks.forEach(click => {
-        if (!clicksByIp[click.ipAddress]) {
-            clicksByIp[click.ipAddress] = [];
-        }
-        clicksByIp[click.ipAddress].push(new Date(click.timestamp.seconds * 1000));
-    });
-
-    let realClickCount = 0;
-    for (const ip in clicksByIp) {
-        const timestamps = clicksByIp[ip].sort((a,b) => a.getTime() - b.getTime());
-        let lastCountedTimestamp: Date | null = null;
-
-        timestamps.forEach(timestamp => {
-            // Count as a real click if it's the first one from this IP, or if it's been more than an hour
-            if (!lastCountedTimestamp || (timestamp.getTime() - lastCountedTimestamp.getTime()) > 3600000) { // 1 hour in ms
-                realClickCount++;
-                lastCountedTimestamp = timestamp;
-            }
-        });
-    }
-
-    return realClickCount;
-}
-
 
 export default function AdminDashboardPage() {
     const [userCount, setUserCount] = useState<number | null>(null);
@@ -73,13 +36,12 @@ export default function AdminDashboardPage() {
     useEffect(() => {
         const usersQuery = query(collection(db, 'users'));
         const linksQuery = query(collection(db, 'links'));
-        const clicksQuery = query(collection(db, 'clicks'));
         
-        // Updated Payouts Query to avoid composite index
         const payoutsQuery = query(
             collection(db, 'payoutRequests'), 
-            orderBy('status'), // Order by status first
-            orderBy('processedAt', 'desc')
+            where('status', '==', 'completed'), 
+            orderBy('processedAt', 'desc'),
+            limit(5)
         );
 
         const unsubUsers = onSnapshot(usersQuery, (snapshot) => {
@@ -89,35 +51,29 @@ export default function AdminDashboardPage() {
 
         const unsubLinks = onSnapshot(linksQuery, (snapshot) => {
             let clicks = 0;
+            let realClicksCount = 0;
             let monetizable = 0;
             snapshot.forEach((doc) => {
                 const data = doc.data() as Link;
                 clicks += data.clicks || 0;
+                realClicksCount += data.realClicks || 0;
                 if (data.monetizable) {
                     monetizable++;
                 }
             });
             setTotalLinks(snapshot.size);
             setTotalClicks(clicks);
-            setTotalRevenue((clicks / 1000) * CPM);
+            setRealClicks(realClicksCount);
+            setTotalRevenue((realClicksCount / 1000) * 3.00); // Revenue based on real clicks
             setMonetizableLinks(monetizable);
             if (loading) setLoading(false);
-        });
-
-        const unsubClicks = onSnapshot(clicksQuery, (snapshot) => {
-             const allClicks = snapshot.docs.map(doc => doc.data() as Click);
-             const totalRealClicks = calculateRealClicks(allClicks);
-             setRealClicks(totalRealClicks);
         });
         
         const unsubPayouts = onSnapshot(payoutsQuery, async (snapshot) => {
             const payoutsData: RecentPayout[] = [];
             for (const payoutDoc of snapshot.docs) {
                 const data = payoutDoc.data();
-                // Filter for completed status in the client
-                if (data.status === 'completed' && payoutsData.length < 5) {
-                    payoutsData.push({ id: payoutDoc.id, ...data } as RecentPayout);
-                }
+                payoutsData.push({ id: payoutDoc.id, ...data } as RecentPayout);
             }
             setRecentPayouts(payoutsData);
             setPayoutsLoading(false);
@@ -126,17 +82,16 @@ export default function AdminDashboardPage() {
         return () => {
             unsubUsers();
             unsubLinks();
-            unsubClicks();
             unsubPayouts();
         };
-    }, []);
+    }, [loading]);
 
     const stats = [
         { title: 'Total Users', value: userCount, icon: Users, description: 'All registered users' },
         { title: 'Total Links', value: totalLinks, icon: Link2, description: 'All links created' },
         { title: 'Total Clicks', value: totalClicks, icon: Eye, description: 'All page loads' },
         { title: 'Real Clicks', value: realClicks, icon: CheckCircle, description: 'Unique clicks per hour' },
-        { title: 'Total Revenue', value: totalRevenue, icon: DollarSign, isCurrency: true, description: `Based on $${CPM.toFixed(2)} CPM` },
+        { title: 'Total Revenue', value: totalRevenue, icon: DollarSign, isCurrency: true, description: `Based on $3.00 CPM on real clicks` },
         { title: 'Monetizable Links', value: monetizableLinks, icon: Link2, description: 'Links with >=3 rules' },
     ];
 
@@ -171,7 +126,7 @@ export default function AdminDashboardPage() {
              <Card>
                 <CardHeader>
                     <CardTitle>Recent Payouts</CardTitle>
-                    <CardDescription>Payout history will be displayed here once payments are processed.</CardDescription>
+                    <CardDescription>The 5 most recently processed payouts.</CardDescription>
                 </CardHeader>
                 <CardContent>
                    {payoutsLoading ? (

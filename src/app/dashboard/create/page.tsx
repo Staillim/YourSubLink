@@ -56,6 +56,7 @@ export default function CreateLinkPage() {
           original: longUrl,
           shortId: shortId,
           clicks: 0,
+          realClicks: 0,
           createdAt: new Date(),
           title,
           description,

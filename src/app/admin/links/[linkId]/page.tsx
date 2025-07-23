@@ -31,33 +31,6 @@ type LinkData = {
     userName: string;
 };
 
-const calculateRealClicks = (clicks: Click[]): number => {
-    if (clicks.length === 0) return 0;
-
-    const clicksByIp: { [key: string]: Date[] } = {};
-    clicks.forEach(click => {
-        if (!clicksByIp[click.ipAddress]) {
-            clicksByIp[click.ipAddress] = [];
-        }
-        clicksByIp[click.ipAddress].push(new Date(click.timestamp.seconds * 1000));
-    });
-
-    let realClickCount = 0;
-    for (const ip in clicksByIp) {
-        const timestamps = clicksByIp[ip].sort((a,b) => a.getTime() - b.getTime());
-        let lastCountedTimestamp: Date | null = null;
-
-        timestamps.forEach(timestamp => {
-            if (!lastCountedTimestamp || (timestamp.getTime() - lastCountedTimestamp.getTime()) > 3600000) { // 1 hour in ms
-                realClickCount++;
-                lastCountedTimestamp = timestamp;
-            }
-        });
-    }
-
-    return realClickCount;
-}
-
 export default function LinkStatsPage({ params }: { params: { linkId: string } }) {
     const { linkId } = use(params);
     const [linkData, setLinkData] = useState<LinkData | null>(null);
@@ -85,13 +58,10 @@ export default function LinkStatsPage({ params }: { params: { linkId: string } }
                 const userSnap = await getDoc(userRef);
                 const userName = userSnap.exists() ? userSnap.data().displayName : 'Unknown User';
                 
-                // Fetch click data
+                // Fetch click data for IP stats
                 const clicksQuery = query(collection(db, 'clicks'), where('linkId', '==', linkId));
                 const querySnapshot = await getDocs(clicksQuery);
                 const clicks: Click[] = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Click));
-
-                // Calculate stats
-                const realClicks = calculateRealClicks(clicks);
 
                 const ipCounts = clicks.reduce((acc, click) => {
                     const ip = click.ipAddress;
@@ -109,8 +79,8 @@ export default function LinkStatsPage({ params }: { params: { linkId: string } }
                 setLinkData({
                     title: data.title,
                     original: data.original,
-                    clicks: data.clicks,
-                    realClicks: realClicks,
+                    clicks: data.clicks || 0,
+                    realClicks: data.realClicks || 0,
                     userName: userName,
                 });
 
@@ -173,7 +143,7 @@ export default function LinkStatsPage({ params }: { params: { linkId: string } }
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{linkData.realClicks.toLocaleString()}</div>
-                         <p className="text-xs text-muted-foreground">Unique IPs per hour.</p>
+                         <p className="text-xs text-muted-foreground">Unique clicks per hour.</p>
                     </CardContent>
                 </Card>
                 <Card>
