@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import { notFound } from 'next/navigation';
 import { Loader2, ExternalLink, CheckCircle2, Lock, Link as LinkIcon, ChevronRight, Youtube, Instagram } from 'lucide-react';
-import { collection, query, where, getDocs, doc, writeBatch, serverTimestamp, increment, getDoc, Timestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Rule } from '@/components/rule-editor';
 import { Button } from '@/components/ui/button';
@@ -47,8 +47,6 @@ function RuleItem({ rule, onComplete, isCompleted }: { rule: Rule; onComplete: (
         setVerifyingText(`Verificando${'.'.repeat(dots)}`);
     }, 500);
 
-    // Instead of a timeout, you could implement a more robust verification system
-    // (e.g., using a backend check), but for now, we'll keep the timeout.
     const completionTimeout = setTimeout(() => {
       clearInterval(verifyingInterval);
       onComplete();
@@ -158,97 +156,9 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
         setStatus('not-found');
         return;
     };
-    
-    const recordClick = async (linkId: string, linkData: Omit<LinkData, 'id'>) => {
-        try {
-            const ipAddress = 'x.x.x.x'; // Fake IP for client-side logic
-            const batch = writeBatch(db);
-            
-            // --- Real Click Logic (Client-Side) ---
-            let isRealClick = false;
-            const visitorKey = `visitor_${linkId}`;
-            const lastVisit = localStorage.getItem(visitorKey);
-            const oneHour = 60 * 60 * 1000;
-
-            if (!lastVisit || (Date.now() - parseInt(lastVisit)) > oneHour) {
-                isRealClick = true;
-                localStorage.setItem(visitorKey, Date.now().toString());
-            }
-
-            // 1. Always create a historical click record.
-            const clickDocRef = doc(collection(db, 'clicks'));
-            batch.set(clickDocRef, {
-                linkId: linkId,
-                timestamp: serverTimestamp(),
-                ipAddress: ipAddress,
-                userAgent: navigator.userAgent,
-                isRealClick: isRealClick,
-            });
-
-            // 2. Prepare increments for the link document
-            const linkCounters: { [key: string]: any } = {
-                clicks: increment(1)
-            };
-            
-            if (isRealClick) {
-                linkCounters.realClicks = increment(1);
-            
-                if (linkData.monetizable) {
-                    const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
-                    const cpmSnap = await getDocs(cpmQuery);
-                    const activeCpm = cpmSnap.empty ? 3.00 : cpmSnap.docs[0].data().rate;
-                    const earningsPerClick = activeCpm / 1000;
-                    
-                    linkCounters.generatedEarnings = increment(earningsPerClick);
-
-                    if (linkData.userId) {
-                        const userRef = doc(db, 'users', linkData.userId);
-                        batch.update(userRef, {
-                            generatedEarnings: increment(earningsPerClick)
-                        });
-                    }
-
-                    if (!cpmSnap.empty) {
-                        const cpmId = cpmSnap.docs[0].id;
-                        const earningsByCpmField = `earningsByCpm.${cpmId}`;
-                        linkCounters[earningsByCpmField] = increment(earningsPerClick);
-                    }
-                }
-
-                // Handle milestone notifications
-                const currentRealClicks = linkData.realClicks || 0;
-                const newRealClicks = currentRealClicks + 1;
-                const milestone = 1000;
-                if (Math.floor(currentRealClicks / milestone) < Math.floor(newRealClicks / milestone)) {
-                    const reachedMilestone = Math.floor(newRealClicks / milestone) * milestone;
-                    const notificationRef = doc(collection(db, 'notifications'));
-                    batch.set(notificationRef, {
-                        userId: linkData.userId,
-                        linkId: linkId,
-                        linkTitle: linkData.title,
-                        type: 'milestone',
-                        milestone: reachedMilestone,
-                        message: `Your link "${linkData.title}" reached ${reachedMilestone.toLocaleString()} real visits!`,
-                        createdAt: serverTimestamp(),
-                        read: false
-                    });
-                }
-            }
-
-            // 3. Apply all counter updates to the link document
-            const linkRef = doc(db, 'links', linkId);
-            batch.update(linkRef, linkCounters);
-
-            // Commit all batched writes to Firestore
-            await batch.commit();
-
-        } catch (error) {
-            console.error("Error recording click:", error);
-        }
-    }
-
 
     const processLinkVisit = async () => {
+      // Fetch link data first to decide if we redirect or show a gate.
       const q = query(collection(db, 'links'), where('shortId', '==', shortId));
       const querySnapshot = await getDocs(q);
 
@@ -259,27 +169,35 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
       
       const linkDoc = querySnapshot.docs[0];
       const data = linkDoc.data();
-      const linkId = linkDoc.id;
 
-      const currentLinkData: LinkData = {
-          id: linkId,
+      // Fire off the click processing to the API route in the background.
+      // We don't need to wait for it to finish.
+      fetch(`/api/click`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ shortId: shortId }),
+      }).catch(error => {
+        // Log error but don't block the user.
+        console.error("Failed to record click:", error);
+      });
+
+      if (data.rules && data.rules.length > 0) {
+        const currentLinkData: LinkData = {
+          id: linkDoc.id,
           original: data.original,
-          rules: data.rules || [],
+          rules: data.rules,
           monetizable: data.monetizable || false,
           userId: data.userId,
           realClicks: data.realClicks || 0,
           title: data.title,
-      };
-      
-      // Record the click asynchronously
-      recordClick(linkId, currentLinkData);
-
-      if (currentLinkData.rules && currentLinkData.rules.length > 0) {
+        };
         setLinkData(currentLinkData);
         setStatus('gate');
       } else {
         setStatus('redirecting');
-        window.location.href = currentLinkData.original;
+        window.location.href = data.original;
       }
     };
 
