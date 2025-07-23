@@ -10,6 +10,8 @@ import type { Rule } from '@/components/rule-editor';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { cn } from '@/lib/utils';
+
 
 type LinkData = {
   id: string;
@@ -87,7 +89,8 @@ function RuleItem({ rule, onComplete, isCompleted }: { rule: Rule; onComplete: (
 
   const { text, icon: Icon, color } = RULE_DETAILS[rule.type] || RULE_DETAILS.visit;
 
-  const handleClick = () => {
+  const handleClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
     if (isCompleted || isClicked) return;
 
     window.open(rule.url, '_blank');
@@ -105,12 +108,17 @@ function RuleItem({ rule, onComplete, isCompleted }: { rule: Rule; onComplete: (
     }, 10000);
   };
 
+  const buttonClasses = cn(
+    "w-full justify-between h-auto py-4 px-5 text-base font-semibold",
+    "inline-flex items-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+    isCompleted ? 'bg-green-600 hover:bg-green-700 text-primary-foreground' : color,
+    (isClicked && !isCompleted) ? 'disabled:opacity-100 cursor-wait' : 'cursor-pointer'
+  );
+
   return (
-    <Button
-      type="button"
+    <div
       onClick={handleClick}
-      disabled={isClicked}
-      className={`w-full justify-between h-auto py-4 px-5 text-base font-semibold ${isCompleted ? 'bg-green-600 hover:bg-green-700' : color}`}
+      className={buttonClasses}
     >
       <div className="flex items-center gap-3">
         <Icon className="h-6 w-6" />
@@ -127,7 +135,7 @@ function RuleItem({ rule, onComplete, isCompleted }: { rule: Rule; onComplete: (
             <ChevronRight className="h-6 w-6" />
         )}
       </div>
-    </Button>
+    </div>
   );
 }
 
