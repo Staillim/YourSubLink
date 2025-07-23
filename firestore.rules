@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -16,24 +17,25 @@ service cloud.firestore {
     }
 
     match /links/{linkId} {
+      // ANYONE can read a link document. This is required for the redirect to work.
       allow read: if true;
+      
       allow create: if request.auth != null;
-      
-      // Allow updates by the owner/admin OR by the public client for click tracking.
-      allow update: if (resource.data.userId == request.auth.uid || isAdmin()) ||
-                    (request.auth == null
-                    && request.resource.data.clicks == resource.data.clicks + 1
-                    && request.resource.data.keys().hasAll(['clicks', 'realClicks', 'generatedEarnings', 'earningsByCpm']));
-      
-      allow delete: if resource.data.userId == request.auth.uid || isAdmin();
 
+      // Allow the owner or an admin to update/delete
+      // Also allow public client to increment click counts
+      allow update: if (resource.data.userId == request.auth.uid || isAdmin())
+                    || (request.auth == null && request.resource.data.clicks == resource.data.clicks + 1);
+
+      allow delete: if resource.data.userId == request.auth.uid || isAdmin();
+      
       // Admins can list all links
       allow list: if isAdmin();
     }
     
     match /clicks/{clickId} {
       allow create: if true;
-      allow read, list: if isAdmin();
+      allow read, list: if request.auth.uid != null && (get(/databases/$(database)/documents/links/$(request.resource.data.linkId)).data.userId == request.auth.uid || isAdmin());
     }
 
     match /dailyStats/{day} {
@@ -43,12 +45,12 @@ service cloud.firestore {
     
     match /notifications/{notificationId} {
         allow create: if true; // System can create notifications
-        allow read, list: if request.auth != null; // Authenticated users can read their notifications
+        allow read, list: if request.auth != null && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
     match /payoutRequests/{requestId} {
         allow create: if request.auth != null;
-        allow read, list: if request.auth != null;
+        allow read, list: if resource.data.userId == request.auth.uid || isAdmin();
         allow update: if isAdmin();
     }
     
