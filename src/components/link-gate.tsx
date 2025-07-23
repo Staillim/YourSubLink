@@ -46,7 +46,8 @@ function RuleItem({ rule, onComplete, isCompleted }: { rule: Rule; onComplete: (
   const buttonClasses = cn(
     "w-full justify-between h-auto py-4 px-5 text-base font-semibold",
     "inline-flex items-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-    isCompleted ? 'bg-green-600 hover:bg-green-700 text-primary-foreground' : color,
+    "text-primary-foreground",
+    isCompleted ? 'bg-green-600 hover:bg-green-700' : color,
     (isClicked && !isCompleted) ? 'disabled:opacity-100 cursor-wait' : 'cursor-pointer'
   );
 
@@ -112,9 +113,8 @@ function CountdownPage({ onContinue }: { onContinue: () => void }) {
     );
 }
 
-export default function LinkGate({ linkData, onUnlock, onContinue, initialStatus = 'gate' }: { linkData: LinkData, onUnlock: () => void, onContinue: () => void, initialStatus?: 'gate' | 'countdown' }) {
+export default function LinkGate({ linkData, onUnlock, onContinue, view }: { linkData: LinkData, onUnlock: () => void, onContinue: () => void, view: 'gate' | 'countdown' }) {
     const [completedRules, setCompletedRules] = useState<boolean[]>(Array(linkData.rules.length).fill(false));
-    const [status, setStatus] = useState<'gate' | 'countdown'>(initialStatus);
     
     const totalRules = linkData.rules.length;
     const completedCount = completedRules.filter(Boolean).length;
@@ -128,14 +128,12 @@ export default function LinkGate({ linkData, onUnlock, onContinue, initialStatus
         });
     }
 
-    // This is called when the user clicks the "Unlock Link" button.
-    // It calls the `onUnlock` function passed from the parent, which handles changing the view.
     const handleUnlockClick = () => {
         if (!allRulesCompleted) return;
         onUnlock(); 
     }
     
-    if (status === 'countdown') {
+    if (view === 'countdown') {
         return <CountdownPage onContinue={onContinue} />;
     }
 

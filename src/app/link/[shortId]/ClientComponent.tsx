@@ -97,12 +97,12 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
 
   // Render the gate, passing the handleUnlock function to be called on button click.
   if (status === 'gate' && linkData) {
-    return <LinkGate linkData={linkData} onUnlock={handleUnlock} onContinue={handleContinueAndCount} />;
+    return <LinkGate linkData={linkData} onUnlock={handleUnlock} onContinue={handleContinueAndCount} view="gate" />;
   }
   
   // After the button is clicked and state changes, render the countdown page.
   if (status === 'countdown' && linkData) {
-      return <LinkGate linkData={linkData} onUnlock={handleUnlock} onContinue={handleContinueAndCount} initialStatus="countdown" />;
+      return <LinkGate linkData={linkData} onUnlock={handleUnlock} onContinue={handleContinueAndCount} view="countdown" />;
   }
 
   // Fallback loading state
