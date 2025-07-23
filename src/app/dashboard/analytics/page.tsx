@@ -226,7 +226,7 @@ export default function AnalyticsPage() {
                            <TableRow key={link.id}>
                               <TableCell className="font-medium">{link.title}</TableCell>
                               <TableCell className="text-right">{link.clicks.toLocaleString()}</TableCell>
-                              <TableCell className="text-right font-semibold">${link.earnings.toFixed(4)}</TableCell>
+                              <TableCell className="text-right font-semibold">${link.earnings.toFixed(2)}</TableCell>
                            </TableRow>
                       ))}
                       {links.length === 0 && (

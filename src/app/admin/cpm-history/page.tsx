@@ -124,7 +124,7 @@ export default function CpmHistoryPage() {
                                     <TableCell>
                                         {new Date(item.startDate.seconds * 1000).toLocaleDateString()} - {item.endDate ? new Date(item.endDate.seconds * 1000).toLocaleDateString() : 'Present'}
                                     </TableCell>
-                                    <TableCell className="text-right font-bold">${(item.earnings || 0).toFixed(4)}</TableCell>
+                                    <TableCell className="text-right font-bold">${(item.earnings || 0).toFixed(2)}</TableCell>
                                 </TableRow>
                             ))}
                             {history.length === 0 && (
