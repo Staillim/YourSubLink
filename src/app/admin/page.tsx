@@ -38,12 +38,12 @@ export default function AdminDashboardPage() {
         const usersQuery = query(collection(db, 'users'));
         const linksQuery = query(collection(db, 'links'));
         const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
+        // Simplified query to avoid composite index requirement.
+        // We will filter out 'pending' status on the client side.
         const payoutsQuery = query(
             collection(db, 'payoutRequests'), 
-            where('status', '!=', 'pending'),
-            orderBy('status'), // To have some order before timestamp
             orderBy('processedAt', 'desc'), 
-            limit(5)
+            limit(10) // Fetch a bit more to ensure we get 5 non-pending
         );
 
         const unsubUsers = onSnapshot(usersQuery, (snapshot) => {
@@ -59,8 +59,8 @@ export default function AdminDashboardPage() {
             snapshot.forEach((doc) => {
                 const data = doc.data() as Link;
                 clicks += data.clicks || 0;
-                revenue += data.generatedEarnings || 0;
                 if (data.monetizable) {
+                    revenue += data.generatedEarnings || 0;
                     monetizable++;
                     monetizableClicksCount += data.clicks || 0;
                 }
@@ -82,9 +82,14 @@ export default function AdminDashboardPage() {
         const unsubPayouts = onSnapshot(payoutsQuery, (snapshot) => {
             const payoutsData: PayoutRequest[] = [];
             snapshot.forEach((doc) => {
-                payoutsData.push({ id: doc.id, ...doc.data() } as PayoutRequest);
+                const data = doc.data() as PayoutRequest;
+                 // Client-side filtering
+                if (data.status !== 'pending' && data.processedAt) {
+                    payoutsData.push({ id: doc.id, ...data });
+                }
             });
-            setRecentPayouts(payoutsData);
+            // Slice to get the top 5 after filtering
+            setRecentPayouts(payoutsData.slice(0, 5));
         });
 
         return () => {
