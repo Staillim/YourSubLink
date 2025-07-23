@@ -40,12 +40,14 @@ async function recordClick(linkData: LinkData): Promise<void> {
         batch.set(clickDocRef, {
             linkId: linkData.id,
             timestamp: serverTimestamp(),
-            ipAddress: 'x.x.x.x', // Placeholder for server-side IP
         });
 
-        // 2. Increment the total clicks counter on the link
+        // 2. Increment the total and real clicks counter on the link
         const linkRef = doc(db, 'links', linkData.id);
-        batch.update(linkRef, { clicks: increment(1) });
+        batch.update(linkRef, { 
+            clicks: increment(1),
+            realClicks: increment(1) 
+        });
         
         // 3. Handle monetization earnings for the click if applicable
         if (linkData.monetizable) {
@@ -276,12 +278,12 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
             clicks: data.clicks || 0,
         };
         
-        await recordClick(fetchedLinkData);
-
         if (fetchedLinkData.rules.length > 0) {
             setLinkData(fetchedLinkData);
             setStatus('gate');
         } else {
+            // For links without rules, count it as a real click immediately
+            await recordClick(fetchedLinkData);
             setStatus('redirecting');
             window.location.href = fetchedLinkData.original;
         }
@@ -294,6 +296,13 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
 
     getLink();
   }, [shortId]);
+
+  useEffect(() => {
+    if (status === 'countdown' && linkData) {
+        // This is a "real" click, so we record it now.
+        recordClick(linkData);
+    }
+  }, [status, linkData]);
   
   if (status === 'not-found') {
       notFound();
