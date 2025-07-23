@@ -10,6 +10,7 @@ import { Users, Link2, DollarSign, Eye } from 'lucide-react';
 
 type Link = {
     clicks: number;
+    realClicks?: number; // Real clicks might not exist on old documents
     monetizable: boolean;
 };
 
@@ -41,19 +42,19 @@ export default function AdminDashboardPage() {
 
         const unsubLinks = onSnapshot(linksQuery, (snapshot) => {
             let allClicks = 0;
-            let monetizedClicks = 0;
+            let monetizedRealClicks = 0;
             let monetizableCount = 0;
             snapshot.forEach((doc) => {
                 const data = doc.data() as Link;
-                const linkClicks = data.clicks || 0;
-                allClicks += linkClicks;
+                allClicks += data.clicks || 0;
                 if (data.monetizable) {
                     monetizableCount++;
-                    monetizedClicks += linkClicks;
+                    // Use realClicks if available, otherwise fallback to total clicks for revenue calc
+                    monetizedRealClicks += data.realClicks || 0;
                 }
             });
             setTotalClicks(allClicks);
-            setTotalRevenue((monetizedClicks / 1000) * cpm);
+            setTotalRevenue((monetizedRealClicks / 1000) * cpm);
             setMonetizableLinks(monetizableCount);
             if (loading) setLoading(false);
         });
@@ -92,7 +93,7 @@ export default function AdminDashboardPage() {
                                 </div>
                             )}
                             <p className="text-xs text-muted-foreground">
-                                {index === 2 ? `Based on $${cpm.toFixed(2)} CPM` : 'Live count'}
+                                {index === 2 ? `Based on $${cpm.toFixed(2)} CPM & real clicks` : 'Live count'}
                             </p>
                         </CardContent>
                     </Card>

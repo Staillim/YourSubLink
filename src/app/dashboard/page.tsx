@@ -136,6 +136,12 @@ export default function DashboardPage() {
             const clicks: Click[] = clicksSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Click));
             const realClicks = calculateRealClicks(clicks);
 
+            // If the calculated realClicks is different from what's stored, update it.
+            if (data.realClicks !== realClicks) {
+                const linkRef = doc(db, "links", docSnapshot.id);
+                await updateDoc(linkRef, { realClicks: realClicks });
+            }
+
             linksData.push({
                 id: docSnapshot.id,
                 original: data.original,
