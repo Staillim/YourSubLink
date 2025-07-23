@@ -1,7 +1,8 @@
+
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  output: 'export',            // ← activa la exportación estática a `out`
+  output: 'standalone',
   typescript: {
     ignoreBuildErrors: true,
   },

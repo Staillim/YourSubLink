@@ -2,14 +2,40 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { notFound, useRouter } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, updateDoc, increment, writeBatch, serverTimestamp, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, writeBatch, serverTimestamp, increment } from 'firebase/firestore';
 import { Loader2, ExternalLink, CheckCircle2, Lock, Link as LinkIcon, ChevronRight, Youtube, Instagram } from 'lucide-react';
 import type { Rule } from '@/components/rule-editor';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+
+/**
+ * Fetches all shortIds from the Firestore database.
+ * This is used by generateStaticParams to pre-render all link pages at build time.
+ */
+async function fetchAllShortIds() {
+  try {
+    const linksCollection = collection(db, 'links');
+    const linksSnapshot = await getDocs(linksCollection);
+    const shortIds = linksSnapshot.docs.map(doc => doc.data().shortId).filter(Boolean);
+    return shortIds;
+  } catch (error) {
+    console.error("Failed to fetch shortIds for generateStaticParams:", error);
+    // Return an empty array on error to prevent the build from crashing.
+    // The pages will be generated on-demand at runtime.
+    return []; 
+  }
+}
+
+export async function generateStaticParams() {
+  const shortIds = await fetchAllShortIds();
+ 
+  return shortIds.map((shortId) => ({
+    shortId: shortId,
+  }));
+}
 
 type LinkData = {
   id: string;
@@ -49,7 +75,8 @@ async function recordClick(linkData: LinkData): Promise<void> {
         if (linkData.monetizable) {
             const CPM = 3.00; // Cost Per Mille (1000 views)
             const earningsPerClick = CPM / 1000;
-            batch.update(linkRef, { generatedEarnings: increment(earningsPerClick) });
+            const linkEarningsUpdate = { generatedEarnings: increment(earningsPerClick) };
+            batch.update(linkRef, linkEarningsUpdate);
         }
 
         // 4. Handle milestone notifications
