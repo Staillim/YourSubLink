@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { useParams, notFound } from 'next/navigation';
 import { useUser } from '@/hooks/use-user';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ArrowLeft, Eye } from 'lucide-react';
@@ -114,9 +114,10 @@ export default function UserLinkStatsPage() {
                 });
                 
                 // Fetch clicks for stats
-                const clicksQuery = query(collection(db, 'clicks'), where('linkId', '==', linkId), orderBy('timestamp', 'asc'));
+                const clicksQuery = query(collection(db, 'clicks'), where('linkId', '==', linkId));
                 const clicksSnapshot = await getDocs(clicksQuery);
                 const clicksData = clicksSnapshot.docs.map(doc => doc.data() as Click);
+                clicksData.sort((a, b) => a.timestamp.seconds - b.timestamp.seconds);
 
                 setDailyStats(processDailyData(clicksData));
                 setMonthlyStats(processMonthlyData(clicksData));
