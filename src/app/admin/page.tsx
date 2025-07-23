@@ -124,7 +124,7 @@ export default function AdminDashboardPage() {
                             ) : (
                                 <div className="text-2xl font-bold">
                                     {stat.isCurrency && '$'}
-                                    {stat.value !== null ? (stat.isCurrency ? stat.value.toFixed(2) : stat.value.toLocaleString()) : '0'}
+                                    {stat.value !== null ? (stat.isCurrency ? stat.value.toFixed(4) : stat.value.toLocaleString()) : '0'}
                                 </div>
                             )}
                             <p className="text-xs text-muted-foreground">
@@ -156,7 +156,7 @@ export default function AdminDashboardPage() {
                                 {recentPayouts.map((payout) => (
                                     <TableRow key={payout.id}>
                                         <TableCell className="font-medium">{payout.userName}</TableCell>
-                                        <TableCell>${payout.amount.toFixed(2)}</TableCell>
+                                        <TableCell>${payout.amount.toFixed(4)}</TableCell>
                                         <TableCell>
                                             {payout.processedAt ? new Date(payout.processedAt.seconds * 1000).toLocaleDateString() : 'N/A'}
                                         </TableCell>

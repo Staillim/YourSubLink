@@ -113,7 +113,7 @@ export default function AdminUsersPage() {
         
         toast({
             title: 'Balance Added',
-            description: `Successfully added $${amountToAdd.toFixed(2)} to ${selectedUser.displayName}'s balance.`,
+            description: `Successfully added $${amountToAdd.toFixed(4)} to ${selectedUser.displayName}'s balance.`,
         });
         
         setIsAddBalanceDialogOpen(false);
@@ -192,9 +192,9 @@ export default function AdminUsersPage() {
                                     <div className="text-sm text-muted-foreground">{u.email}</div>
                                 </TableCell>
                                 <TableCell>{u.linksCount}</TableCell>
-                                <TableCell>${u.generatedEarnings.toFixed(2)}</TableCell>
-                                <TableCell className="text-green-500 font-semibold">${u.paidEarnings.toFixed(2)}</TableCell>
-                                <TableCell className="font-bold">${(u.generatedEarnings - u.paidEarnings).toFixed(2)}</TableCell>
+                                <TableCell>${u.generatedEarnings.toFixed(4)}</TableCell>
+                                <TableCell className="text-green-500 font-semibold">${u.paidEarnings.toFixed(4)}</TableCell>
+                                <TableCell className="font-bold">${(u.generatedEarnings - u.paidEarnings).toFixed(4)}</TableCell>
                                 <TableCell>
                                     <Badge variant={u.role === 'admin' ? 'default' : 'secondary'} className={u.role === 'admin' ? 'bg-primary' : ''}>
                                         {u.role}
@@ -248,7 +248,7 @@ export default function AdminUsersPage() {
                         />
                     </div>
                      <div className="text-sm text-muted-foreground">
-                        Current Balance: ${selectedUser?.generatedEarnings.toFixed(2) ?? '0.00'}
+                        Current Balance: ${selectedUser?.generatedEarnings.toFixed(4) ?? '0.0000'}
                     </div>
                 </div>
                 <DialogFooter>

@@ -120,11 +120,11 @@ export default function CpmHistoryPage() {
                         <TableBody>
                             {history.map((item) => (
                                 <TableRow key={item.id}>
-                                    <TableCell className="font-semibold">${item.rate.toFixed(2)}</TableCell>
+                                    <TableCell className="font-semibold">${item.rate.toFixed(4)}</TableCell>
                                     <TableCell>
                                         {new Date(item.startDate.seconds * 1000).toLocaleDateString()} - {item.endDate ? new Date(item.endDate.seconds * 1000).toLocaleDateString() : 'Present'}
                                     </TableCell>
-                                    <TableCell className="text-right font-bold">${(item.earnings || 0).toFixed(2)}</TableCell>
+                                    <TableCell className="text-right font-bold">${(item.earnings || 0).toFixed(4)}</TableCell>
                                 </TableRow>
                             ))}
                             {history.length === 0 && (
