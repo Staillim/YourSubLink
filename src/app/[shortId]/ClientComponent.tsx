@@ -29,16 +29,27 @@ const RULE_DETAILS = {
   visit: { text: 'Visit Website', icon: ExternalLink, color: 'bg-gray-500 hover:bg-gray-600' },
 };
 
-async function recordClick(linkData: LinkData): Promise<void> {
+// Generates or retrieves a unique ID for the visitor from localStorage
+const getVisitorId = (): string => {
+    let visitorId = localStorage.getItem('visitorId');
+    if (!visitorId) {
+        visitorId = crypto.randomUUID();
+        localStorage.setItem('visitorId', visitorId);
+    }
+    return visitorId;
+}
+
+
+async function recordClick(linkData: LinkData, visitorId: string): Promise<void> {
     try {
         const batch = writeBatch(db);
         
-        // 1. Create a historical click record
+        // 1. Create a historical click record with a unique visitor ID
         const clickDocRef = doc(collection(db, 'clicks'));
         batch.set(clickDocRef, {
             linkId: linkData.id,
             timestamp: serverTimestamp(),
-            ipAddress: 'x.x.x.x', // Placeholder for server-side IP
+            visitorId: visitorId, // Use visitorId instead of IP
         });
 
         // 2. Increment the total clicks counter on the link
@@ -209,6 +220,8 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
         return;
     };
 
+    const visitorId = getVisitorId();
+
     const getLink = async () => {
       try {
         const q = query(collection(db, 'links'), where('shortId', '==', shortId));
@@ -234,7 +247,7 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
         };
         
         // Record the click immediately upon fetching the link data
-        await recordClick(fetchedLinkData);
+        await recordClick(fetchedLinkData, visitorId);
 
         if (fetchedLinkData.rules.length > 0) {
             setLinkData(fetchedLinkData);
@@ -279,4 +292,3 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
     </div>
   );
 }
-

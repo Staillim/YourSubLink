@@ -50,7 +50,7 @@ import { Label } from '@/components/ui/label';
 
 type Click = {
     id: string;
-    ipAddress: string;
+    visitorId: string;
     timestamp: any;
 };
 
@@ -73,17 +73,17 @@ export type LinkItem = {
 const calculateRealClicks = (clicks: Click[]): number => {
     if (clicks.length === 0) return 0;
 
-    const clicksByIp: { [key: string]: Date[] } = {};
+    const clicksByVisitor: { [key: string]: Date[] } = {};
     clicks.forEach(click => {
-        if (!clicksByIp[click.ipAddress]) {
-            clicksByIp[click.ipAddress] = [];
+        if (!clicksByVisitor[click.visitorId]) {
+            clicksByVisitor[click.visitorId] = [];
         }
-        clicksByIp[click.ipAddress].push(new Date(click.timestamp.seconds * 1000));
+        clicksByVisitor[click.visitorId].push(new Date(click.timestamp.seconds * 1000));
     });
 
     let realClickCount = 0;
-    for (const ip in clicksByIp) {
-        const timestamps = clicksByIp[ip].sort((a,b) => a.getTime() - b.getTime());
+    for (const visitorId in clicksByVisitor) {
+        const timestamps = clicksByVisitor[visitorId].sort((a,b) => a.getTime() - b.getTime());
         let lastCountedTimestamp: Date | null = null;
 
         timestamps.forEach(timestamp => {
@@ -389,5 +389,3 @@ export default function DashboardPage() {
     </TooltipProvider>
   );
 }
-
-    
