@@ -43,7 +43,12 @@ export default function UserLinkStatsPage() {
     const [accessDenied, setAccessDenied] = useState(false);
 
     useEffect(() => {
-        if (userLoading || !user) return;
+        if (userLoading) return;
+        if (!user) {
+            setLoading(false);
+            setAccessDenied(true);
+            return;
+        }
         if (!linkId) {
             setLoading(false);
             return;
@@ -76,7 +81,9 @@ export default function UserLinkStatsPage() {
                         acc[ip] = { ip: ip, count: 0, timestamps: [] };
                     }
                     acc[ip].count++;
-                    acc[ip].timestamps.push(new Date(click.timestamp.seconds * 1000));
+                    if(click.timestamp?.seconds) {
+                        acc[ip].timestamps.push(new Date(click.timestamp.seconds * 1000));
+                    }
                     return acc;
                 }, {} as { [key: string]: IpStat });
 
@@ -117,7 +124,7 @@ export default function UserLinkStatsPage() {
     }
     
     if(accessDenied) {
-        notFound();
+        return notFound();
     }
     
     if(!linkData) {

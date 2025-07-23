@@ -60,9 +60,14 @@ export default function LinkStatsPage({ params }: { params: { linkId: string } }
                 }
 
                 const data = linkSnap.data();
-                const userRef = doc(db, 'users', data.userId);
-                const userSnap = await getDoc(userRef);
-                const userName = userSnap.exists() ? userSnap.data().displayName : 'Unknown User';
+                let userName = 'Unknown User';
+                if (data.userId) {
+                    const userRef = doc(db, 'users', data.userId);
+                    const userSnap = await getDoc(userRef);
+                    if (userSnap.exists()) {
+                        userName = userSnap.data().displayName;
+                    }
+                }
                 
                 // Fetch click data for IP stats
                 const clicksQuery = query(collection(db, 'clicks'), where('linkId', '==', linkId), orderBy('timestamp', 'desc'));
@@ -76,7 +81,9 @@ export default function LinkStatsPage({ params }: { params: { linkId: string } }
                         acc[ip] = { ip: ip, count: 0, timestamps: [] };
                     }
                     acc[ip].count++;
-                    acc[ip].timestamps.push(new Date(click.timestamp.seconds * 1000));
+                    if (click.timestamp?.seconds) {
+                       acc[ip].timestamps.push(new Date(click.timestamp.seconds * 1000));
+                    }
                     return acc;
                 }, {} as { [key: string]: IpStat });
 
@@ -118,7 +125,7 @@ export default function LinkStatsPage({ params }: { params: { linkId: string } }
     }
     
     if(!linkData) {
-        return <p>Link not found.</p>
+        return notFound();
     }
 
     return (
