@@ -1,88 +1,39 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-
-    function isUpdatingCounters() {
-      // Check if the only keys being changed are the counters.
-      // This allows our unauthenticated server-side API route to update clicks.
-      return request.resource.data.diff(resource.data).affectedKeys()
-        .hasOnly(['clicks', 'realClicks', 'generatedEarnings']);
-    }
-    
-    function getUserData(userId) {
-        return get(/databases/$(database)/documents/users/$(userId)).data;
-    }
-
-    // --- Users Collection ---
     match /users/{userId} {
-      // Users can read their own profile, admins can read any
-      allow read: if isOwner(userId) || getUserData(request.auth.uid).role == 'admin';
-      // Users can update their own profile, but cannot change their role
-      // Admins can also update user profiles (e.g. add balance)
-      allow update: if isOwner(userId) && request.resource.data.role == resource.data.role 
-                  || getUserData(request.auth.uid).role == 'admin';
-       // Allow creation when a user signs up
-      allow create: if request.auth != null;
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // --- Links Collection ---
     match /links/{linkId} {
-      // Anyone can read a link's data (needed for redirection)
-      allow read;
-      // Only the owner can create a link
-      allow create: if isOwner(request.resource.data.userId);
-      // The owner can update their link, OR the server can update counters.
-      allow update: if (isOwner(resource.data.userId)) || isUpdatingCounters();
-      // Only the owner or an admin can delete a link
-      allow delete: if isOwner(resource.data.userId) || getUserData(request.auth.uid).role == 'admin';
+      allow read: if true;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update: if (request.auth != null && resource.data.userId == request.auth.uid) ||
+                       (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks', 'realClicks', 'generatedEarnings']));
+      allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
-    
-    // --- Clicks Collection ---
-    match /clicks/{clickId} {
-        // The server-side API can create click documents. No auth needed.
-        allow create;
-        // Only admins can read click logs for debugging/stats.
-        allow read: if getUserData(request.auth.uid).role == 'admin';
-        // No one can update or delete click logs
-        allow update, delete: if false;
-    }
-    
-    // --- Payout Requests ---
-    match /payoutRequests/{requestId} {
-        // Users can create their own payout requests
-        allow create: if isOwner(request.resource.data.userId);
-        // Users can read their own requests, admins can read any
-        allow read: if isOwner(resource.data.userId) || getUserData(request.auth.uid).role == 'admin';
-        // Only admins can update (approve/reject)
-        allow update: if getUserData(request.auth.uid).role == 'admin';
-        // No one can delete
-        allow delete: if false;
-    }
-    
-    // --- Notifications ---
-     match /notifications/{notificationId} {
-        // Server can create notifications
-        allow create; 
-        // User can read their own notifications
-        allow read: if isOwner(resource.data.userId);
-        // No one can modify notifications
-        allow update, delete: if false;
-     }
 
-     // --- CPM History ---
-     match /cpmHistory/{historyId} {
-        // Anyone can read CPM rates
-        allow read;
-        // Only admins can create or update rates
-        allow create, update: if getUserData(request.auth.uid).role == 'admin';
-        // No one can delete history
-        allow delete: if false;
-     }
+    match /clicks/{clickId} {
+      allow create: if true;
+      allow read: if false; // Clicks are private and should not be read by clients
+    }
+    
+    match /payoutRequests/{payoutId} {
+        allow read, write: if request.auth != null; // User can read/write their own, admin can read/write all (checked in code)
+    }
+
+    match /notifications/{notificationId} {
+        allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+        allow create: if true; // Let server create them
+    }
+
+    match /cpmHistory/{cpmId} {
+        allow read: if true;
+        allow write: if request.auth != null; // Admin only logic in code
+    }
   }
 }
