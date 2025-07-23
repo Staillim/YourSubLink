@@ -14,7 +14,6 @@ export type UserProfile = {
   role: 'user' | 'admin';
   generatedEarnings: number;
   paidEarnings: number;
-  customCpm?: number;
 };
 
 export type PayoutRequest = {
@@ -26,7 +25,6 @@ export type PayoutRequest = {
     status: 'pending' | 'completed' | 'rejected';
     requestedAt: any;
     processedAt?: any;
-    userName?: string;
 };
 
 
@@ -59,7 +57,6 @@ export function useUser() {
             role: data.role || 'user',
             generatedEarnings: data.generatedEarnings || 0,
             paidEarnings: data.paidEarnings || 0,
-            customCpm: data.customCpm,
         });
       } else {
         // User is authenticated, but no profile exists. Create it now.

@@ -81,24 +81,11 @@ export default function DashboardPage() {
   const [editDescription, setEditDescription] = useState('');
   const [editRules, setEditRules] = useState<Rule[]>([]);
 
-  // Global settings
-  const [rulesToMonetize, setRulesToMonetize] = useState(3);
-  const [settingsLoading, setSettingsLoading] = useState(true);
-
 
   useEffect(() => {
     if (!loading && !user) {
       router.push('/');
     }
-    const settingsRef = doc(db, 'settings', 'global');
-    const unsubSettings = onSnapshot(settingsRef, (doc) => {
-        if (doc.exists()) {
-            setRulesToMonetize(doc.data().rulesToMonetize);
-        }
-        setSettingsLoading(false);
-    });
-
-    return () => unsubSettings();
   }, [user, loading, router]);
   
   useEffect(() => {
@@ -178,7 +165,7 @@ export default function DashboardPage() {
                 title: editTitle,
                 description: editDescription,
                 rules: editRules,
-                monetizable: editRules.length >= rulesToMonetize,
+                monetizable: editRules.length >= 3,
             });
             setIsEditDialogOpen(false);
             setEditingLink(null);
@@ -196,7 +183,7 @@ export default function DashboardPage() {
     });
   }
 
-  if (loading || linksLoading || settingsLoading) {
+  if (loading || linksLoading) {
     return (
       <div className="flex flex-col gap-4">
         <Skeleton className="h-8 w-48" />
@@ -262,7 +249,7 @@ export default function DashboardPage() {
                                             <BadgeHelp className="h-3 w-3"/>
                                         </TooltipTrigger>
                                         <TooltipContent>
-                                            <p>{link.monetizable ? 'This link is eligible for monetization.' : `This link needs at least ${rulesToMonetize - link.rules.length} more rule(s) to be monetizable.`}</p>
+                                            <p>{link.monetizable ? 'This link is eligible for monetization.' : `This link needs at least ${3 - link.rules.length} more rule(s) to be monetizable.`}</p>
                                         </TooltipContent>
                                     </Tooltip>
                                 </Badge>
@@ -340,7 +327,7 @@ export default function DashboardPage() {
                                 Rules
                             </Label>
                             <div >
-                                <p className="text-sm text-muted-foreground mb-2">Add at least {rulesToMonetize} rules to make this link monetizable.</p>
+                                <p className="text-sm text-muted-foreground mb-2">Add at least 3 rules to make this link monetizable.</p>
                                 <RuleEditor rules={editRules} onRulesChange={setEditRules} />
                             </div>
                         </div>
@@ -362,5 +349,3 @@ export default function DashboardPage() {
     </TooltipProvider>
   );
 }
-
-    

@@ -1,11 +1,11 @@
 
 'use client';
 
-import { useState, useTransition, useEffect } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp, doc, onSnapshot } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -35,20 +35,6 @@ export default function CreateLinkPage() {
   const [shortenedUrl, setShortenedUrl] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const [rulesToMonetize, setRulesToMonetize] = useState(3);
-  const [settingsLoading, setSettingsLoading] = useState(true);
-
-  useEffect(() => {
-    const settingsRef = doc(db, 'settings', 'global');
-    const unsubscribe = onSnapshot(settingsRef, (doc) => {
-        if (doc.exists()) {
-            setRulesToMonetize(doc.data().rulesToMonetize);
-        }
-        setSettingsLoading(false);
-    });
-    return () => unsubscribe();
-  }, []);
-
   const resetCreateForm = () => {
     setLongUrl('');
     setTitle('');
@@ -74,7 +60,7 @@ export default function CreateLinkPage() {
           title,
           description,
           rules,
-          monetizable: rules.length >= rulesToMonetize,
+          monetizable: rules.length >= 3,
           generatedEarnings: 0,
         };
         await addDoc(collection(db, "links"), newLink);
@@ -145,7 +131,7 @@ export default function CreateLinkPage() {
                     </div>
                     <div className="space-y-2">
                         <Label>Monetization Rules</Label>
-                        <p className="text-sm text-muted-foreground">Add at least {settingsLoading ? '...' : rulesToMonetize} rules to make this link monetizable.</p>
+                        <p className="text-sm text-muted-foreground">Add at least 3 rules to make this link monetizable.</p>
                         <RuleEditor rules={rules} onRulesChange={setRules} />
                     </div>
                     </CardContent>
@@ -166,5 +152,3 @@ export default function CreateLinkPage() {
     </>
   );
 }
-
-    

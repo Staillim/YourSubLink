@@ -58,9 +58,10 @@ export default function CpmHistoryPage() {
             setLoading(false);
         };
 
-        const historyQuery = query(collection(db, 'cpmHistory'), orderBy('startDate', 'desc'));
+        fetchData();
+        
         // We can also add a snapshot listener to refetch data if something changes
-        const unsubscribe = onSnapshot(historyQuery, (snapshot) => {
+        const unsubscribe = onSnapshot(query(collection(db, 'cpmHistory')), (snapshot) => {
              fetchData();
         });
         
@@ -140,5 +141,3 @@ export default function CpmHistoryPage() {
         </div>
     );
 }
-
-    

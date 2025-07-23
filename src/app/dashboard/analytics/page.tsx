@@ -2,13 +2,15 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { db } from '@/lib/firebase';
+import { useAuthState } from 'react-firebase-hooks/auth';
+import { auth, db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
@@ -25,7 +27,6 @@ import { ExternalLink, DollarSign } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { LinkItem } from '../page';
 import { format, getMonth, getYear } from 'date-fns';
-import { useUser } from '@/hooks/use-user';
 
 
 const chartConfig = {
@@ -37,17 +38,16 @@ const chartConfig = {
 
 
 export default function AnalyticsPage() {
-  const { user, profile, loading } = useUser();
+  const [user, loading] = useAuthState(auth);
   const [links, setLinks] = useState<LinkItem[]>([]);
   const [linksLoading, setLinksLoading] = useState(true);
   const [activeCpm, setActiveCpm] = useState<number>(3.00); // Default CPM
 
   useEffect(() => {
-    if (loading) return; // Wait for user loading to finish
     if (user) {
       setLinksLoading(true);
       const q = query(collection(db, "links"), where("userId", "==", user.uid));
-      const unsubscribeLinks = onSnapshot(q, (querySnapshot) => {
+      const unsubscribe = onSnapshot(q, (querySnapshot) => {
         const linksData: LinkItem[] = [];
         querySnapshot.forEach((doc) => {
           const data = doc.data();
@@ -70,27 +70,22 @@ export default function AnalyticsPage() {
         setLinksLoading(false);
       });
 
-      // Set CPM based on user profile or global settings
-      if (profile && profile.customCpm !== null && profile.customCpm !== undefined) {
-          setActiveCpm(profile.customCpm);
-          return () => unsubscribeLinks();
-      } else {
-          const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
-          const unsubscribeCpm = onSnapshot(cpmQuery, (snapshot) => {
-              if (!snapshot.empty) {
-                  const cpmDoc = snapshot.docs[0];
-                  setActiveCpm(cpmDoc.data().rate);
-              }
-          });
-          return () => {
-            unsubscribeLinks();
-            unsubscribeCpm();
+      const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
+      const unsubCpm = onSnapshot(cpmQuery, (snapshot) => {
+          if (!snapshot.empty) {
+              const cpmDoc = snapshot.docs[0];
+              setActiveCpm(cpmDoc.data().rate);
           }
+      });
+
+      return () => {
+        unsubscribe();
+        unsubCpm();
       }
-    } else {
+    } else if (!loading) {
         setLinksLoading(false);
     }
-  }, [user, loading, profile]);
+  }, [user, loading]);
 
   const totalClicks = links.reduce((acc, link) => acc + link.clicks, 0);
   const totalEarnings = links.reduce((acc, link) => acc + (link.generatedEarnings || 0), 0);
@@ -157,92 +152,92 @@ export default function AnalyticsPage() {
         <h1 className="text-lg font-semibold md:text-2xl">Analytics</h1>
       </div>
       <div className="grid gap-6">
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-                    <DollarSign className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold">${totalEarnings.toFixed(4)}</div>
-                    <p className="text-xs text-muted-foreground">Based on total monetizable clicks</p>
-                </CardContent>
-            </Card>
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total Clicks</CardTitle>
-                    <ExternalLink className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold">+{totalClicks.toLocaleString()}</div>
-                    <p className="text-xs text-muted-foreground">Across all links</p>
-                </CardContent>
-            </Card>
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Active CPM</CardTitle>
-                    <DollarSign className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold">${activeCpm.toFixed(4)}</div>
-                    <p className="text-xs text-muted-foreground">Current rate per 1000 monetized views</p>
-                </CardContent>
-            </Card>
-        </div>
-        <Card>
-            <CardHeader>
-                <CardTitle>Earnings Overview</CardTitle>
-                <CardDescription>Earnings from monetized clicks this year.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                <ChartContainer config={chartConfig} className="min-h-[200px] w-full">
-                    <BarChart accessibilityLayer data={getChartData()}>
-                        <CartesianGrid vertical={false} />
-                        <XAxis
-                            dataKey="month"
-                            tickLine={false}
-                            tickMargin={10}
-                            axisLine={false}
-                            tickFormatter={(value) => value.slice(0, 3)}
-                        />
-                        <YAxis tickFormatter={(value) => `$${Number(value).toFixed(4)}`} />
-                        <ChartTooltip content={<ChartTooltipContent formatter={(value) => `$${Number(value).toFixed(4)}`} />} />
-                        <Bar dataKey="earnings" fill="var(--color-earnings)" radius={4} />
-                    </BarChart>
-                </ChartContainer>
-            </CardContent>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+                      <DollarSign className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                      <div className="text-2xl font-bold">${totalEarnings.toFixed(4)}</div>
+                      <p className="text-xs text-muted-foreground">Based on total monetizable clicks</p>
+                  </CardContent>
+              </Card>
+              <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Total Clicks</CardTitle>
+                       <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                      <div className="text-2xl font-bold">+{totalClicks.toLocaleString()}</div>
+                      <p className="text-xs text-muted-foreground">Across all links</p>
+                  </CardContent>
+              </Card>
+              <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Active CPM</CardTitle>
+                       <DollarSign className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                      <div className="text-2xl font-bold">${activeCpm.toFixed(4)}</div>
+                      <p className="text-xs text-muted-foreground">Current rate per 1000 monetized views</p>
+                  </CardContent>
+              </Card>
+          </div>
+          <Card>
+          <CardHeader>
+            <CardTitle>Earnings Overview</CardTitle>
+            <CardDescription>Earnings from monetized clicks this year.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer config={chartConfig} className="min-h-[200px] w-full">
+              <BarChart accessibilityLayer data={getChartData()}>
+                 <CartesianGrid vertical={false} />
+                 <XAxis
+                  dataKey="month"
+                  tickLine={false}
+                  tickMargin={10}
+                  axisLine={false}
+                  tickFormatter={(value) => value.slice(0, 3)}
+                />
+                <YAxis tickFormatter={(value) => `$${value}`} />
+                <ChartTooltip content={<ChartTooltipContent formatter={(value) => `$${Number(value).toFixed(4)}`} />} />
+                <Bar dataKey="earnings" fill="var(--color-earnings)" radius={4} />
+              </BarChart>
+            </ChartContainer>
+          </CardContent>
         </Card>
         <Card>
             <CardHeader>
                 <CardTitle>Links Breakdown</CardTitle>
                 <CardDescription>Detailed statistics for each of your links.</CardDescription>
-            </Header>
+            </CardHeader>
             <CardContent>
-                <Table>
-                    <TableHeader>
+              <Table>
+                  <TableHeader>
+                      <TableRow>
+                          <TableHead>Link</TableHead>
+                          <TableHead className="text-right">Clicks</TableHead>
+                          <TableHead className="text-right">Generated Earnings</TableHead>
+                      </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                      {linksWithEarnings.map((link) => (
+                           <TableRow key={link.id}>
+                              <TableCell className="font-medium">{link.title}</TableCell>
+                              <TableCell className="text-right">{link.clicks.toLocaleString()}</TableCell>
+                              <TableCell className="text-right font-semibold">${link.earnings.toFixed(4)}</TableCell>
+                           </TableRow>
+                      ))}
+                      {links.length === 0 && (
                         <TableRow>
-                            <TableHead>Link</TableHead>
-                            <TableHead className="text-right">Clicks</TableHead>
-                            <TableHead className="text-right">Generated Earnings</TableHead>
+                            <TableCell colSpan={3} className="text-center text-muted-foreground">
+                                No links created yet.
+                            </TableCell>
                         </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {linksWithEarnings.map((link) => (
-                            <TableRow key={link.id}>
-                                <TableCell className="font-medium">{link.title}</TableCell>
-                                <TableCell className="text-right">{link.clicks.toLocaleString()}</TableCell>
-                                <TableCell className="text-right font-semibold">${link.earnings.toFixed(4)}</TableCell>
-                            </TableRow>
-                        ))}
-                        {links.length === 0 && (
-                            <TableRow>
-                                <TableCell colSpan={3} className="text-center text-muted-foreground">
-                                    No links created yet.
-                                </TableCell>
-                            </TableRow>
-                        )}
-                    </TableBody>
-                </Table>
+                      )}
+                  </TableBody>
+              </Table>
             </CardContent>
         </Card>
       </div>
