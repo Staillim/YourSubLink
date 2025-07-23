@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import { useUser } from '@/hooks/use-user';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose, DialogTrigger } from '@/components/ui/dialog';
@@ -16,8 +16,6 @@ import { toast } from '@/hooks/use-toast';
 import { Loader2, DollarSign, Wallet, PiggyBank } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-
-const MIN_PAYOUT_AMOUNT = 10;
 
 type PayoutRequest = {
     id: string;
@@ -32,6 +30,8 @@ export default function PayoutsPage() {
     const { user, profile, loading } = useUser();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [minPayoutAmount, setMinPayoutAmount] = useState(10);
+    const [settingsLoading, setSettingsLoading] = useState(true);
 
     // Form state
     const [amount, setAmount] = useState('');
@@ -43,6 +43,15 @@ export default function PayoutsPage() {
     const [payoutsLoading, setPayoutsLoading] = useState(true);
     
     useEffect(() => {
+        // Fetch global settings
+        const settingsRef = doc(db, 'settings', 'global');
+        const unsubSettings = onSnapshot(settingsRef, (doc) => {
+            if (doc.exists()) {
+                setMinPayoutAmount(doc.data().minPayout);
+            }
+            setSettingsLoading(false);
+        });
+
         if (user) {
             setPayoutsLoading(true);
             const q = query(collection(db, "payoutRequests"), where("userId", "==", user.uid));
@@ -54,8 +63,12 @@ export default function PayoutsPage() {
                 setPayouts(requests.sort((a,b) => (b.requestedAt?.seconds ?? 0) - (a.requestedAt?.seconds ?? 0)));
                 setPayoutsLoading(false);
             });
-            return () => unsubscribe();
+            return () => {
+                unsubSettings();
+                unsubscribe();
+            };
         }
+        return () => unsubSettings();
     }, [user]);
     
     const generatedEarnings = profile?.generatedEarnings ?? 0;
@@ -84,8 +97,8 @@ export default function PayoutsPage() {
             toast({ title: 'Invalid Amount', description: 'Please enter a valid amount.', variant: 'destructive' });
             return;
         }
-        if (payoutAmount < MIN_PAYOUT_AMOUNT) {
-             toast({ title: 'Amount too low', description: `The minimum payout amount is $${MIN_PAYOUT_AMOUNT}.`, variant: 'destructive' });
+        if (payoutAmount < minPayoutAmount) {
+             toast({ title: 'Amount too low', description: `The minimum payout amount is $${minPayoutAmount}.`, variant: 'destructive' });
             return;
         }
         if (payoutAmount > availableBalance) {
@@ -119,7 +132,7 @@ export default function PayoutsPage() {
     };
 
 
-    if (loading || payoutsLoading) {
+    if (loading || payoutsLoading || settingsLoading) {
         return (
             <div className="flex flex-col gap-6">
                 <Skeleton className="h-8 w-32" />
@@ -175,7 +188,7 @@ export default function PayoutsPage() {
             
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogTrigger asChild>
-                    <Button disabled={availableBalance < MIN_PAYOUT_AMOUNT} className="font-semibold">
+                    <Button disabled={availableBalance < minPayoutAmount} className="font-semibold">
                         Request a Payout
                     </Button>
                 </DialogTrigger>
@@ -184,7 +197,7 @@ export default function PayoutsPage() {
                         <DialogHeader>
                             <DialogTitle>Request a Payout</DialogTitle>
                             <DialogDescription>
-                                Minimum payout is ${MIN_PAYOUT_AMOUNT}.00. Requests are processed within 3-5 business days.
+                                Minimum payout is ${minPayoutAmount}.00. Requests are processed within 3-5 business days.
                             </DialogDescription>
                         </DialogHeader>
                         <div className="grid gap-4 py-4">
@@ -267,3 +280,5 @@ export default function PayoutsPage() {
         </div>
     );
 }
+
+    

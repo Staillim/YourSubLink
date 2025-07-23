@@ -1,52 +1,54 @@
-rules_version = '2';
 
+rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
+    
     function isAdmin() {
-      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
     match /users/{userId} {
-      allow create: if request.auth.uid == userId;
-      allow read, update: if request.auth.uid == userId || isAdmin();
-      allow list: if isAdmin();
-    }
-
-    match /links/{linkId} {
       allow create: if request.auth.uid != null;
-      allow read, update, delete: if request.auth.uid == resource.data.userId;
-      allow get: if true;
-      // Admins can fully manage any link
-      allow read, write: if isAdmin();
+      allow read, update: if request.auth.uid == userId || isAdmin();
     }
     
+    match /links/{linkId} {
+      allow read: if isAdmin();
+      allow create: if request.auth.uid != null;
+      allow read, update, delete: if request.auth.uid == resource.data.userId;
+    }
+
     match /clicks/{clickId} {
-        allow create: if true;
-        // User can read their own clicks, admins can read all
-        allow list: if request.auth.uid == resource.data.userId || isAdmin();
-        allow get: if isAdmin();
+      allow create;
+      allow read: if isAdmin();
     }
 
     match /payoutRequests/{requestId} {
-        allow create: if request.auth.uid == request.resource.data.userId;
-        // User can read their own requests
-        allow read: if request.auth.uid == resource.data.userId || isAdmin();
-        // Admins can manage all requests
-        allow write: if isAdmin();
+      allow read, write: if isAdmin();
+      allow create: if request.auth.uid != null;
+      allow read: if request.auth.uid == resource.data.userId;
     }
 
-    match /cpmHistory/{cpmId} {
-        // Authenticated users can read CPM data
-        allow read: if request.auth.uid != null;
-        // Only admins can write to CPM history
-        allow write: if isAdmin();
+    match /cpmHistory/{historyId} {
+      allow read: if request.auth.uid != null;
+      allow write: if isAdmin();
     }
-
+    
     match /notifications/{notificationId} {
         allow read: if request.auth.uid == resource.data.userId || isAdmin();
-        allow create: if true; // Allow system/functions to create notifications
+        allow create: if isAdmin(); // Or based on your logic for creating notifications
+    }
+
+    match /settings/{settingId} {
+        allow read: if request.auth.uid != null;
+        allow write: if isAdmin();
+    }
+    
+    // Fallback rule for any other collection
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
+
+    
