@@ -130,7 +130,7 @@ export function UserNav() {
                 <Wallet className="h-4 w-4" />
                 <span>Balance</span>
              </div>
-             <span className="font-semibold">${availableBalance.toFixed(2)}</span>
+             <span className="font-semibold">${availableBalance.toFixed(3)}</span>
            </div>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />

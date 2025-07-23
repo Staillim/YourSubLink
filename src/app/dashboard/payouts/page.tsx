@@ -64,7 +64,7 @@ export default function PayoutsPage() {
         if (user) {
             setPayoutsLoading(true);
             const payoutQuery = query(collection(db, "payoutRequests"), where("userId", "==", user.uid));
-            const unsubPayouts = onSnapshot(q, (snapshot) => {
+            const unsubPayouts = onSnapshot(payoutQuery, (snapshot) => {
                 const requests: PayoutRequest[] = [];
                 snapshot.forEach(doc => {
                     requests.push({ id: doc.id, ...doc.data() } as PayoutRequest);
@@ -182,7 +182,7 @@ export default function PayoutsPage() {
                         <DollarSign className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">${availableBalance.toFixed(2)}</div>
+                        <div className="text-2xl font-bold">${availableBalance.toFixed(3)}</div>
                         <p className="text-xs text-muted-foreground">Ready for withdrawal</p>
                     </CardContent>
                 </Card>
@@ -192,7 +192,7 @@ export default function PayoutsPage() {
                         <Wallet className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">${payoutsPending.toFixed(2)}</div>
+                        <div className="text-2xl font-bold">${payoutsPending.toFixed(3)}</div>
                         <p className="text-xs text-muted-foreground">Requested but not yet paid</p>
                     </CardContent>
                 </Card>
@@ -202,7 +202,7 @@ export default function PayoutsPage() {
                         <PiggyBank className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">${paidEarnings.toFixed(2)}</div>
+                        <div className="text-2xl font-bold">${paidEarnings.toFixed(3)}</div>
                         <p className="text-xs text-muted-foreground">Total earnings paid out to you</p>
                     </CardContent>
                 </Card>
