@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import {
   Card,
@@ -36,12 +36,22 @@ const chartConfig = {
   },
 };
 
-const CPM = 3.00;
-
 export default function AnalyticsPage() {
   const [user, loading] = useAuthState(auth);
   const [links, setLinks] = useState<LinkItem[]>([]);
   const [linksLoading, setLinksLoading] = useState(true);
+  const [cpm, setCpm] = useState(3.00); // Default CPM, will be fetched
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+         const settingsRef = doc(db, 'settings', 'global');
+         const docSnap = await getDoc(settingsRef);
+         if (docSnap.exists()) {
+             setCpm(docSnap.data().cpm || 3.00);
+         }
+    }
+    fetchSettings();
+  }, [])
 
   useEffect(() => {
     if (user) {
@@ -57,6 +67,7 @@ export default function AnalyticsPage() {
             shortId: data.shortId,
             short: `${window.location.origin}/${data.shortId}`,
             clicks: data.clicks,
+            realClicks: data.realClicks || 0,
             date: new Date(data.createdAt.seconds * 1000).toISOString(),
             userId: data.userId,
             title: data.title,
@@ -77,18 +88,19 @@ export default function AnalyticsPage() {
   }, [user, loading]);
 
   const totalClicks = links.reduce((acc, link) => acc + link.clicks, 0);
-  const totalEarnings = links.reduce((acc, link) => acc + (link.monetizable ? (link.clicks / 1000) * CPM : 0), 0);
+  const totalRealClicks = links.reduce((acc, link) => acc + link.realClicks, 0);
+  const totalEarnings = links.reduce((acc, link) => acc + (link.monetizable ? (link.realClicks / 1000) * cpm : 0), 0);
 
   const getChartData = () => {
     const monthlyEarnings: { [key: string]: number } = {};
 
     links.forEach(link => {
-        if (link.clicks > 0 && link.monetizable) {
+        if (link.realClicks > 0 && link.monetizable) {
             const date = new Date(link.date);
             const year = getYear(date);
             const month = getMonth(date);
             const monthKey = `${year}-${month}`;
-            const earnings = (link.clicks / 1000) * CPM;
+            const earnings = (link.realClicks / 1000) * cpm;
             
             if (monthlyEarnings[monthKey]) {
                 monthlyEarnings[monthKey] += earnings;
@@ -113,7 +125,7 @@ export default function AnalyticsPage() {
   
   const linksWithEarnings = links.map(link => ({
       ...link,
-      earnings: link.monetizable ? (link.clicks / 1000) * CPM : 0
+      earnings: link.monetizable ? (link.realClicks / 1000) * cpm : 0
   })).sort((a,b) => b.earnings - a.earnings);
 
 
@@ -150,7 +162,7 @@ export default function AnalyticsPage() {
                   </CardHeader>
                   <CardContent>
                       <div className="text-2xl font-bold">${totalEarnings.toFixed(2)}</div>
-                      <p className="text-xs text-muted-foreground">Based on total monetizable clicks</p>
+                      <p className="text-xs text-muted-foreground">Based on total monetizable real clicks</p>
                   </CardContent>
               </Card>
               <Card>
@@ -165,19 +177,19 @@ export default function AnalyticsPage() {
               </Card>
               <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">Average CPM</CardTitle>
+                      <CardTitle className="text-sm font-medium">Global CPM</CardTitle>
                        <span className="text-sm text-muted-foreground">$</span>
                   </CardHeader>
                   <CardContent>
-                      <div className="text-2xl font-bold">${CPM.toFixed(2)}</div>
-                      <p className="text-xs text-muted-foreground">Fixed rate per 1000 monetized views</p>
+                      <div className="text-2xl font-bold">${cpm.toFixed(2)}</div>
+                      <p className="text-xs text-muted-foreground">Rate per 1000 monetized real views</p>
                   </CardContent>
               </Card>
           </div>
           <Card>
           <CardHeader>
             <CardTitle>Earnings Overview</CardTitle>
-            <CardDescription>Earnings from monetized clicks this year.</CardDescription>
+            <CardDescription>Earnings from monetized real clicks this year.</CardDescription>
           </CardHeader>
           <CardContent>
             <ChartContainer config={chartConfig} className="min-h-[200px] w-full">
@@ -207,7 +219,7 @@ export default function AnalyticsPage() {
                   <TableHeader>
                       <TableRow>
                           <TableHead>Link</TableHead>
-                          <TableHead className="text-right">Clicks</TableHead>
+                          <TableHead className="text-right">Real Clicks</TableHead>
                           <TableHead className="text-right">Estimated Earnings</TableHead>
                       </TableRow>
                   </TableHeader>
@@ -215,7 +227,7 @@ export default function AnalyticsPage() {
                       {linksWithEarnings.map((link) => (
                            <TableRow key={link.id}>
                               <TableCell className="font-medium">{link.title}</TableCell>
-                              <TableCell className="text-right">{link.clicks.toLocaleString()}</TableCell>
+                              <TableCell className="text-right">{link.realClicks.toLocaleString()}</TableCell>
                               <TableCell className="text-right">${link.earnings.toFixed(2)}</TableCell>
                            </TableRow>
                       ))}
