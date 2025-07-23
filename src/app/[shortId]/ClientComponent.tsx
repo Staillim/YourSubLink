@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import { notFound } from 'next/navigation';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, writeBatch, serverTimestamp, increment } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, writeBatch, serverTimestamp, increment, Timestamp } from 'firebase/firestore';
 import { Loader2, ExternalLink, CheckCircle2, Lock, Link as LinkIcon, ChevronRight, Youtube, Instagram } from 'lucide-react';
 import type { Rule } from '@/components/rule-editor';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,7 @@ type LinkData = {
   userId: string;
   monetizable: boolean;
   clicks: number;
+  realClicks?: number;
 };
 
 const RULE_DETAILS = {
@@ -29,54 +30,17 @@ const RULE_DETAILS = {
   visit: { text: 'Visit Website', icon: ExternalLink, color: 'bg-gray-500 hover:bg-gray-600' },
 };
 
-async function recordClick(linkData: LinkData): Promise<void> {
+async function recordClick(linkId: string): Promise<void> {
     try {
-        const batch = writeBatch(db);
-        
-        // 1. Create a historical click record
-        const clickDocRef = doc(collection(db, 'clicks'));
-        batch.set(clickDocRef, {
-            linkId: linkData.id,
-            timestamp: serverTimestamp(),
-            ipAddress: 'x.x.x.x', // Placeholder for server-side IP
+        await fetch('/api/click', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ linkId }),
         });
-
-        // 2. Increment the total clicks counter on the link
-        const linkRef = doc(db, 'links', linkData.id);
-        batch.update(linkRef, { clicks: increment(1) });
-        
-        // 3. Handle monetization earnings for the click if applicable
-        if (linkData.monetizable) {
-            const CPM = 3.00; // Cost Per Mille (1000 views)
-            const earningsPerClick = CPM / 1000;
-            const linkEarningsUpdate = { generatedEarnings: increment(earningsPerClick) };
-            batch.update(linkRef, linkEarningsUpdate);
-        }
-
-        // 4. Handle milestone notifications
-        const currentClicks = linkData.clicks;
-        const newClicks = currentClicks + 1;
-        const milestone = 1000;
-        if (Math.floor(currentClicks / milestone) < Math.floor(newClicks / milestone)) {
-            const reachedMilestone = Math.floor(newClicks / milestone) * milestone;
-            const notificationRef = doc(collection(db, 'notifications'));
-            batch.set(notificationRef, {
-                userId: linkData.userId,
-                linkId: linkData.id,
-                linkTitle: linkData.title,
-                type: 'milestone',
-                milestone: reachedMilestone,
-                message: `Your link "${linkData.title}" reached ${reachedMilestone.toLocaleString()} visits!`,
-                createdAt: serverTimestamp(),
-                read: false
-            });
-        }
-
-        await batch.commit();
-        console.log("Click recorded successfully.");
-        
     } catch (error) {
-        console.error("Error processing click:", error);
+        console.error("Error sending click record request:", error);
     }
 }
 
@@ -231,10 +195,11 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
             userId: data.userId,
             monetizable: data.monetizable || false,
             clicks: data.clicks || 0,
+            realClicks: data.realClicks || 0,
         };
         
-        // Record the click immediately upon fetching the link data
-        await recordClick(fetchedLinkData);
+        // Record the click via the API route
+        recordClick(fetchedLinkData.id);
 
         if (fetchedLinkData.rules.length > 0) {
             setLinkData(fetchedLinkData);
@@ -279,4 +244,3 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
     </div>
   );
 }
-

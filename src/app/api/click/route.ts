@@ -15,7 +15,7 @@ export async function POST(request: Request) {
 
         const headersList = headers();
         // Use a combination of headers for a more unique identifier
-        const ip = (headersList.get('x-forwarded-for') ?? '127.0.0.1').split(',')[0];
+        const ip = (headersList.get('x-forwarded-for') ?? '127.0.0.1').split(',')[0].trim();
         const userAgent = headersList.get('user-agent') ?? 'unknown';
 
         const linkRef = doc(db, 'links', linkId);
@@ -66,8 +66,12 @@ export async function POST(request: Request) {
         
         // 3. Handle monetization earnings for the real click if applicable
         if (isRealClick && linkData.monetizable) {
-            const CPM = 3.00; // Cost Per Mille (1000 views)
-            const earningsPerClick = CPM / 1000;
+            // Use active CPM rate for earnings calculation
+            const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
+            const cpmSnap = await getDocs(cpmQuery);
+            const activeCpm = cpmSnap.empty ? 3.00 : cpmSnap.docs[0].data().rate;
+            const earningsPerClick = activeCpm / 1000;
+            
             linkCounters.generatedEarnings = increment(earningsPerClick);
 
             // Also increment on the user's total earnings
@@ -76,6 +80,13 @@ export async function POST(request: Request) {
                 batch.update(userRef, {
                     generatedEarnings: increment(earningsPerClick)
                 });
+            }
+
+            // Increment earnings on the specific CPM entry for tracking
+            if (!cpmSnap.empty) {
+                const cpmId = cpmSnap.docs[0].id;
+                const earningsByCpmField = `earningsByCpm.${cpmId}`;
+                linkCounters[earningsByCpmField] = increment(earningsPerClick);
             }
         }
         
