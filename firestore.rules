@@ -12,9 +12,8 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read: if isOwner(userId) || isAdmin();
+      allow read, update: if isOwner(userId) || isAdmin();
       allow create: if isOwner(userId);
-      allow update: if isOwner(userId);
       // No allow delete for users
     }
 
@@ -22,13 +21,19 @@ service cloud.firestore {
       allow read;
       allow create: if isOwner(request.resource.data.userId);
       // Allow owner to update, or allow anyone to update (for public click tracking)
-      allow update: if isOwner(resource.data.userId) || request.auth == null;
+      allow update(path, request, resource): if (isOwner(resource.data.userId) || isAdmin()) || (request.auth == null && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks', 'realClicks', 'generatedEarnings', 'earningsByCpm']));
       allow delete: if isOwner(resource.data.userId) || isAdmin();
     }
 
     match /clicks/{clickId} {
-      allow create; // Anyone can create a click
-      allow read: if isAdmin() || get(/databases/$(database)/documents/links/$(resource.data.linkId)).data.userId == request.auth.uid;
+      // Allow list (query) if the user owns the link being queried.
+      allow list: if isAdmin() || (exists(/databases/$(database)/documents/links/$(request.query.linkId)) && get(/databases/$(database)/documents/links/$(request.query.linkId)).data.userId == request.auth.uid);
+      
+      // Allow read/get for a single document if the user owns the link.
+      allow read: if isAdmin() || isOwner(get(/databases/$(database)/documents/links/$(resource.data.linkId)).data.userId);
+
+      // Anyone can create a click document.
+      allow create;
     }
     
     match /cpmHistory/{cpmId} {
@@ -38,7 +43,8 @@ service cloud.firestore {
 
     match /payoutRequests/{payoutId} {
         allow create: if isOwner(request.resource.data.userId);
-        allow read, write: if isAdmin() || isOwner(resource.data.userId);
+        allow read: if isAdmin() || isOwner(resource.data.userId);
+        allow update: if isAdmin(); // Only admins can approve/reject
     }
     
     match /settings/global {
