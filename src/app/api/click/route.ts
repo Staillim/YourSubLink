@@ -11,14 +11,8 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'shortId is required' }, { status: 400 });
         }
         
-        const ip = req.ip || req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip');
-
-        if (!ip) {
-            // Although this check is here, in most hosting environments (like Vercel/Netlify), 
-            // req.ip will be available. We'll proceed without an IP for local dev if needed,
-            // but clicks won't be "real".
-            console.warn("Could not identify IP address. Clicks will not be counted as 'real'.");
-        }
+        // Robust IP address detection
+        const ip = req.ip ?? req.headers.get('x-forwarded-for') ?? req.headers.get('x-real-ip');
 
         const linksQuery = query(collection(db, 'links'), where('shortId', '==', shortId));
         const linksSnapshot = await getDocs(linksQuery);
@@ -31,14 +25,11 @@ export async function POST(req: NextRequest) {
         const linkId = linkDoc.id;
         const linkData = linkDoc.data();
         const batch = writeBatch(db);
-
-        // Always increment the total clicks counter
         const linkRef = doc(db, 'links', linkId);
-        const linkCounters: { [key: string]: any } = {
-            clicks: increment(1)
-        };
         
         let isRealClick = false;
+
+        // Only check for real clicks if we have a valid IP
         if (ip) {
             const oneHourAgo = Timestamp.fromMillis(Date.now() - 60 * 60 * 1000);
             const recentClicksQuery = query(
@@ -53,18 +44,18 @@ export async function POST(req: NextRequest) {
             if (recentClicksSnapshot.empty) {
                 isRealClick = true;
             }
+        } else {
+            console.warn("Could not identify IP address. Clicks from this source will not be counted as 'real'.");
         }
         
-        // Log the click event regardless
-        const clickDocRef = doc(collection(db, 'clicks'));
-        batch.set(clickDocRef, {
-            linkId: linkId,
-            timestamp: serverTimestamp(),
-            ipAddress: ip || 'unknown',
-            userAgent: req.headers.get('user-agent') || 'N/A',
-            isRealClick: isRealClick,
-        });
+        // --- Atomically update all documents ---
 
+        // 1. Always increment the total clicks counter
+        const linkCounters: { [key: string]: any } = {
+            clicks: increment(1)
+        };
+
+        // 2. If it's a real click, increment real clicks and earnings
         if (isRealClick) {
             linkCounters.realClicks = increment(1);
 
@@ -82,6 +73,7 @@ export async function POST(req: NextRequest) {
                 }
             }
 
+            // Milestone Notification Logic
             const currentRealClicks = linkData.realClicks || 0;
             const newRealClicks = currentRealClicks + 1;
             const milestone = 1000;
@@ -101,7 +93,18 @@ export async function POST(req: NextRequest) {
             }
         }
         
+        // Apply the increments to the link document
         batch.update(linkRef, linkCounters);
+
+        // 3. Log the raw click event
+        const clickDocRef = doc(collection(db, 'clicks'));
+        batch.set(clickDocRef, {
+            linkId: linkId,
+            timestamp: serverTimestamp(),
+            ipAddress: ip || 'unknown',
+            userAgent: req.headers.get('user-agent') || 'N/A',
+            isRealClick: isRealClick, // Log whether it was counted as real
+        });
 
         await batch.commit();
 
