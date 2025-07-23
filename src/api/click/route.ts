@@ -36,8 +36,8 @@ export async function POST(req: NextRequest) {
             let earningsPerClick = 0;
             let activeCpmId = 'default';
 
-            // Check for a custom user CPM first
-            if (userSnap.exists() && userSnap.data().customCpm) {
+            // Check for a custom user CPM first. Check should be for not null or undefined.
+            if (userSnap.exists() && userSnap.data().customCpm != null) {
                  earningsPerClick = userSnap.data().customCpm / 1000;
                  activeCpmId = `user_${linkData.userId}`; // Custom ID for user-specific CPM earnings
             } else {
