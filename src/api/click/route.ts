@@ -36,15 +36,15 @@ export async function POST(req: NextRequest) {
             let earningsPerClick = 0;
             let activeCpmId = 'default';
 
-            // Check for a custom user CPM first. Check should be for not null or undefined.
+            // Check for a custom user CPM first.
             if (userSnap.exists() && userSnap.data().customCpm != null) {
                  earningsPerClick = userSnap.data().customCpm / 1000;
                  activeCpmId = `user_${linkData.userId}`; // Custom ID for user-specific CPM earnings
             } else {
-                // Fallback to global CPM
+                // If no custom user CPM, fallback to global CPM
                 const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
                 const cpmSnapshot = await getDocs(cpmQuery);
-                let activeCpm = 3.00; // Default fallback CPM
+                let activeCpm = 3.00; // Default fallback CPM in case nothing is set
 
                 if (!cpmSnapshot.empty) {
                     const cpmDoc = cpmSnapshot.docs[0];
@@ -54,13 +54,15 @@ export async function POST(req: NextRequest) {
                 earningsPerClick = activeCpm / 1000;
             }
 
-            batch.update(userRef, { generatedEarnings: increment(earningsPerClick) });
-            // Also update the earnings on the link itself for stats
-            batch.update(linkRef, { generatedEarnings: increment(earningsPerClick) });
-            
-            // And update the earnings for the specific CPM period on the link
-            const cpmEarningsField = `earningsByCpm.${activeCpmId}`;
-            batch.update(linkRef, { [cpmEarningsField]: increment(earningsPerClick) });
+            if (earningsPerClick > 0) {
+                batch.update(userRef, { generatedEarnings: increment(earningsPerClick) });
+                // Also update the earnings on the link itself for stats
+                batch.update(linkRef, { generatedEarnings: increment(earningsPerClick) });
+                
+                // And update the earnings for the specific CPM period on the link
+                const cpmEarningsField = `earningsByCpm.${activeCpmId}`;
+                batch.update(linkRef, { [cpmEarningsField]: increment(earningsPerClick) });
+            }
         }
         
         // Create a historical record of the click for analytics.
