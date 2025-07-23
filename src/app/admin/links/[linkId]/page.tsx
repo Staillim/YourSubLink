@@ -7,7 +7,7 @@ import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ArrowLeft, Eye, User, Hash, Check, Bot } from 'lucide-react';
+import { ArrowLeft, Eye, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
@@ -15,7 +15,6 @@ type LinkData = {
     title: string;
     original: string;
     clicks: number; // Total Clicks
-    realClicks: number; // Real Clicks
     userName: string;
 };
 
@@ -50,7 +49,6 @@ export default function LinkStatsPage() {
                     title: data.title,
                     original: data.original,
                     clicks: data.clicks || 0,
-                    realClicks: data.realClicks || 0,
                     userName: userName,
                 });
 
@@ -72,10 +70,7 @@ export default function LinkStatsPage() {
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                     <Skeleton className="h-28" />
                     <Skeleton className="h-28" />
-                    <Skeleton className="h-28" />
-                    <Skeleton className="h-28" />
                 </div>
-                <Skeleton className="h-80" />
             </div>
         );
     }
@@ -103,27 +98,7 @@ export default function LinkStatsPage() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{linkData.clicks.toLocaleString()}</div>
-                        <p className="text-xs text-muted-foreground">Every single page load.</p>
-                    </CardContent>
-                </Card>
-                 <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Real Clicks</CardTitle>
-                        <Check className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{linkData.realClicks.toLocaleString()}</div>
-                         <p className="text-xs text-muted-foreground">Users who complete all rules.</p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Bot Clicks (est.)</CardTitle>
-                        <Bot className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{(linkData.clicks - linkData.realClicks).toLocaleString()}</div>
-                         <p className="text-xs text-muted-foreground">Difference between total & real.</p>
+                        <p className="text-xs text-muted-foreground">Clicks after completing all rules.</p>
                     </CardContent>
                 </Card>
                 <Card>

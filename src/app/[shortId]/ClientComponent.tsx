@@ -4,10 +4,8 @@
 import { useEffect, useState } from 'react';
 import { notFound } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
-import LinkGate from '@/components/link-gate'; // We'll create this component
-import type { LinkData } from '@/types'; // We'll create this types file
-
-const HOUR_IN_MS = 60 * 60 * 1000;
+import LinkGate from '@/components/link-gate'; 
+import type { LinkData } from '@/types'; 
 
 export default function ClientComponent({ shortId }: { shortId: string }) {
   const [status, setStatus] = useState<'loading' | 'gate' | 'countdown' | 'redirecting' | 'not-found'>('loading');
@@ -21,11 +19,11 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
 
     const processLinkVisit = async () => {
       try {
-        const response = await fetch('/api/click', {
+        // This is the initial fetch to get link data. No click is counted here.
+        const response = await fetch('/api/get-link-data', { // A new, simple API route just to fetch data
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            // This is the "Total Click" - happens on every initial page load
-            body: JSON.stringify({ shortId, isRealVisit: false }), 
+            body: JSON.stringify({ shortId }), 
         });
 
         if (!response.ok) {
@@ -39,11 +37,11 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
         if (data.action === 'GATE') {
             setStatus('gate');
         } else if (data.action === 'REDIRECT') {
-            // For links with no rules, count it as a real click immediately and redirect
-             await fetch('/api/click', {
+            // For links with no rules, count the click now and redirect
+            await fetch('/api/click', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ shortId, isRealVisit: true }),
+                body: JSON.stringify({ shortId }),
             });
             setStatus('redirecting');
             window.location.href = data.link.original;
@@ -51,21 +49,22 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
 
       } catch (error) {
         console.error("Error processing link visit:", error);
-        setStatus('not-found'); // If anything fails, treat as not found.
+        setStatus('not-found');
       }
     };
 
     processLinkVisit();
   }, [shortId]);
   
-  const handleAllRulesCompleted = async () => {
+  // This function is called only when the user unlocks the link.
+  const handleUnlock = async () => {
     if (!shortId) return;
     
-    // This is the "Real Click" - happens only when the user unlocks the link.
+    // This is the "Total Click" - happens only when the user unlocks the link.
     await fetch('/api/click', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shortId, isRealVisit: true }),
+        body: JSON.stringify({ shortId }),
     });
 
     setStatus('countdown');
@@ -85,12 +84,11 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
   }
 
   if (status === 'gate' && linkData) {
-    return <LinkGate linkData={linkData} onUnlock={handleAllRulesCompleted} />;
+    return <LinkGate linkData={linkData} onUnlock={handleUnlock} />;
   }
   
   if (status === 'countdown' && linkData) {
-      // CountdownPage is now part of LinkGate component logic
-      return <LinkGate linkData={linkData} onUnlock={handleAllRulesCompleted} initialStatus="countdown" />;
+      return <LinkGate linkData={linkData} onUnlock={handleUnlock} initialStatus="countdown" />;
   }
 
   // Fallback state, should be brief

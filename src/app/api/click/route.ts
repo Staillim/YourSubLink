@@ -5,7 +5,7 @@ import { collection, query, where, getDocs, writeBatch, doc, increment, serverTi
 
 export async function POST(req: NextRequest) {
     try {
-        const { shortId, isRealVisit } = await req.json();
+        const { shortId } = await req.json();
 
         if (!shortId) {
             return NextResponse.json({ error: 'shortId is required' }, { status: 400 });
@@ -26,42 +26,37 @@ export async function POST(req: NextRequest) {
         const batch = writeBatch(db);
         const linkRef = doc(db, 'links', linkId);
 
-        if (isRealVisit) {
-            // This is a "Real Click", from after the user completes the gate.
-            // We increment the real clicks counter and handle earnings.
-            batch.update(linkRef, { realClicks: increment(1) });
+        // This is now the single point of counting. We increment total clicks.
+        batch.update(linkRef, { clicks: increment(1) });
+        
+        // If the link is monetizable, we also calculate earnings based on this click.
+        if (linkData.monetizable && linkData.userId) {
+            const userRef = doc(db, 'users', linkData.userId);
+            const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
+            const cpmSnapshot = await getDocs(cpmQuery);
+            let activeCpm = 3.00; // Default fallback CPM
+            let activeCpmId = 'default';
 
-            if (linkData.monetizable && linkData.userId) {
-                const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
-                const cpmSnapshot = await getDocs(cpmQuery);
-                let activeCpm = 3.00; // Default fallback CPM
-                let activeCpmId = 'default';
-
-                if (!cpmSnapshot.empty) {
-                    const cpmDoc = cpmSnapshot.docs[0];
-                    activeCpm = cpmDoc.data().rate;
-                    activeCpmId = cpmDoc.id;
-                }
-
-                const earningsPerClick = activeCpm / 1000;
-                batch.update(userRef, { generatedEarnings: increment(earningsPerClick) });
-                batch.update(linkRef, { generatedEarnings: increment(earningsPerClick) });
-                
-                const cpmEarningsField = `earningsByCpm.${activeCpmId}`;
-                batch.update(linkRef, { [cpmEarningsField]: increment(earningsPerClick) });
+            if (!cpmSnapshot.empty) {
+                const cpmDoc = cpmSnapshot.docs[0];
+                activeCpm = cpmDoc.data().rate;
+                activeCpmId = cpmDoc.id;
             }
 
-        } else {
-            // This is a "Total Click", which happens on every page load.
-            // We only increment the general clicks counter.
-            batch.update(linkRef, { clicks: increment(1) });
+            const earningsPerClick = activeCpm / 1000;
+            batch.update(userRef, { generatedEarnings: increment(earningsPerClick) });
+            batch.update(linkRef, { generatedEarnings: increment(earningsPerClick) });
+            
+            const cpmEarningsField = `earningsByCpm.${activeCpmId}`;
+            batch.update(linkRef, { [cpmEarningsField]: increment(earningsPerClick) });
         }
         
         const clickDocRef = doc(collection(db, 'clicks'));
         batch.set(clickDocRef, {
             linkId: linkId,
             timestamp: serverTimestamp(),
-            isRealClick: !!isRealVisit,
+            // This field is kept for historical/debugging purposes but is no longer central to logic
+            isRealClick: true, 
         });
 
         await batch.commit();
@@ -75,6 +70,7 @@ export async function POST(req: NextRequest) {
                 ...updatedLinkData,
                 id: linkId,
             },
+            // The action is now determined by whether rules exist or not.
             action: (linkData.rules && linkData.rules.length > 0) ? 'GATE' : 'REDIRECT',
         };
         
@@ -85,4 +81,3 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }
-

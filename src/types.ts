@@ -11,5 +11,4 @@ export type LinkData = {
   userId: string;
   monetizable: boolean;
   clicks: number;
-  realClicks: number;
 };
