@@ -2,7 +2,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { notFound } from 'next/navigation';
+import { notFound, useParams } from 'next/navigation';
 import { useUser } from '@/hooks/use-user';
 import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
@@ -20,8 +20,9 @@ type LinkData = {
     realClicks: number;
 };
 
-export default function UserLinkStatsPage({ params }: { params: { linkId: string } }) {
-    const { linkId } = params;
+export default function UserLinkStatsPage() {
+    const params = useParams();
+    const linkId = params.linkId as string;
     const { user, loading: userLoading } = useUser();
     const [linkData, setLinkData] = useState<LinkData | null>(null);
     const [loading, setLoading] = useState(true);

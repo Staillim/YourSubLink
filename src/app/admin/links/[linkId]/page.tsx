@@ -2,9 +2,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { doc, getDoc } from 'firebase/firestore';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ArrowLeft, Eye, User, Check, Bot } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -18,8 +19,9 @@ type LinkData = {
     userName: string;
 };
 
-export default function LinkStatsPage({ params }: { params: { linkId: string } }) {
-    const { linkId } = params;
+export default function LinkStatsPage() {
+    const params = useParams();
+    const linkId = params.linkId as string;
     const [linkData, setLinkData] = useState<LinkData | null>(null);
     const [loading, setLoading] = useState(true);
 
