@@ -99,7 +99,7 @@ export default function DashboardPage() {
                 id: docSnapshot.id,
                 original: data.original,
                 shortId: data.shortId,
-                short: `${window.location.origin}/link/${data.shortId}`,
+                short: `${window.location.origin}/${data.shortId}`,
                 clicks: data.clicks || 0,
                 realClicks: data.realClicks || 0,
                 date: new Date(data.createdAt.seconds * 1000).toISOString().split('T')[0],
@@ -237,7 +237,7 @@ export default function DashboardPage() {
                             </TableCell>
                             <TableCell className="hidden md:table-cell">
                                 <div className="flex items-center gap-2">
-                                <a href={link.short} target="_blank" rel="noopener noreferrer" className="font-mono text-sm text-primary hover:underline">{link.short.replace('https://','')}</a>
+                                <a href={link.short} target="_blank" rel="noopener noreferrer" className="font-mono text-sm text-primary hover:underline">{link.short.replace('https://','').replace('http://','')}</a>
                                 </div>
                             </TableCell>
                             <TableCell>
@@ -348,3 +348,5 @@ export default function DashboardPage() {
     </TooltipProvider>
   );
 }
+
+    

@@ -68,7 +68,7 @@ export default function AdminLinksPage() {
         linksData.push({
           id: linkDoc.id,
           ...data,
-          short: `${window.location.origin}/link/${data.shortId}`,
+          short: `${window.location.origin}/${data.shortId}`,
           createdAt: data.createdAt,
           userName,
           userEmail
@@ -208,3 +208,5 @@ export default function AdminLinksPage() {
     </TooltipProvider>
   );
 }
+
+    
