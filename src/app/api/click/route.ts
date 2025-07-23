@@ -11,8 +11,8 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'shortId is required' }, { status: 400 });
         }
         
-        // Robust IP address detection
-        const ip = req.ip ?? req.headers.get('x-forwarded-for') ?? req.headers.get('x-real-ip');
+        // DEBUG: Using a hardcoded IP address for testing
+        const ip = 'x.x.x.x';
 
         const linksQuery = query(collection(db, 'links'), where('shortId', '==', shortId));
         const linksSnapshot = await getDocs(linksQuery);
@@ -43,34 +43,27 @@ export async function POST(req: NextRequest) {
                 isRealClickByServer = true;
             }
         } else {
-            console.warn("Could not identify IP address. Relying solely on client-side check for 'real' click determination.");
-            // In a no-IP scenario, we can be more lenient and trust the client, or stricter and deny.
-            // For now, let's trust the client if IP is unavailable.
+            // This case should not be hit with a hardcoded IP, but keeping for safety.
             isRealClickByServer = true; 
         }
 
-        // A "real click" must be unique from both client and server perspectives.
         const isRealClick = isUniqueByClient && isRealClickByServer;
         
         // --- Atomically update all documents ---
 
-        // 1. Always increment the total clicks counter
         const linkCounters: { [key: string]: any } = {
             clicks: increment(1)
         };
 
-        // 2. If it's a real click, increment real clicks and earnings
         if (isRealClick) {
             linkCounters.realClicks = increment(1);
 
             if (linkData.monetizable) {
-                // This value should come from a central config, but for now, it's hardcoded.
                 const activeCpm = 3.00; 
                 const earningsPerClick = activeCpm / 1000;
                 
                 linkCounters.generatedEarnings = increment(earningsPerClick);
 
-                // Increment user's total earnings as well
                 if (linkData.userId) {
                     const userRef = doc(db, 'users', linkData.userId);
                     batch.update(userRef, {
@@ -79,10 +72,9 @@ export async function POST(req: NextRequest) {
                 }
             }
             
-            // Milestone Notification Logic
             const currentRealClicks = linkData.realClicks || 0;
             const newRealClicks = currentRealClicks + 1;
-            const milestone = 1000; // Notify every 1000 real clicks
+            const milestone = 1000;
             if (Math.floor(newRealClicks / milestone) > Math.floor(currentRealClicks / milestone)) {
                 const reachedMilestone = Math.floor(newRealClicks / milestone) * milestone;
                 const notificationRef = doc(collection(db, 'notifications'));
@@ -101,12 +93,11 @@ export async function POST(req: NextRequest) {
         
         batch.update(linkRef, linkCounters);
 
-        // 3. Log the raw click event, including client and server validation results
         const clickDocRef = doc(collection(db, 'clicks'));
         batch.set(clickDocRef, {
             linkId: linkId,
             timestamp: serverTimestamp(),
-            ipAddress: ip || 'unknown',
+            ipAddress: ip,
             userAgent: req.headers.get('user-agent') || 'N/A',
             isRealClick: isRealClick,
             clientValidation: isUniqueByClient,
@@ -115,7 +106,6 @@ export async function POST(req: NextRequest) {
 
         await batch.commit();
 
-        // Respond with success and the timestamp for the client to store
         return NextResponse.json({ success: true, timestamp: Date.now() });
 
     } catch (error) {
