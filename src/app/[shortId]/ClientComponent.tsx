@@ -41,16 +41,27 @@ const getVisitorId = (): string => {
 }
 
 const isRealClick = async (linkId: string, visitorId: string): Promise<boolean> => {
-    const oneHourAgo = new Date(Date.now() - 3600000); // 1 hour in ms
     const q = query(
         collection(db, 'clicks'),
         where('linkId', '==', linkId),
         where('visitorId', '==', visitorId),
-        where('timestamp', '>', oneHourAgo),
+        orderBy('timestamp', 'desc'),
         limit(1)
     );
+    
     const querySnapshot = await getDocs(q);
-    return querySnapshot.empty;
+    
+    if (querySnapshot.empty) {
+        // No previous click from this visitor for this link, so it's a real click.
+        return true;
+    }
+
+    const lastClick = querySnapshot.docs[0].data();
+    const lastClickTimestamp = lastClick.timestamp.toDate();
+    const oneHourAgo = new Date(Date.now() - 3600000); // 1 hour in ms
+    
+    // If the last click was more than an hour ago, it's a real click.
+    return lastClickTimestamp < oneHourAgo;
 };
 
 
