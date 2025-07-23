@@ -55,7 +55,7 @@ export default function AnalyticsPage() {
             id: doc.id,
             original: data.original,
             shortId: data.shortId,
-            short: `${window.location.origin}/${data.shortId}`,
+            short: `${window.location.origin}/link/${data.shortId}`,
             clicks: data.clicks,
             date: new Date(data.createdAt.seconds * 1000).toISOString(),
             userId: data.userId,
@@ -64,6 +64,7 @@ export default function AnalyticsPage() {
             monetizable: data.monetizable || false,
             rules: data.rules || [],
             generatedEarnings: data.generatedEarnings || 0,
+            realClicks: 0, // Note: This page doesn't calculate real-time real clicks for simplicity
           });
         });
         setLinks(linksData);
