@@ -91,7 +91,7 @@ async function recordClick(linkData: LinkData, visitorId: string): Promise<void>
             linkId: linkData.id,
             timestamp: serverTimestamp(),
             visitorId: visitorId,
-            cpmAtClick: cpmRateForClick, // This ensures the CPM rate is stored with the click
+            cpmAtClick: cpmRateForClick,
         });
 
         // Increment the total clicks counter on the link
