@@ -3,54 +3,62 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper function to check for admin role
+    // Helper functions
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    function isUser(uid) {
+      return isAuth() && request.auth.uid == uid;
+    }
+    
     function isAdmin() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return isAuth() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // Users can only read/update their own profile. Admins can read anyone's.
+    // Collection: users
     match /users/{userId} {
-      allow read: if request.auth.uid == userId || isAdmin();
-      allow create: if request.auth.uid == userId;
-      allow update: if request.auth.uid == userId;
+      allow create: if isAuth();
+      allow get: if isAuth(); // Any auth user can read a profile
+      allow list: if isAdmin(); // Only admins can list all users
+      allow update: if isUser(userId) || isAdmin(); // User can update their own profile, or admin can
+      allow delete: if isAdmin();
     }
 
-    // Public can read single links for redirection.
-    // Users can manage their own links.
-    // Admins can manage any link.
+    // Collection: links
     match /links/{linkId} {
-      allow read: if true; // Public read for redirection logic
-      allow list: if isAdmin() || (request.auth != null && request.query.where.userId == request.auth.uid);
-      allow create: if request.auth.uid == request.resource.data.userId;
-      allow update, delete: if isAdmin() || (request.auth.uid == resource.data.userId);
+      allow create: if isAuth();
+      // An individual link can be read by anyone for redirection purposes
+      allow get: if isAuth(); // Allow any auth'd user to get a link, gate logic is in client.
+      allow list: if isAdmin(); // Only admins can list all links
+      allow update, delete: if isUser(resource.data.userId) || isAdmin();
     }
-    
-    // Clicks can be created by anyone.
-    // Clicks can be read by the link owner or an admin.
+
+    // Collection: clicks
+    // Clicks are created in a batch write with a link update, rules on that apply.
+    // Reading click history is done on the client, so we need to allow reads.
     match /clicks/{clickId} {
-      allow create: if true;
-      allow read, list: if isAdmin() || (request.auth != null && get(/databases/$(database)/documents/links/$(request.query.where.linkId)).data.userId == request.auth.uid);
+      allow create: if true; // Anyone can create a click (via API)
+      allow get, list: if isAuth(); // User/Admin can read clicks for their stats pages.
     }
 
-    // Users can create/read their own payout requests.
-    // Admins can manage all payout requests.
+    // Collection: payoutRequests
     match /payoutRequests/{requestId} {
-      allow create: if request.auth.uid == request.resource.data.userId;
-      allow read, list: if isAdmin() || (request.auth.uid == resource.data.userId);
-      allow update: if isAdmin();
-    }
-    
-    // CPM history is read-only for users, managed by admins.
-    match /cpmHistory/{cpmId} {
-      allow read, list: if request.auth != null;
-      allow create, update, delete: if isAdmin();
-    }
-    
-    // Notifications can be read by the user they are for.
-    match /notifications/{notificationId} {
-      allow read, list: if request.auth.uid == resource.data.userId;
-      allow create: if isAdmin(); // Or a system function
+      allow create: if isUser(request.resource.data.userId); // User can create their own payout request
+      allow get, list: if isUser(resource.data.userId) || isAdmin();
+      allow update: if isAdmin(); // Only admins can update status (approve/reject)
     }
 
+    // Collection: notifications
+    match /notifications/{notificationId} {
+      allow create: if true; // System/admin can create notifications
+      allow get, list: if isUser(resource.data.userId) || isAdmin();
+    }
+    
+    // Collection: cpmHistory
+    match /cpmHistory/{docId} {
+       allow get, list: if isAdmin();
+       allow create, update, delete: if isAdmin();
+    }
   }
 }
