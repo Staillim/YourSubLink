@@ -5,15 +5,12 @@ import { collection, query, where, getDocs, writeBatch, doc, increment, serverTi
 
 export async function POST(req: NextRequest) {
     try {
-        const { shortId, isUniqueByClient } = await req.json();
+        const { shortId, deviceId, isUniqueByClient } = await req.json();
 
-        if (!shortId) {
-            return NextResponse.json({ error: 'shortId is required' }, { status: 400 });
+        if (!shortId || !deviceId) {
+            return NextResponse.json({ error: 'shortId and deviceId are required' }, { status: 400 });
         }
         
-        // DEBUG: Using a hardcoded IP address for testing
-        const ip = 'x.x.x.x';
-
         const linksQuery = query(collection(db, 'links'), where('shortId', '==', shortId));
         const linksSnapshot = await getDocs(linksQuery);
 
@@ -29,32 +26,31 @@ export async function POST(req: NextRequest) {
         
         let isRealClickByServer = false;
 
-        // --- Server-side IP check ---
-        if (ip) {
-            const oneHourAgo = Timestamp.fromMillis(Date.now() - 60 * 60 * 1000);
-            const recentClicksQuery = query(
-                collection(db, 'clicks'), 
-                where('linkId', '==', linkId),
-                where('ipAddress', '==', ip),
-                where('timestamp', '>=', oneHourAgo)
-            );
-            const recentClicksSnapshot = await getDocs(recentClicksQuery);
-            if (recentClicksSnapshot.empty) {
-                isRealClickByServer = true;
-            }
-        } else {
-            // This case should not be hit with a hardcoded IP, but keeping for safety.
-            isRealClickByServer = true; 
+        // --- Server-side deviceId check ---
+        const oneHourAgo = Timestamp.fromMillis(Date.now() - 60 * 60 * 1000);
+        const recentClicksQuery = query(
+            collection(db, 'clicks'), 
+            where('linkId', '==', linkId),
+            where('deviceId', '==', deviceId),
+            where('timestamp', '>=', oneHourAgo)
+        );
+        const recentClicksSnapshot = await getDocs(recentClicksQuery);
+        
+        if (recentClicksSnapshot.empty) {
+            isRealClickByServer = true;
         }
 
+        // A click is only "real" if both the client and server agree.
         const isRealClick = isUniqueByClient && isRealClickByServer;
         
         // --- Atomically update all documents ---
 
+        // 1. Increment total clicks counter
         const linkCounters: { [key: string]: any } = {
             clicks: increment(1)
         };
 
+        // 2. If it's a real click, increment real counters and handle earnings
         if (isRealClick) {
             linkCounters.realClicks = increment(1);
 
@@ -72,6 +68,7 @@ export async function POST(req: NextRequest) {
                 }
             }
             
+            // 3. Handle milestone notifications based on real clicks
             const currentRealClicks = linkData.realClicks || 0;
             const newRealClicks = currentRealClicks + 1;
             const milestone = 1000;
@@ -93,11 +90,12 @@ export async function POST(req: NextRequest) {
         
         batch.update(linkRef, linkCounters);
 
+        // 4. Log the click event itself
         const clickDocRef = doc(collection(db, 'clicks'));
         batch.set(clickDocRef, {
             linkId: linkId,
             timestamp: serverTimestamp(),
-            ipAddress: ip,
+            deviceId: deviceId,
             userAgent: req.headers.get('user-agent') || 'N/A',
             isRealClick: isRealClick,
             clientValidation: isUniqueByClient,

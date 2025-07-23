@@ -2,14 +2,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { notFound } from 'next/navigation';
-import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, writeBatch, serverTimestamp, increment } from 'firebase/firestore';
+import { notFound, useParams } from 'next/navigation';
 import { Loader2, ExternalLink, CheckCircle2, Lock, Link as LinkIcon, ChevronRight, Youtube, Instagram } from 'lucide-react';
 import type { Rule } from '@/components/rule-editor';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { db } from '@/lib/firebase';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 
 type LinkData = {
   id: string;
@@ -19,7 +19,11 @@ type LinkData = {
   description?: string;
   userId: string;
   monetizable: boolean;
-  clicks: number;
+  realClicks: number;
+};
+
+type VisitedLinkInfo = {
+    [shortId: string]: number; // Maps shortId to the timestamp of the last visit
 };
 
 const RULE_DETAILS = {
@@ -28,57 +32,6 @@ const RULE_DETAILS = {
   follow: { text: 'Follow On Instagram', icon: Instagram, color: 'bg-blue-600 hover:bg-blue-700' },
   visit: { text: 'Visit Website', icon: ExternalLink, color: 'bg-gray-500 hover:bg-gray-600' },
 };
-
-async function recordClick(linkData: LinkData): Promise<void> {
-    try {
-        const batch = writeBatch(db);
-        
-        // 1. Create a historical click record
-        const clickDocRef = doc(collection(db, 'clicks'));
-        batch.set(clickDocRef, {
-            linkId: linkData.id,
-            timestamp: serverTimestamp(),
-            ipAddress: 'x.x.x.x', // Placeholder for server-side IP
-        });
-
-        // 2. Increment the total clicks counter on the link
-        const linkRef = doc(db, 'links', linkData.id);
-        batch.update(linkRef, { clicks: increment(1) });
-        
-        // 3. Handle monetization earnings for the click if applicable
-        if (linkData.monetizable) {
-            const CPM = 3.00; // Cost Per Mille (1000 views)
-            const earningsPerClick = CPM / 1000;
-            const linkEarningsUpdate = { generatedEarnings: increment(earningsPerClick) };
-            batch.update(linkRef, linkEarningsUpdate);
-        }
-
-        // 4. Handle milestone notifications
-        const currentClicks = linkData.clicks;
-        const newClicks = currentClicks + 1;
-        const milestone = 1000;
-        if (Math.floor(currentClicks / milestone) < Math.floor(newClicks / milestone)) {
-            const reachedMilestone = Math.floor(newClicks / milestone) * milestone;
-            const notificationRef = doc(collection(db, 'notifications'));
-            batch.set(notificationRef, {
-                userId: linkData.userId,
-                linkId: linkData.id,
-                linkTitle: linkData.title,
-                type: 'milestone',
-                milestone: reachedMilestone,
-                message: `Your link "${linkData.title}" reached ${reachedMilestone.toLocaleString()} visits!`,
-                createdAt: serverTimestamp(),
-                read: false
-            });
-        }
-
-        await batch.commit();
-        console.log("Click recorded successfully.");
-        
-    } catch (error) {
-        console.error("Error processing click:", error);
-    }
-}
 
 
 function RuleItem({ rule, onComplete, isCompleted }: { rule: Rule; onComplete: () => void; isCompleted: boolean }) {
@@ -199,9 +152,11 @@ function LinkGate({ linkData }: { linkData: LinkData }) {
 }
 
 
-export default function ClientComponent({ shortId }: { shortId: string }) {
+export default function ClientComponent() {
   const [status, setStatus] = useState<'loading' | 'gate' | 'redirecting' | 'not-found'>('loading');
   const [linkData, setLinkData] = useState<LinkData | null>(null);
+  const params = useParams();
+  const shortId = params.shortId as string;
   
   useEffect(() => {
     if (!shortId) {
@@ -209,8 +164,18 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
         return;
     };
 
-    const getLink = async () => {
+    const getDeviceId = (): string => {
+        let deviceId = localStorage.getItem('deviceId');
+        if (!deviceId) {
+            deviceId = crypto.randomUUID();
+            localStorage.setItem('deviceId', deviceId);
+        }
+        return deviceId;
+    }
+
+    const processLinkVisit = async () => {
       try {
+        // 1. Fetch link data
         const q = query(collection(db, 'links'), where('shortId', '==', shortId));
         const querySnapshot = await getDocs(q);
 
@@ -230,17 +195,40 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
             description: data.description,
             userId: data.userId,
             monetizable: data.monetizable || false,
-            clicks: data.clicks || 0,
+            realClicks: data.realClicks || 0,
         };
         
-        // Record the click immediately upon fetching the link data
-        await recordClick(fetchedLinkData);
+        // 2. Client-side uniqueness check
+        const deviceId = getDeviceId();
+        const visitedLinks: VisitedLinkInfo = JSON.parse(localStorage.getItem('visitedLinks') || '{}');
+        const lastVisitTimestamp = visitedLinks[shortId] || 0;
+        const oneHour = 60 * 60 * 1000;
+        const isUniqueByClient = (Date.now() - lastVisitTimestamp) > oneHour;
 
+        // 3. Call API to record click
+        const response = await fetch('/api/click', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ shortId, deviceId, isUniqueByClient }),
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to record click');
+        }
+
+        const result = await response.json();
+        
+        // 4. Update client-side cache
+        if (result.success && result.timestamp) {
+            visitedLinks[shortId] = result.timestamp;
+            localStorage.setItem('visitedLinks', JSON.stringify(visitedLinks));
+        }
+
+        // 5. Decide next step (Gate or Redirect)
         if (fetchedLinkData.rules.length > 0) {
             setLinkData(fetchedLinkData);
             setStatus('gate');
         } else {
-            // For non-gate links, redirect immediately.
             setStatus('redirecting');
             window.location.href = fetchedLinkData.original;
         }
@@ -251,7 +239,7 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
       }
     };
 
-    getLink();
+    processLinkVisit();
   }, [shortId]);
   
   if (status === 'not-found') {
@@ -271,12 +259,11 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
       return <LinkGate linkData={linkData} />;
   }
 
-  // Fallback state, should be brief
+  // Fallback state
   return (
      <div className="flex h-screen w-full flex-col items-center justify-center bg-background text-foreground">
         <Loader2 className="h-12 w-12 animate-spin text-primary"/>
-        <p className="mt-4 text-lg text-muted-foreground">Redirecting...</p>
+        <p className="mt-4 text-lg text-muted-foreground">Processing...</p>
     </div>
   );
 }
-
