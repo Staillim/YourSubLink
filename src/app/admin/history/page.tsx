@@ -3,10 +3,10 @@
 
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, getDoc, doc, query, orderBy } from 'firebase/firestore';
+import { collection, getDoc, doc, query, orderBy, getDocs } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Link2, DollarSign, CheckCircle, UserPlus, ListOrdered } from 'lucide-react';
+import { CheckCircle, UserPlus, ListOrdered, DollarSign } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 type Event = {
@@ -47,83 +47,89 @@ export default function AdminHistoryPage() {
     }, []);
 
     useEffect(() => {
-        setLoading(true);
+        const fetchEvents = async () => {
+            setLoading(true);
+            try {
+                const fetchUserName = async (userId: string) => {
+                    if (!userId) return 'System';
+                    try {
+                        const userRef = doc(db, 'users', userId);
+                        const userSnap = await getDoc(userRef);
+                        return userSnap.exists() ? userSnap.data().displayName : 'Unknown User';
+                    } catch (error) {
+                        console.error(`Error fetching user ${userId}:`, error);
+                        return 'Unknown User';
+                    }
+                };
 
-        const fetchUserName = async (userId: string) => {
-            if (!userId) return 'System';
-            const userRef = doc(db, 'users', userId);
-            const userSnap = await getDoc(userRef);
-            return userSnap.exists() ? userSnap.data().displayName : 'Unknown User';
-        };
-        
-        const qPayouts = query(collection(db, 'payoutRequests'), orderBy('requestedAt', 'desc'));
-        const qUsers = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
+                const qPayouts = query(collection(db, 'payoutRequests'), orderBy('requestedAt', 'desc'));
+                const qUsers = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
 
-        const unsubs: (() => void)[] = [];
-        let allEvents: Omit<Event, 'type'> & { type: string }[] = [];
+                const [payoutsSnapshot, usersSnapshot] = await Promise.all([
+                    getDocs(qPayouts),
+                    getDocs(qUsers)
+                ]);
 
-        const processAndSetEvents = () => {
-             allEvents.sort((a, b) => b.timestamp.seconds - a.timestamp.seconds);
-             setEvents(allEvents as Event[]);
-             setLoading(false);
-        };
+                const payoutEvents: Event[] = (await Promise.all(payoutsSnapshot.docs.flatMap(async (payoutDoc) => {
+                    const data = payoutDoc.data();
+                    const userName = await fetchUserName(data.userId);
+                    const eventsArr: Event[] = [];
+                    
+                    if (data.requestedAt) {
+                        eventsArr.push({
+                            id: payoutDoc.id + '_req',
+                            type: 'Payout Requested',
+                            timestamp: data.requestedAt,
+                            date: new Date(data.requestedAt.seconds * 1000).toLocaleString(),
+                            message: `Payout of $${data.amount.toFixed(2)} requested.`,
+                            userName: userName,
+                            userId: data.userId,
+                            icon: DollarSign,
+                        });
+                    }
+                    
+                    if (data.status !== 'pending' && data.processedAt) {
+                        eventsArr.push({
+                            id: payoutDoc.id + '_proc',
+                            type: 'Payout Processed',
+                            timestamp: data.processedAt,
+                            date: new Date(data.processedAt.seconds * 1000).toLocaleString(),
+                            message: `Payout request of $${data.amount.toFixed(2)} was ${data.status}.`,
+                            userName: "Admin",
+                            userId: '',
+                            icon: CheckCircle,
+                            badge: data.status,
+                        });
+                    }
+                    return eventsArr;
+                }))).flat();
 
-        unsubs.push(onSnapshot(qPayouts, async (snapshot) => {
-            const payoutEvents: Event[] = await Promise.all(snapshot.docs.flatMap(async (payoutDoc) => {
-                const data = payoutDoc.data();
-                const userName = await fetchUserName(data.userId);
-                const eventsArr: Event[] = [];
-                
-                eventsArr.push({
-                    id: payoutDoc.id + '_req',
-                    type: 'Payout Requested',
-                    timestamp: data.requestedAt,
-                    date: new Date(data.requestedAt.seconds * 1000).toLocaleString(),
-                    message: `Payout of $${data.amount.toFixed(2)} requested.`,
-                    userName: userName,
-                    userId: data.userId,
-                    icon: DollarSign,
+                const userEvents: Event[] = usersSnapshot.docs.map((userDoc) => {
+                    const data = userDoc.data();
+                    return {
+                        id: userDoc.id,
+                        type: 'User Registered',
+                        timestamp: data.createdAt,
+                        date: new Date(data.createdAt.seconds * 1000).toLocaleString(),
+                        message: `User ${data.displayName} (${data.email}) joined.`,
+                        userName: data.displayName,
+                        userId: data.uid,
+                        icon: UserPlus,
+                    };
                 });
                 
-                if (data.status !== 'pending' && data.processedAt) {
-                     eventsArr.push({
-                        id: payoutDoc.id + '_proc',
-                        type: 'Payout Processed',
-                        timestamp: data.processedAt,
-                        date: new Date(data.processedAt.seconds * 1000).toLocaleString(),
-                        message: `Payout request of $${data.amount.toFixed(2)} was ${data.status}.`,
-                        userName: "Admin",
-                        userId: '',
-                        icon: CheckCircle,
-                        badge: data.status,
-                    });
-                }
-                return eventsArr;
-            }));
-            allEvents = [...allEvents.filter(e => e.type !== 'Payout Requested' && e.type !== 'Payout Processed'), ...payoutEvents.flat()];
-            processAndSetEvents();
-        }));
+                const allEvents = [...payoutEvents, ...userEvents];
+                allEvents.sort((a, b) => b.timestamp.seconds - a.timestamp.seconds);
+                setEvents(allEvents);
 
-         unsubs.push(onSnapshot(qUsers, async (snapshot) => {
-            const userEvents: Event[] = await Promise.all(snapshot.docs.map(async (userDoc) => {
-                const data = userDoc.data();
-                return {
-                    id: userDoc.id,
-                    type: 'User Registered',
-                    timestamp: data.createdAt,
-                    date: new Date(data.createdAt.seconds * 1000).toLocaleString(),
-                    message: `User ${data.displayName} (${data.email}) joined.`,
-                    userName: data.displayName,
-                    userId: data.uid,
-                    icon: UserPlus,
-                };
-            }));
-            allEvents = [...allEvents.filter(e => e.type !== 'User Registered'), ...userEvents];
-            processAndSetEvents();
-        }));
+            } catch (error) {
+                console.error("Error fetching history:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
 
-
-        return () => unsubs.forEach(unsub => unsub());
+        fetchEvents();
     }, []);
 
     return (

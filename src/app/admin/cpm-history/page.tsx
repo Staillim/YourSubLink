@@ -3,11 +3,10 @@
 
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, query, orderBy, getDocs } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { DollarSign, History } from 'lucide-react';
 
 type CpmHistory = {
     id: string;
@@ -30,42 +29,40 @@ export default function CpmHistoryPage() {
         const fetchData = async () => {
             setLoading(true);
 
-            // Fetch CPM History first
-            const historyQuery = query(collection(db, 'cpmHistory'), orderBy('startDate', 'desc'));
-            const historySnapshot = await getDocs(historyQuery);
-            const historyData: CpmHistory[] = historySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CpmHistory));
+            try {
+                // Fetch CPM History first
+                const historyQuery = query(collection(db, 'cpmHistory'), orderBy('startDate', 'desc'));
+                const historySnapshot = await getDocs(historyQuery);
+                const historyData: CpmHistory[] = historySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CpmHistory));
 
-            if (historyData.length > 0) {
-                // Then fetch all links
-                const linksSnapshot = await getDocs(collection(db, 'links'));
-                const links: LinkEarnings[] = linksSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LinkEarnings));
+                if (historyData.length > 0) {
+                    // Then fetch all links
+                    const linksSnapshot = await getDocs(collection(db, 'links'));
+                    const links: LinkEarnings[] = linksSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LinkEarnings));
 
-                // Calculate earnings for each history entry
-                const historyWithEarnings = historyData.map(cpmEntry => {
-                    const totalEarnings = links.reduce((acc, link) => {
-                        if (link.earningsByCpm && link.earningsByCpm[cpmEntry.id]) {
-                            return acc + link.earningsByCpm[cpmEntry.id];
-                        }
-                        return acc;
-                    }, 0);
-                    return { ...cpmEntry, earnings: totalEarnings };
-                });
-                setHistory(historyWithEarnings);
-            } else {
-                 setHistory([]);
+                    // Calculate earnings for each history entry
+                    const historyWithEarnings = historyData.map(cpmEntry => {
+                        const totalEarnings = links.reduce((acc, link) => {
+                            if (link.earningsByCpm && link.earningsByCpm[cpmEntry.id]) {
+                                return acc + link.earningsByCpm[cpmEntry.id];
+                            }
+                            return acc;
+                        }, 0);
+                        return { ...cpmEntry, earnings: totalEarnings };
+                    });
+                    setHistory(historyWithEarnings);
+                } else {
+                     setHistory([]);
+                }
+            } catch (error) {
+                console.error("Error fetching CPM history:", error);
+                setHistory([]);
+            } finally {
+                setLoading(false);
             }
-
-            setLoading(false);
         };
 
         fetchData();
-        
-        // We can also add a snapshot listener to refetch data if something changes
-        const unsubscribe = onSnapshot(query(collection(db, 'cpmHistory')), (snapshot) => {
-             fetchData();
-        });
-        
-        return () => unsubscribe();
 
     }, []);
 
