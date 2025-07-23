@@ -1,8 +1,7 @@
-
-import type {NextConfig} from 'next';
+import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  output: 'export',            // ← activa la exportación estática a `out`
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -20,7 +19,7 @@ const nextConfig: NextConfig = {
       {
         protocol: 'https',
         hostname: 'firebasestorage.googleapis.com',
-      }
+      },
     ],
   },
 };
