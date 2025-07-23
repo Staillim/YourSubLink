@@ -4,8 +4,6 @@
 import { useEffect, useState } from 'react';
 import { notFound, useParams } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
-import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs } from 'firebase/firestore';
 import LinkGatePage from '@/app/link/[shortId]/page';
 
 type LinkData = {
@@ -16,16 +14,11 @@ type LinkData = {
   description?: string;
   userId: string;
   monetizable: boolean;
-  realClicks: number;
-};
-
-type VisitedLinkInfo = {
-    [shortId: string]: number; // Maps shortId to the timestamp of the last visit
 };
 
 export default function ClientComponent() {
   const [status, setStatus] = useState<'loading' | 'gate' | 'redirecting' | 'not-found'>('loading');
-  const [linkData, setLinkData] = useState<LinkData | null>(null);
+  const [linkData, setLinkData] = useState<any>(null); // Can hold API response data
   const params = useParams();
   const shortId = params.shortId as string;
   
@@ -35,77 +28,42 @@ export default function ClientComponent() {
         return;
     };
 
-    const getDeviceId = (): string => {
-        let deviceId = localStorage.getItem('deviceId');
-        if (!deviceId) {
-            deviceId = crypto.randomUUID();
-            localStorage.setItem('deviceId', deviceId);
-        }
-        return deviceId;
-    }
-
     const processLinkVisit = async () => {
       try {
-        // 1. Fetch link data
-        const q = query(collection(db, 'links'), where('shortId', '==', shortId));
-        const querySnapshot = await getDocs(q);
-
-        if (querySnapshot.empty) {
-          setStatus('not-found');
-          return;
-        }
-        
-        const linkDoc = querySnapshot.docs[0];
-        const data = linkDoc.data();
-        
-        const fetchedLinkData: LinkData = {
-            id: linkDoc.id,
-            original: data.original,
-            rules: data.rules || [],
-            title: data.title,
-            description: data.description,
-            userId: data.userId,
-            monetizable: data.monetizable || false,
-            realClicks: data.realClicks || 0,
-        };
-        
-        // 2. Client-side uniqueness check
-        const deviceId = getDeviceId();
-        const visitedLinks: VisitedLinkInfo = JSON.parse(localStorage.getItem('visitedLinks') || '{}');
-        const lastVisitTimestamp = visitedLinks[shortId] || 0;
-        const oneHour = 60 * 60 * 1000;
-        const isUniqueByClient = (Date.now() - lastVisitTimestamp) > oneHour;
-
-        // 3. Call API to record click and wait for it to complete
+        // Call the central API to record the click and get instructions
         const response = await fetch('/api/click', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ shortId, deviceId, isUniqueByClient }),
+            body: JSON.stringify({ shortId }),
         });
 
         if (!response.ok) {
-            // Even if API fails, try to proceed, but log error.
-            console.error('Failed to record click, but proceeding with redirection/gating.');
-        } else {
-            const result = await response.json();
-            // 4. Update client-side cache only on successful API call
-            if (result.success && result.timestamp) {
-                visitedLinks[shortId] = result.timestamp;
-                localStorage.setItem('visitedLinks', JSON.stringify(visitedLinks));
+            if(response.status === 404) {
+                setStatus('not-found');
+            } else {
+                // For other server errors, we might still try to redirect to a default/error page
+                // or just show not found.
+                console.error('API Error:', response.statusText);
+                setStatus('not-found');
             }
+            return;
         }
 
-        // 5. Decide next step (Gate or Redirect)
-        if (fetchedLinkData.rules && fetchedLinkData.rules.length > 0) {
-            setLinkData(fetchedLinkData);
+        const result = await response.json();
+
+        if (result.action === 'GATE') {
+            setLinkData(result.linkData);
             setStatus('gate');
-        } else {
+        } else if (result.action === 'REDIRECT') {
             setStatus('redirecting');
-            window.location.href = fetchedLinkData.original;
+            window.location.href = result.destination;
+        } else {
+            // Fallback for any unexpected action
+            setStatus('not-found');
         }
 
       } catch (error) {
-        console.error("Error getting link:", error);
+        console.error("Error processing link visit:", error);
         setStatus('not-found');
       }
     };
@@ -127,7 +85,6 @@ export default function ClientComponent() {
   }
   
   if (status === 'gate' && linkData) {
-      // Pass linkData to the LinkGatePage component
       return <LinkGatePage linkData={linkData} />;
   }
 

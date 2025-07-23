@@ -3,14 +3,36 @@ import { NextResponse, NextRequest } from 'next/server';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, writeBatch, doc, increment, serverTimestamp, Timestamp } from 'firebase/firestore';
 
+// Function to get the client's IP address
+const getClientIp = (req: NextRequest): string | undefined => {
+    // Standard headers for IP detection
+    const headers = {
+        'x-forwarded-for': req.headers.get('x-forwarded-for'),
+        'x-real-ip': req.headers.get('x-real-ip'),
+    };
+    // Vercel specific header
+    if (req.headers.get('x-vercel-forwarded-for')) {
+         headers['x-forwarded-for'] = req.headers.get('x-vercel-forwarded-for');
+    }
+
+    // Use the most reliable header first
+    const ip = headers['x-forwarded-for']?.split(',')[0].trim() || headers['x-real-ip'];
+    
+    return ip;
+};
+
+
 export async function POST(req: NextRequest) {
     try {
-        const { shortId, deviceId, isUniqueByClient } = await req.json();
+        const { shortId } = await req.json();
 
-        if (!shortId || !deviceId) {
-            return NextResponse.json({ error: 'shortId and deviceId are required' }, { status: 400 });
+        if (!shortId) {
+            return NextResponse.json({ error: 'shortId is required' }, { status: 400 });
         }
         
+        const ip = getClientIp(req);
+
+        // --- Step 1: Find the link document ---
         const linksQuery = query(collection(db, 'links'), where('shortId', '==', shortId));
         const linksSnapshot = await getDocs(linksQuery);
 
@@ -21,40 +43,38 @@ export async function POST(req: NextRequest) {
         const linkDoc = linksSnapshot.docs[0];
         const linkId = linkDoc.id;
         const linkData = linkDoc.data();
+        
+        // --- Step 2: Determine if the click is "real" ---
+        let isRealClick = false;
+        if (ip) {
+            const oneHourAgo = Timestamp.fromMillis(Date.now() - 60 * 60 * 1000);
+            const recentClicksQuery = query(
+                collection(db, 'clicks'), 
+                where('linkId', '==', linkId),
+                where('ipAddress', '==', ip),
+                where('timestamp', '>=', oneHourAgo)
+            );
+            const recentClicksSnapshot = await getDocs(recentClicksQuery);
+            if (recentClicksSnapshot.empty) {
+                isRealClick = true;
+            }
+        }
+
+        // --- Step 3: Perform database updates in a batch ---
         const batch = writeBatch(db);
         const linkRef = doc(db, 'links', linkId);
         
-        let isRealClickByServer = false;
-
-        // --- Server-side deviceId check ---
-        const oneHourAgo = Timestamp.fromMillis(Date.now() - 60 * 60 * 1000);
-        const recentClicksQuery = query(
-            collection(db, 'clicks'), 
-            where('linkId', '==', linkId),
-            where('deviceId', '==', deviceId),
-            where('timestamp', '>=', oneHourAgo)
-        );
-        const recentClicksSnapshot = await getDocs(recentClicksQuery);
-        
-        if (recentClicksSnapshot.empty) {
-            isRealClickByServer = true;
-        }
-
-        // A click is only "real" if both the client and server agree.
-        const isRealClick = isUniqueByClient && isRealClickByServer;
-        
-        // --- Atomically update all documents ---
-
-        // 1. Increment total clicks counter
+        // 3a. Increment total clicks counter
         const linkCounters: { [key: string]: any } = {
             clicks: increment(1)
         };
 
-        // 2. If it's a real click, increment real counters and handle earnings
+        // 3b. If it's a real click, increment real counters and handle earnings
         if (isRealClick) {
             linkCounters.realClicks = increment(1);
 
             if (linkData.monetizable) {
+                // In a real app, this value should come from a central config
                 const activeCpm = 3.00; 
                 const earningsPerClick = activeCpm / 1000;
                 
@@ -67,44 +87,43 @@ export async function POST(req: NextRequest) {
                     });
                 }
             }
-            
-            // 3. Handle milestone notifications based on real clicks
-            const currentRealClicks = linkData.realClicks || 0;
-            const newRealClicks = currentRealClicks + 1;
-            const milestone = 1000;
-            if (Math.floor(newRealClicks / milestone) > Math.floor(currentRealClicks / milestone)) {
-                const reachedMilestone = Math.floor(newRealClicks / milestone) * milestone;
-                const notificationRef = doc(collection(db, 'notifications'));
-                batch.set(notificationRef, {
-                    userId: linkData.userId,
-                    linkId: linkId,
-                    linkTitle: linkData.title,
-                    type: 'milestone',
-                    milestone: reachedMilestone,
-                    message: `Your link "${linkData.title}" reached ${reachedMilestone.toLocaleString()} real visits!`,
-                    createdAt: serverTimestamp(),
-                    read: false
-                });
-            }
         }
-        
         batch.update(linkRef, linkCounters);
 
-        // 4. Log the click event itself
+        // 3c. Log the click event itself
         const clickDocRef = doc(collection(db, 'clicks'));
         batch.set(clickDocRef, {
             linkId: linkId,
             timestamp: serverTimestamp(),
-            deviceId: deviceId,
+            ipAddress: ip || 'unknown',
             userAgent: req.headers.get('user-agent') || 'N/A',
             isRealClick: isRealClick,
-            clientValidation: isUniqueByClient,
-            serverValidation: isRealClickByServer,
         });
 
         await batch.commit();
+        
+        // --- Step 4: Return instructions to the client ---
+        const hasRules = linkData.rules && linkData.rules.length > 0;
 
-        return NextResponse.json({ success: true, timestamp: Date.now() });
+        if (hasRules) {
+            return NextResponse.json({
+                action: 'GATE',
+                linkData: {
+                    id: linkId,
+                    original: linkData.original,
+                    rules: linkData.rules,
+                    title: linkData.title,
+                    description: linkData.description,
+                    userId: linkData.userId,
+                    monetizable: linkData.monetizable
+                }
+            });
+        } else {
+            return NextResponse.json({
+                action: 'REDIRECT',
+                destination: linkData.original
+            });
+        }
 
     } catch (error) {
         console.error("Error processing click:", error);
