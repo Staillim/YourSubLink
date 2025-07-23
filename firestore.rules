@@ -1,64 +1,86 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-  
-    // Helper function to check for admin role
+
+    // --- Helper Functions ---
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
     function isAdmin() {
-      // Check if the user document exists and has the role 'admin'
-      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      // Check if the requesting user has the 'admin' role in their user document.
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
+    // --- Collection Rules ---
+
+    // Users can only read or update their own profile. Only admins can view all profiles.
     match /users/{userId} {
-      allow read: if request.auth.uid == userId || isAdmin();
-      allow write: if request.auth.uid == userId || isAdmin();
-      allow list: if isAdmin();
+      allow read, update: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId);
+      // Deleting users should be handled server-side or with extreme caution.
+      allow delete: if isAdmin();
     }
 
+    // Link documents can be read by anyone (as they are public).
+    // Creation and deletion are restricted.
+    // Updates are restricted to owners/admins, with a special case for unauthenticated
+    // API calls to increment click counters.
     match /links/{linkId} {
-      // Allow anyone to get a link document directly. This is needed for the redirection page.
-      allow get: if true;
-      
-      // Allow users to list their own links, and admins to list all links.
-      // This rule is tricky. Firestore can only enforce that a query for a user's own links is allowed.
-      // It cannot enforce that a general list operation only returns a user's own links without an index.
-      // The client-side query MUST have `where('userId', '==', request.auth.uid)`
-      allow list: if request.auth != null;
-
-      // Allow authenticated users to create links
-      allow create: if request.auth != null;
-
-      // Allow the owner or an admin to update/delete
-      allow update, delete: if resource.data.userId == request.auth.uid || isAdmin();
-      
-      // Allow public client to increment click counts
-      allow update: if request.auth == null
-                    && request.resource.data.clicks > resource.data.clicks;
+      allow read;
+      allow create: if isOwner(request.resource.data.userId);
+      // Owners and Admins can update their own link's mutable fields (title, rules, etc.).
+      allow update: if isOwner(resource.data.userId) || isAdmin();
+      allow delete: if isOwner(resource.data.userId) || isAdmin();
     }
-    
+
+    // This rule allows our unauthenticated API route to safely increment counters
+    // without being able to change other critical link data.
+    match /links/{linkId} {
+        allow update: if request.auth == null &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                'clicks', 'realClicks', 'generatedEarnings', 'earningsByCpm'
+            ]);
+    }
+
+
+    // Click documents can be created by our server-side API route.
+    // They can only be read by admins or the owner of the associated link.
     match /clicks/{clickId} {
-      allow create: if true;
-      allow read, list, delete: if isAdmin();
-    }
-    
-    match /notifications/{notificationId} {
-        allow create: if true; // System can create notifications
-        allow read, list: if request.auth != null && (resource.data.userId == request.auth.uid || isAdmin());
-        allow update: if isAdmin();
+      allow create; // Anyone (specifically our API route) can create a click.
+      allow read: if isAdmin() || isOwner(get(/databases/$(database)/documents/links/$(resource.data.linkId)).data.userId);
+      // No one should update/delete raw click data from the client.
+      allow update, delete: if false;
     }
 
-    match /payoutRequests/{requestId} {
-        allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
-        allow list: if isAdmin();
-        allow get: if resource.data.userId == request.auth.uid || isAdmin();
-        allow update: if isAdmin();
-    }
-    
-    match /cpmHistory/{historyId} {
-        allow get, list: if true;
+    // CPM history is public to read, but only admins can modify it.
+    match /cpmHistory/{cpmId} {
+        allow read;
         allow write: if isAdmin();
+    }
+
+    // Users can create their own payout requests and view them.
+    // Only admins can modify the status of a request (approve/reject).
+    match /payoutRequests/{payoutId} {
+        allow create: if isOwner(request.resource.data.userId);
+        allow read: if isOwner(resource.data.userId) || isAdmin();
+        allow update: if isAdmin(); // Only admins can change status.
+        allow delete: if isAdmin();
+    }
+
+    // Global settings can be read by anyone but only written by admins.
+    match /settings/global {
+      allow read;
+      allow write: if isAdmin();
+    }
+
+    // Notifications can be created by the system (via server-side logic).
+    // Users can only read their own notifications. Admins can read all.
+    match /notifications/{notificationId} {
+      allow read: if isOwner(resource.data.userId) || isAdmin();
+      allow create;
+      allow update, delete: if isOwner(resource.data.userId) || isAdmin();
     }
   }
 }
