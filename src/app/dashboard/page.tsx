@@ -166,7 +166,6 @@ export default function DashboardPage() {
                 description: editDescription,
                 rules: editRules,
                 monetizable: editRules.length >= 3,
-                realClicks: 0, // Reset real clicks if rules change
             });
             setIsEditDialogOpen(false);
             setEditingLink(null);

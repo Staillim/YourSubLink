@@ -2,17 +2,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { collection, onSnapshot, query } from 'firebase/firestore';
+import { collection, onSnapshot, query, getDocs, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Users, Link2, DollarSign, Eye } from 'lucide-react';
 
-const CPM = 3.00; // Cost Per Mille (1000 views)
-
 type Link = {
     clicks: number;
     monetizable: boolean;
+    generatedEarnings: number;
 };
 
 export default function AdminDashboardPage() {
@@ -20,36 +19,48 @@ export default function AdminDashboardPage() {
     const [totalClicks, setTotalClicks] = useState<number | null>(null);
     const [totalRevenue, setTotalRevenue] = useState<number | null>(null);
     const [monetizableLinks, setMonetizableLinks] = useState<number | null>(null);
+    const [activeCpm, setActiveCpm] = useState<number>(3.00); // Default CPM
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const usersQuery = query(collection(db, 'users'));
         const linksQuery = query(collection(db, 'links'));
+        const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
 
         const unsubUsers = onSnapshot(usersQuery, (snapshot) => {
             setUserCount(snapshot.size);
-            if (loading) setLoading(false);
+            if(loading) setLoading(false);
         });
 
         const unsubLinks = onSnapshot(linksQuery, (snapshot) => {
             let clicks = 0;
             let monetizable = 0;
+            let revenue = 0;
             snapshot.forEach((doc) => {
                 const data = doc.data() as Link;
                 clicks += data.clicks || 0;
+                revenue += data.generatedEarnings || 0;
                 if (data.monetizable) {
                     monetizable++;
                 }
             });
             setTotalClicks(clicks);
-            setTotalRevenue((clicks / 1000) * CPM);
+            setTotalRevenue(revenue);
             setMonetizableLinks(monetizable);
             if (loading) setLoading(false);
+        });
+
+        const unsubCpm = onSnapshot(cpmQuery, (snapshot) => {
+            if (!snapshot.empty) {
+                const cpmDoc = snapshot.docs[0];
+                setActiveCpm(cpmDoc.data().rate);
+            }
         });
 
         return () => {
             unsubUsers();
             unsubLinks();
+            unsubCpm();
         };
     }, []);
 
@@ -81,7 +92,7 @@ export default function AdminDashboardPage() {
                                 </div>
                             )}
                             <p className="text-xs text-muted-foreground">
-                                {index === 2 ? `Based on $${CPM.toFixed(2)} CPM` : 'Live count'}
+                                {index === 2 ? `Based on $${activeCpm.toFixed(2)} CPM` : 'Live count'}
                             </p>
                         </CardContent>
                     </Card>

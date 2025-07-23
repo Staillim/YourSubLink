@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
         const batch = writeBatch(db);
         const linkRef = doc(db, 'links', linkId);
 
-        // This is now the single point of counting. We increment total clicks.
+        // Always increment the total clicks counter.
         batch.update(linkRef, { clicks: increment(1) });
         
         // If the link is monetizable, we also calculate earnings based on this click.
