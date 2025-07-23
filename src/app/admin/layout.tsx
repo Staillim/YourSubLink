@@ -30,6 +30,7 @@ export default function AdminLayout({
 }) {
   const { user, loading, role } = useUser();
   const router = useRouter();
+  const [isSheetOpen, setIsSheetOpen] = React.useState(false);
 
   React.useEffect(() => {
     if (!loading) {
@@ -42,6 +43,10 @@ export default function AdminLayout({
       }
     }
   }, [user, loading, role, router]);
+
+  const handleLinkClick = () => {
+    setIsSheetOpen(false);
+  };
 
   if (loading || !user || role !== 'admin') {
     return (
@@ -93,7 +98,7 @@ export default function AdminLayout({
       </div>
       <div className="flex flex-col">
         <header className="flex h-14 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6">
-          <Sheet>
+          <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
             <SheetTrigger asChild>
               <Button
                 variant="outline"
@@ -112,11 +117,12 @@ export default function AdminLayout({
                 <Link
                   href="/admin"
                   className="flex items-center gap-2 text-lg font-semibold mb-4"
+                  onClick={handleLinkClick}
                 >
                   <Logo />
                   <span className="text-sm bg-primary text-primary-foreground px-2 py-1 rounded-md">Admin</span>
                 </Link>
-                <AdminNav />
+                <AdminNav onLinkClick={handleLinkClick} />
               </nav>
             </SheetContent>
           </Sheet>

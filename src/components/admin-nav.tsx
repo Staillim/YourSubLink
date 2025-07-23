@@ -50,7 +50,11 @@ const navItems = [
     }
 ]
 
-export function AdminNav() {
+type AdminNavProps = {
+    onLinkClick?: () => void;
+};
+
+export function AdminNav({ onLinkClick }: AdminNavProps) {
   const pathname = usePathname();
 
   return (
@@ -61,6 +65,7 @@ export function AdminNav() {
                  <Link
                     key={item.href}
                     href={item.href}
+                    onClick={onLinkClick}
                     className={cn(
                         buttonVariants({ variant: isActive ? 'default' : 'ghost', size: 'default' }),
                         'justify-start text-base',

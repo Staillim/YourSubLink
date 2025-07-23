@@ -41,7 +41,11 @@ const navItems = [
     }
 ]
 
-export function DashboardNav() {
+type DashboardNavProps = {
+    onLinkClick?: () => void;
+};
+
+export function DashboardNav({ onLinkClick }: DashboardNavProps) {
   const pathname = usePathname();
 
   return (
@@ -52,6 +56,7 @@ export function DashboardNav() {
                  <Link
                     key={item.href}
                     href={item.href}
+                    onClick={onLinkClick}
                     className={cn(
                         buttonVariants({ variant: isActive ? 'default' : 'ghost', size: 'default' }),
                         'justify-start text-base',
@@ -66,5 +71,3 @@ export function DashboardNav() {
     </nav>
   );
 }
-
-    

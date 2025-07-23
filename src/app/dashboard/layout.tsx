@@ -32,12 +32,17 @@ export default function DashboardLayout({
 }) {
   const [user, loading] = useAuthState(auth);
   const router = useRouter();
+  const [isSheetOpen, setIsSheetOpen] = React.useState(false);
 
   React.useEffect(() => {
     if (!loading && !user) {
       router.push('/');
     }
   }, [user, loading, router]);
+
+  const handleLinkClick = () => {
+    setIsSheetOpen(false);
+  };
 
 
   if (loading || !user) {
@@ -91,7 +96,7 @@ export default function DashboardLayout({
       </div>
       <div className="flex flex-col">
         <header className="flex h-14 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6">
-          <Sheet>
+          <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
             <SheetTrigger asChild>
               <Button
                 variant="outline"
@@ -110,10 +115,11 @@ export default function DashboardLayout({
                 <Link
                   href="#"
                   className="flex items-center gap-2 text-lg font-semibold mb-4"
+                  onClick={handleLinkClick}
                 >
                   <Logo />
                 </Link>
-                <DashboardNav />
+                <DashboardNav onLinkClick={handleLinkClick} />
               </nav>
             </SheetContent>
           </Sheet>
