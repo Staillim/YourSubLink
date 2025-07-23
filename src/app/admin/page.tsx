@@ -2,13 +2,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { collection, onSnapshot, query } from 'firebase/firestore';
+import { collection, onSnapshot, query, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Users, Link2, DollarSign, Eye } from 'lucide-react';
-
-const CPM = 3.00; // Cost Per Mille (1000 views)
 
 type Link = {
     clicks: number;
@@ -20,9 +18,19 @@ export default function AdminDashboardPage() {
     const [totalClicks, setTotalClicks] = useState<number | null>(null);
     const [totalRevenue, setTotalRevenue] = useState<number | null>(null);
     const [monetizableLinks, setMonetizableLinks] = useState<number | null>(null);
+    const [cpm, setCpm] = useState(3.00); // Default CPM
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        const fetchSettings = async () => {
+             const settingsRef = doc(db, 'settings', 'global');
+             const docSnap = await getDoc(settingsRef);
+             if (docSnap.exists()) {
+                 setCpm(docSnap.data().cpm || 3.00);
+             }
+        }
+        fetchSettings();
+
         const usersQuery = query(collection(db, 'users'));
         const linksQuery = query(collection(db, 'links'));
 
@@ -42,7 +50,7 @@ export default function AdminDashboardPage() {
                 }
             });
             setTotalClicks(clicks);
-            setTotalRevenue((clicks / 1000) * CPM);
+            setTotalRevenue((clicks / 1000) * cpm);
             setMonetizableLinks(monetizable);
             if (loading) setLoading(false);
         });
@@ -51,7 +59,7 @@ export default function AdminDashboardPage() {
             unsubUsers();
             unsubLinks();
         };
-    }, []);
+    }, [cpm, loading]);
 
     const stats = [
         { title: 'Total Users', value: userCount, icon: Users },
@@ -81,7 +89,7 @@ export default function AdminDashboardPage() {
                                 </div>
                             )}
                             <p className="text-xs text-muted-foreground">
-                                {index === 2 ? `Based on $${CPM.toFixed(2)} CPM` : 'Live count'}
+                                {index === 2 ? `Based on $${cpm.toFixed(2)} CPM` : 'Live count'}
                             </p>
                         </CardContent>
                     </Card>
