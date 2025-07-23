@@ -43,6 +43,9 @@ const getVisitorId = (): string => {
 async function recordClick(linkData: LinkData, visitorId: string): Promise<void> {
     try {
         const batch = writeBatch(db);
+        const linkRef = doc(db, 'links', linkData.id);
+        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+        const dailyStatRef = doc(db, 'dailyStats', today);
         
         let cpmRateForClick = 0;
         
@@ -59,26 +62,24 @@ async function recordClick(linkData: LinkData, visitorId: string): Promise<void>
                 const earningsPerClick = cpmRateForClick / 1000;
 
                 // Update link-specific earnings
-                const linkRef = doc(db, 'links', linkData.id);
                 batch.update(linkRef, {
                     generatedEarnings: increment(earningsPerClick),
                     [`earningsByCpm.${cpmId}`]: increment(earningsPerClick)
                 });
                 
                 // Update daily statistics for monetized clicks
-                const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-                const dailyStatRef = doc(db, 'dailyStats', today);
                 batch.set(dailyStatRef, { 
                     totalClicks: increment(1),
                     totalEarnings: increment(earningsPerClick),
                     cpmRate: cpmRateForClick,
                     date: serverTimestamp() 
                 }, { merge: true });
+            } else {
+                 // If no CPM is set, still count the click for daily stats
+                 batch.set(dailyStatRef, { totalClicks: increment(1), date: serverTimestamp() }, { merge: true });
             }
         } else {
              // For non-monetized clicks, still update daily stats for clicks but not earnings
-             const today = new Date().toISOString().split('T')[0];
-             const dailyStatRef = doc(db, 'dailyStats', today);
              batch.set(dailyStatRef, {
                 totalClicks: increment(1),
                 date: serverTimestamp()
@@ -95,7 +96,6 @@ async function recordClick(linkData: LinkData, visitorId: string): Promise<void>
         });
 
         // Increment the total clicks counter on the link
-        const linkRef = doc(db, 'links', linkData.id);
         batch.update(linkRef, { clicks: increment(1) });
 
         // Handle milestone notifications
@@ -326,3 +326,5 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
     </div>
   );
 }
+
+    
