@@ -1,65 +1,67 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-  
-    // Helper function to check if a user is an admin
+    
+    // Function to check if the requesting user is an admin
     function isAdmin() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // Users can only manage their own profile, admins can read all
+    // Rules for the users collection
     match /users/{userId} {
       allow read: if request.auth.uid == userId || isAdmin();
       allow write: if request.auth.uid == userId;
+      allow list: if isAdmin();
     }
 
-    // Links can be created by auth users. Clicks/earnings can be updated by anyone (for the public redirect page).
-    // Only owner or admin can update other details or delete.
+    // Rules for the links collection
     match /links/{linkId} {
       allow read: if true;
-      allow create: if request.auth != null;
-      allow update: if request.auth.uid == resource.data.userId 
-                      || isAdmin() 
-                      || (request.auth == null && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks', 'realClicks', 'generatedEarnings', 'earningsByCpm']));
+      allow create: if request.auth.uid != null;
+      // Public update is needed for counters from the redirection page
+      allow update: if request.auth.uid == resource.data.userId || isAdmin() || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks', 'realClicks', 'generatedEarnings', 'earningsByCpm']);
       allow delete: if request.auth.uid == resource.data.userId || isAdmin();
+      allow list: if isAdmin();
     }
     
-    // Anyone can create a click record. Only link owner or admin can read them.
+    // Rules for individual clicks
     match /clicks/{clickId} {
       allow create: if true;
-      allow read: if get(/databases/$(database)/documents/links/$(request.resource.data.linkId)).data.userId == request.auth.uid || isAdmin();
-      allow write, delete: if false;
+      allow read, list: if isAdmin() || (request.auth.uid != null && request.auth.uid == get(/databases/$(database)/documents/links/$(resource.data.linkId)).data.userId);
     }
 
-    // Auth users can create payout requests for themselves. Admins can manage all.
+    // Rules for payout requests
     match /payoutRequests/{payoutId} {
-        allow read, update: if isAdmin() || request.auth.uid == resource.data.userId;
-        allow create: if request.auth.uid == request.resource.data.userId;
+      allow create: if request.auth.uid == request.resource.data.userId;
+      allow read, list: if request.auth.uid == resource.data.userId || isAdmin();
+      allow update: if isAdmin();
     }
     
-    // Settings can only be managed by admins.
-    match /settings/{docId} {
-      allow read, write: if isAdmin();
-    }
-    
-    // CPM History is public to read (for earnings calculation), but only admins can change it.
-    match /cpmHistory/{cpmId} {
-        allow read: if true;
-        allow create, update: if isAdmin();
-    }
-
-    // Notifications: System can create them. Users can read their own.
+    // Rules for notifications
     match /notifications/{notificationId} {
-      allow create: if true; // System-generated, so allow open write.
-      allow read, update: if request.auth.uid == resource.data.userId;
+      allow create: if true; // System-generated notifications
+      allow read, list: if request.auth.uid == resource.data.userId || isAdmin();
     }
 
-    // Daily Stats: System (public client) can write/update. Admins can read.
-    match /dailyStats/{day} {
-      allow read: if isAdmin();
-      allow write: if true; // Updated on every click by anyone
+    // Rules for global settings
+    match /settings/global {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Rules for CPM rate history
+    match /cpmHistory/{historyId} {
+      allow read: if true;
+      allow list: if isAdmin();
+      allow create, update, delete: if isAdmin();
+    }
+    
+    // Rules for daily statistics
+    match /dailyStats/{statId} {
+      // Allow public write to increment counters
+      allow create, update: if true;
+      allow read, list: if isAdmin();
     }
   }
 }
