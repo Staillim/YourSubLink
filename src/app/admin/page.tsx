@@ -74,11 +74,12 @@ export default function AdminDashboardPage() {
         const usersQuery = query(collection(db, 'users'));
         const linksQuery = query(collection(db, 'links'));
         const clicksQuery = query(collection(db, 'clicks'));
+        
+        // Updated Payouts Query to avoid composite index
         const payoutsQuery = query(
             collection(db, 'payoutRequests'), 
-            where('status', '==', 'completed'), 
-            orderBy('processedAt', 'desc'),
-            limit(5)
+            orderBy('status'), // Order by status first
+            orderBy('processedAt', 'desc')
         );
 
         const unsubUsers = onSnapshot(usersQuery, (snapshot) => {
@@ -112,7 +113,11 @@ export default function AdminDashboardPage() {
         const unsubPayouts = onSnapshot(payoutsQuery, async (snapshot) => {
             const payoutsData: RecentPayout[] = [];
             for (const payoutDoc of snapshot.docs) {
-                payoutsData.push({ id: payoutDoc.id, ...payoutDoc.data() } as RecentPayout);
+                const data = payoutDoc.data();
+                // Filter for completed status in the client
+                if (data.status === 'completed' && payoutsData.length < 5) {
+                    payoutsData.push({ id: payoutDoc.id, ...data } as RecentPayout);
+                }
             }
             setRecentPayouts(payoutsData);
             setPayoutsLoading(false);

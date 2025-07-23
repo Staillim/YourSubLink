@@ -44,7 +44,8 @@ export default function AdminPayoutRequestsPage() {
   const [isSubmitting, setIsSubmitting] = useState<string | null>(null);
 
   useEffect(() => {
-    const q = query(collection(db, 'payoutRequests'), orderBy('requestedAt', 'desc'));
+    // Order by status first to allow filtering in the UI if needed and avoid complex indexes
+    const q = query(collection(db, 'payoutRequests'), orderBy('status'), orderBy('requestedAt', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const requestsData: PayoutRequest[] = [];
       snapshot.forEach((doc) => {
