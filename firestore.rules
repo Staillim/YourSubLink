@@ -3,63 +3,69 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
+    // Function to check if a user is an admin
+    function isAdmin(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data.role == 'admin';
+    }
+
     // LINKS
     match /links/{linkId} {
       allow read: if true;
       allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
-      allow delete: if request.auth != null && (resource.data.userId == request.auth.uid || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+      allow delete: if request.auth != null && (resource.data.userId == request.auth.uid || isAdmin(request.auth.uid));
       
-      // Allow public to update clicks/earnings on a link, and owners/admins to update details
-      allow update: if (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks', 'generatedEarnings'])) ||
-                      (request.auth != null && resource.data.userId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'rules', 'monetizable']));
+      // Public can update click counts.
+      // Owners and admins can update link details.
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks', 'generatedEarnings']) ||
+                      (request.auth != null && (resource.data.userId == request.auth.uid || isAdmin(request.auth.uid)) && 
+                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'rules', 'monetizable']));
     }
 
     // USERS
     match /users/{userId} {
-        allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
-        allow read: if request.auth != null;
-        allow list: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
+      allow read, list: if request.auth != null && isAdmin(request.auth.uid);
       
-        // Allow users to update their own profile, or admins to update any user
-        allow update: if (request.auth != null && request.auth.uid == userId &&
+      // Users can update their own displayName and photoURL.
+      // Admins can update any user's fields.
+      allow update: if (request.auth != null && request.auth.uid == userId &&
                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'photoURL'])) ||
-                      (request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
-                      (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['generatedEarnings']));
+                     (request.auth != null && isAdmin(request.auth.uid));
+    }
+    
+    // SETTINGS
+    match /settings/{settingId} {
+        // Only admins can read or write global settings.
+        allow read, write: if request.auth != null && isAdmin(request.auth.uid);
     }
 
     // PAYOUT REQUESTS
     match /payoutRequests/{requestId} {
-        allow read: if request.auth != null && (resource.data.userId == request.auth.uid || 
-                    get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
-        
-        allow list: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-
-        // Allow users to create requests if they are authenticated
-        allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
-
-        // Admins can update any payout request
-        allow update: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      allow read, list: if request.auth != null && (resource.data.userId == request.auth.uid || isAdmin(request.auth.uid));
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update: if request.auth != null && isAdmin(request.auth.uid);
     }
       
     // NOTIFICATIONS
     match /notifications/{notificationId} {
-        allow read: if request.auth != null && (resource.data.userId == request.auth.uid || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
-        allow create: if true; // Created by the system
-        allow list: if request.auth != null && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+      allow read, list: if request.auth != null && (resource.data.userId == request.auth.uid || isAdmin(request.auth.uid));
+      // Created by a trusted server-side process (represented by allowing anyone, but secured by obscurity and function triggers).
+      allow create: if true; 
     }
       
     // CLICKS
     match /clicks/{clickId} {
-        allow create: if true;
+      // Created by a trusted server-side process.
+      allow create: if true;
 
-        // Allow reading/listing clicks ONLY by the link owner or an admin.
-        allow read, list: if request.auth != null && (
-                            get(/databases/$(database)/documents/links/$(resource.data.linkId)).data.userId == request.auth.uid ||
-                            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
-                          );
+      // Reading/listing clicks is allowed by the link owner or an admin.
+      allow read, list: if request.auth != null && (
+                          get(/databases/$(database)/documents/links/$(resource.data.linkId)).data.userId == request.auth.uid ||
+                          isAdmin(request.auth.uid)
+                        );
 
-        // Nobody can update or delete click logs.
-        allow update, delete: if false;
+      // Nobody can update or delete click logs.
+      allow update, delete: if false;
     }
   }
 }
