@@ -43,10 +43,11 @@ export default function AnalyticsPage() {
   const [activeCpm, setActiveCpm] = useState<number>(3.00); // Default CPM
 
   useEffect(() => {
+    if (loading) return; // Wait for user loading to finish
     if (user) {
       setLinksLoading(true);
       const q = query(collection(db, "links"), where("userId", "==", user.uid));
-      const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const unsubscribeLinks = onSnapshot(q, (querySnapshot) => {
         const linksData: LinkItem[] = [];
         querySnapshot.forEach((doc) => {
           const data = doc.data();
@@ -72,24 +73,21 @@ export default function AnalyticsPage() {
       // Set CPM based on user profile or global settings
       if (profile && profile.customCpm !== null && profile.customCpm !== undefined) {
           setActiveCpm(profile.customCpm);
-          // No need to return here, so the main unsubscribe works
+          return () => unsubscribeLinks();
       } else {
           const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
-          const unsubCpm = onSnapshot(cpmQuery, (snapshot) => {
+          const unsubscribeCpm = onSnapshot(cpmQuery, (snapshot) => {
               if (!snapshot.empty) {
                   const cpmDoc = snapshot.docs[0];
                   setActiveCpm(cpmDoc.data().rate);
               }
           });
-          // Important: We need to clean up both subscriptions
           return () => {
-            unsubscribe();
-            unsubCpm();
+            unsubscribeLinks();
+            unsubscribeCpm();
           }
       }
-
-      return () => unsubscribe();
-    } else if (!loading) {
+    } else {
         setLinksLoading(false);
     }
   }, [user, loading, profile]);
