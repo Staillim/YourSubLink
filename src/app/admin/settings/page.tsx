@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, setDoc, collection, query, where, orderBy, limit, writeBatch, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, query, getDocs, orderBy, limit, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
