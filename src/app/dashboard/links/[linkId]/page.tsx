@@ -40,36 +40,43 @@ export default function UserLinkStatsPage() {
     const [linkData, setLinkData] = useState<LinkData | null>(null);
     const [ipStats, setIpStats] = useState<IpStat[]>([]);
     const [loading, setLoading] = useState(true);
-    const [accessDenied, setAccessDenied] = useState(false);
+    const [isError, setIsError] = useState(false);
 
     useEffect(() => {
         if (userLoading) return;
         if (!user) {
             setLoading(false);
-            setAccessDenied(true);
+            setIsError(true);
             return;
         }
         if (!linkId) {
             setLoading(false);
+            setIsError(true);
             return;
         }
 
         const fetchData = async () => {
             setLoading(true);
             try {
-                // Fetch link data
+                // 1. Fetch link data and verify ownership
                 const linkRef = doc(db, 'links', linkId);
                 const linkSnap = await getDoc(linkRef);
 
                 if (!linkSnap.exists() || linkSnap.data().userId !== user.uid) {
-                    setAccessDenied(true);
+                    setIsError(true);
                     setLoading(false);
                     return;
                 }
-
                 const data = linkSnap.data();
-                
-                // Fetch click data for IP stats
+                 setLinkData({
+                    userId: data.userId,
+                    title: data.title,
+                    original: data.original,
+                    clicks: data.clicks || 0,
+                    realClicks: data.realClicks || 0,
+                });
+
+                // 2. If ownership is confirmed, fetch clicks
                 const clicksQuery = query(collection(db, 'clicks'), where('linkId', '==', linkId), orderBy('timestamp', 'desc'));
                 const querySnapshot = await getDocs(clicksQuery);
                 const clicks: Click[] = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Click));
@@ -90,16 +97,9 @@ export default function UserLinkStatsPage() {
                 const sortedIpStats = Object.values(ipCounts).sort((a, b) => b.count - a.count);
                 
                 setIpStats(sortedIpStats);
-                setLinkData({
-                    userId: data.userId,
-                    title: data.title,
-                    original: data.original,
-                    clicks: data.clicks || 0,
-                    realClicks: data.realClicks || 0,
-                });
-
             } catch (error) {
                 console.error("Failed to fetch link stats:", error);
+                setIsError(true);
             } finally {
                 setLoading(false);
             }
@@ -123,12 +123,8 @@ export default function UserLinkStatsPage() {
         );
     }
     
-    if(accessDenied) {
+    if(isError || !linkData) {
         return notFound();
-    }
-    
-    if(!linkData) {
-        return <p>Link not found or you don't have permission to view it.</p>
     }
 
     return (

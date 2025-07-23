@@ -55,7 +55,8 @@ export default function LinkStatsPage({ params }: { params: { linkId: string } }
                 const linkSnap = await getDoc(linkRef);
 
                 if (!linkSnap.exists()) {
-                    setLinkData(null);
+                    // This will trigger the notFound() call below
+                    setLinkData(null); 
                     setLoading(false);
                     return;
                 }
