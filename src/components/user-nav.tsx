@@ -24,7 +24,6 @@ import { LogOut, User as UserIcon, Wallet } from 'lucide-react';
 import { Skeleton } from './ui/skeleton';
 import { useEffect, useState } from 'react';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
-import type { LinkItem } from '@/app/dashboard/page';
 
 type PayoutRequest = {
     amount: number;
@@ -35,32 +34,18 @@ export function UserNav() {
   const { user, profile, loading } = useUser();
   const router = useRouter();
   const [payouts, setPayouts] = useState<PayoutRequest[]>([]);
-  const [links, setLinks] = useState<LinkItem[]>([]);
 
   useEffect(() => {
     if (user) {
-        const payoutQuery = query(collection(db, "payoutRequests"), where("userId", "==", user.uid), where("status", "==", "pending"));
-        const unsubPayouts = onSnapshot(payoutQuery, (snapshot) => {
+        const q = query(collection(db, "payoutRequests"), where("userId", "==", user.uid), where("status", "==", "pending"));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
             const requests: PayoutRequest[] = [];
             snapshot.forEach(doc => {
                 requests.push(doc.data() as PayoutRequest);
             });
             setPayouts(requests);
         });
-        
-        const linksQuery = query(collection(db, "links"), where("userId", "==", user.uid));
-        const unsubLinks = onSnapshot(linksQuery, (snapshot) => {
-            const linksData: LinkItem[] = [];
-            snapshot.forEach((doc) => {
-                linksData.push({ id: doc.id, ...doc.data() } as LinkItem);
-            });
-            setLinks(linksData);
-        });
-
-        return () => {
-            unsubPayouts();
-            unsubLinks();
-        };
+        return () => unsubscribe();
     }
   }, [user]);
 
@@ -77,10 +62,8 @@ export function UserNav() {
     return <Skeleton className="h-9 w-9 rounded-full" />;
   }
   
-  const generatedEarnings = links.reduce((acc, link) => acc + (link.generatedEarnings || 0), 0);
-  const paidEarnings = profile?.paidEarnings ?? 0;
   const payoutsPending = payouts.reduce((acc, p) => acc + p.amount, 0);
-  const availableBalance = generatedEarnings - paidEarnings - payoutsPending;
+  const availableBalance = profile ? profile.generatedEarnings - profile.paidEarnings - payoutsPending : 0;
   const userName = profile?.displayName || user?.displayName || 'User';
 
   return (
@@ -112,7 +95,7 @@ export function UserNav() {
                 <Wallet className="h-4 w-4" />
                 <span>Balance</span>
              </div>
-             <span className="font-semibold">${availableBalance.toFixed(3)}</span>
+             <span className="font-semibold">${availableBalance.toFixed(2)}</span>
            </div>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />

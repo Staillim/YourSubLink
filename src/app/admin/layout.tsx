@@ -48,7 +48,7 @@ export default function AdminLayout({
     setIsSheetOpen(false);
   };
 
-  if (loading) {
+  if (loading || !user || role !== 'admin') {
     return (
        <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
         <div className="hidden border-r bg-muted/40 md:block">
@@ -77,12 +77,6 @@ export default function AdminLayout({
         </div>
        </div>
     );
-  }
-
-  // If loading is finished, but user is not admin or not logged in, children won't be rendered due to redirect.
-  // This prevents brief flashes of admin content for non-admins.
-  if (!user || role !== 'admin') {
-    return null;
   }
 
   return (

@@ -1,11 +1,11 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, ChangeEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateProfile } from 'firebase/auth';
-import { auth, db } from '@/lib/firebase';
-import { doc, setDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
+import { auth, db, storage } from '@/lib/firebase';
+import { doc, setDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,14 +15,13 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useUser } from '@/hooks/use-user';
-import type { LinkItem } from '../page';
 
 
 export default function ProfilePage() {
   const { user, profile, loading } = useUser();
   const router = useRouter();
   const { toast } = useToast();
-  const [links, setLinks] = useState<LinkItem[]>([]);
+
   const [displayName, setDisplayName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
@@ -35,17 +34,6 @@ export default function ProfilePage() {
   useEffect(() => {
     if (user && profile) {
       setDisplayName(profile.displayName || user.displayName || '');
-    }
-     if (user) {
-      const q = query(collection(db, "links"), where("userId", "==", user.uid));
-      const unsubscribe = onSnapshot(q, (querySnapshot) => {
-        const linksData: LinkItem[] = [];
-        querySnapshot.forEach((doc) => {
-          linksData.push({ id: doc.id, ...doc.data() } as LinkItem);
-        });
-        setLinks(linksData);
-      });
-      return () => unsubscribe();
     }
   }, [user, profile]);
 
@@ -84,9 +72,6 @@ export default function ProfilePage() {
       router.refresh();
     }
   };
-
-  const generatedEarnings = links.reduce((acc, link) => acc + (link.generatedEarnings || 0), 0);
-  const paidEarnings = profile?.paidEarnings ?? 0;
 
   if (loading || !user) {
     return (
@@ -144,23 +129,6 @@ export default function ProfilePage() {
                         Save Changes
                     </Button>
                 </CardFooter>
-            </Card>
-        </div>
-        <div className="space-y-8">
-            <Card>
-                <CardHeader>
-                    <CardTitle>Earnings Summary</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">Generated Earnings</span>
-                        <span className="font-semibold">${generatedEarnings.toFixed(4)}</span>
-                    </div>
-                     <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">Paid Out</span>
-                        <span className="font-semibold text-green-500">${paidEarnings.toFixed(4)}</span>
-                    </div>
-                </CardContent>
             </Card>
         </div>
       </div>

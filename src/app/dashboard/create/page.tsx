@@ -5,7 +5,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -56,14 +56,12 @@ export default function CreateLinkPage() {
           original: longUrl,
           shortId: shortId,
           clicks: 0,
-          realClicks: 0,
-          createdAt: serverTimestamp(),
+          createdAt: new Date(),
           title,
           description,
           rules,
           monetizable: rules.length >= 3,
           generatedEarnings: 0,
-          earningsByCpm: {},
         };
         await addDoc(collection(db, "links"), newLink);
         const url = `${window.location.origin}/${shortId}`;

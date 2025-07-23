@@ -6,7 +6,7 @@ import { useUser } from '@/hooks/use-user';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, serverTimestamp, query, where, onSnapshot } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,8 +16,8 @@ import { toast } from '@/hooks/use-toast';
 import { Loader2, DollarSign, Wallet, PiggyBank } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import type { LinkItem } from '../page';
 
+const MIN_PAYOUT_AMOUNT = 10;
 
 type PayoutRequest = {
     id: string;
@@ -25,9 +25,7 @@ type PayoutRequest = {
     method: string;
     details: string;
     status: 'pending' | 'completed' | 'rejected';
-    requestedAt?: {
-        seconds: number;
-    };
+    requestedAt: any;
 }
 
 export default function PayoutsPage() {
@@ -43,65 +41,27 @@ export default function PayoutsPage() {
     // Payout history
     const [payouts, setPayouts] = useState<PayoutRequest[]>([]);
     const [payoutsLoading, setPayoutsLoading] = useState(true);
-
-    // Settings
-    const [minPayoutAmount, setMinPayoutAmount] = useState(10);
-    const [links, setLinks] = useState<LinkItem[]>([]);
     
     useEffect(() => {
-        if (!user) return;
-        
-        let unsubPayouts: () => void;
-        let unsubLinks: () => void;
-        let unsubSettings: () => void;
-
-        const fetchInitialData = async () => {
-            // Settings
-            const settingsQuery = query(collection(db, "settings"));
-            unsubSettings = onSnapshot(settingsQuery, (snapshot) => {
-                if(!snapshot.empty) {
-                    const settingsData = snapshot.docs[0].data();
-                    setMinPayoutAmount(settingsData.minPayout || 10);
-                }
-            });
-
-            // Links
-            const linksQuery = query(collection(db, "links"), where("userId", "==", user.uid));
-            unsubLinks = onSnapshot(linksQuery, (querySnapshot) => {
-                const linksData: LinkItem[] = [];
-                querySnapshot.forEach((doc) => {
-                    linksData.push({ id: doc.id, ...doc.data() } as LinkItem);
-                });
-                setLinks(linksData);
-            });
-            
-            // Payouts
+        if (user) {
             setPayoutsLoading(true);
-            const payoutQuery = query(collection(db, "payoutRequests"), where("userId", "==", user.uid));
-            unsubPayouts = onSnapshot(payoutQuery, (snapshot) => {
+            const q = query(collection(db, "payoutRequests"), where("userId", "==", user.uid));
+            const unsubscribe = onSnapshot(q, (snapshot) => {
                 const requests: PayoutRequest[] = [];
                 snapshot.forEach(doc => {
                     requests.push({ id: doc.id, ...doc.data() } as PayoutRequest);
                 });
-                // Sort safely, handling potential nulls in requestedAt
-                requests.sort((a,b) => (b.requestedAt?.seconds ?? 0) - (a.requestedAt?.seconds ?? 0));
-                setPayouts(requests);
+                setPayouts(requests.sort((a,b) => (b.requestedAt?.seconds ?? 0) - (a.requestedAt?.seconds ?? 0)));
                 setPayoutsLoading(false);
             });
-        };
-
-        fetchInitialData();
-        
-        return () => {
-            unsubPayouts?.();
-            unsubLinks?.();
-            unsubSettings?.();
+            return () => unsubscribe();
         }
     }, [user]);
     
-    const generatedEarnings = links.reduce((acc, link) => acc + (link.generatedEarnings || 0), 0);
+    const generatedEarnings = profile?.generatedEarnings ?? 0;
     const paidEarnings = profile?.paidEarnings ?? 0;
     
+    // Calculate pending payouts dynamically from the payouts list
     const payoutsPending = payouts
         .filter(p => p.status === 'pending')
         .reduce((acc, p) => acc + p.amount, 0);
@@ -124,8 +84,8 @@ export default function PayoutsPage() {
             toast({ title: 'Invalid Amount', description: 'Please enter a valid amount.', variant: 'destructive' });
             return;
         }
-        if (payoutAmount < minPayoutAmount) {
-             toast({ title: 'Amount too low', description: `The minimum payout amount is $${minPayoutAmount}.`, variant: 'destructive' });
+        if (payoutAmount < MIN_PAYOUT_AMOUNT) {
+             toast({ title: 'Amount too low', description: `The minimum payout amount is $${MIN_PAYOUT_AMOUNT}.`, variant: 'destructive' });
             return;
         }
         if (payoutAmount > availableBalance) {
@@ -135,6 +95,7 @@ export default function PayoutsPage() {
 
         setIsSubmitting(true);
         try {
+            // Only create the payout request document. Do not update the user's profile.
             await addDoc(collection(db, 'payoutRequests'), {
                 userId: user.uid,
                 userEmail: user.email,
@@ -186,7 +147,7 @@ export default function PayoutsPage() {
                         <DollarSign className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">${availableBalance.toFixed(3)}</div>
+                        <div className="text-2xl font-bold">${availableBalance.toFixed(2)}</div>
                         <p className="text-xs text-muted-foreground">Ready for withdrawal</p>
                     </CardContent>
                 </Card>
@@ -196,7 +157,7 @@ export default function PayoutsPage() {
                         <Wallet className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">${payoutsPending.toFixed(3)}</div>
+                        <div className="text-2xl font-bold">${payoutsPending.toFixed(2)}</div>
                         <p className="text-xs text-muted-foreground">Requested but not yet paid</p>
                     </CardContent>
                 </Card>
@@ -206,7 +167,7 @@ export default function PayoutsPage() {
                         <PiggyBank className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">${paidEarnings.toFixed(3)}</div>
+                        <div className="text-2xl font-bold">${paidEarnings.toFixed(2)}</div>
                         <p className="text-xs text-muted-foreground">Total earnings paid out to you</p>
                     </CardContent>
                 </Card>
@@ -214,7 +175,7 @@ export default function PayoutsPage() {
             
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogTrigger asChild>
-                    <Button disabled={availableBalance < minPayoutAmount} className="font-semibold">
+                    <Button disabled={availableBalance < MIN_PAYOUT_AMOUNT} className="font-semibold">
                         Request a Payout
                     </Button>
                 </DialogTrigger>
@@ -223,7 +184,7 @@ export default function PayoutsPage() {
                         <DialogHeader>
                             <DialogTitle>Request a Payout</DialogTitle>
                             <DialogDescription>
-                                Minimum payout is ${minPayoutAmount}.00. Requests are processed within 3-5 business days.
+                                Minimum payout is ${MIN_PAYOUT_AMOUNT}.00. Requests are processed within 3-5 business days.
                             </DialogDescription>
                         </DialogHeader>
                         <div className="grid gap-4 py-4">

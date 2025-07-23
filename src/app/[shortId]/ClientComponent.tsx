@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import { notFound } from 'next/navigation';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, writeBatch, serverTimestamp, increment, getDoc, limit, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, writeBatch, serverTimestamp, increment } from 'firebase/firestore';
 import { Loader2, ExternalLink, CheckCircle2, Lock, Link as LinkIcon, ChevronRight, Youtube, Instagram } from 'lucide-react';
 import type { Rule } from '@/components/rule-editor';
 import { Button } from '@/components/ui/button';
@@ -20,90 +20,40 @@ type LinkData = {
   userId: string;
   monetizable: boolean;
   clicks: number;
-  realClicks: number;
 };
 
 const RULE_DETAILS = {
   like: { text: 'Like & Comment on Video', icon: Youtube, color: 'bg-red-600 hover:bg-red-700' },
   subscribe: { text: 'Subscribe On Youtube', icon: Youtube, color: 'bg-red-600 hover:bg-red-700' },
-  follow: { text: 'Follow On Instagram', icon: Instagram, color: 'bg-blue-600 hover:blue-700' },
+  follow: { text: 'Follow On Instagram', icon: Instagram, color: 'bg-blue-600 hover:bg-blue-700' },
   visit: { text: 'Visit Website', icon: ExternalLink, color: 'bg-gray-500 hover:bg-gray-600' },
 };
 
-// Generates or retrieves a unique ID for the visitor from localStorage
-const getVisitorId = (): string => {
-    let visitorId = localStorage.getItem('visitorId');
-    if (!visitorId) {
-        visitorId = crypto.randomUUID();
-        localStorage.setItem('visitorId', visitorId);
-    }
-    return visitorId;
-}
-
-const isRealClick = async (linkId: string, visitorId: string): Promise<boolean> => {
-    const q = query(
-        collection(db, 'clicks'),
-        where('linkId', '==', linkId),
-        where('visitorId', '==', visitorId),
-        orderBy('timestamp', 'desc'),
-        limit(1)
-    );
-    
-    const querySnapshot = await getDocs(q);
-    
-    if (querySnapshot.empty) {
-        // No previous click from this visitor for this link, so it's a real click.
-        return true;
-    }
-
-    const lastClick = querySnapshot.docs[0].data();
-    const lastClickTimestamp = lastClick.timestamp.toDate();
-    const oneHourAgo = new Date(Date.now() - 3600000); // 1 hour in ms
-    
-    // If the last click was more than an hour ago, it's a real click.
-    return lastClickTimestamp < oneHourAgo;
-};
-
-
-async function recordClick(linkData: LinkData, visitorId: string, isReal: boolean): Promise<void> {
+async function recordClick(linkData: LinkData): Promise<void> {
     try {
         const batch = writeBatch(db);
-        const linkRef = doc(db, 'links', linkData.id);
         
-        const updatePayload: { [key: string]: any } = {
-            clicks: increment(1)
-        };
-        
-        if (isReal) {
-            updatePayload.realClicks = increment(1);
-        }
-
-        if (linkData.monetizable && isReal) {
-            const cpmQuery = query(collection(db, 'cpmHistory'), orderBy('startDate', 'desc'), limit(1));
-            const cpmSnapshot = await getDocs(cpmQuery);
-            
-            if (!cpmSnapshot.empty) {
-                const activeCpmDoc = cpmSnapshot.docs[0];
-                const cpmData = activeCpmDoc.data();
-                const cpmId = activeCpmDoc.id;
-                const earningsPerClick = cpmData.rate / 1000;
-
-                updatePayload.generatedEarnings = increment(earningsPerClick);
-                updatePayload[`earningsByCpm.${cpmId}`] = increment(earningsPerClick);
-            }
-        }
-        
-        batch.update(linkRef, updatePayload);
-
-        // Create a historical click record
+        // 1. Create a historical click record
         const clickDocRef = doc(collection(db, 'clicks'));
         batch.set(clickDocRef, {
             linkId: linkData.id,
             timestamp: serverTimestamp(),
-            visitorId: visitorId,
+            ipAddress: 'x.x.x.x', // Placeholder for server-side IP
         });
 
-        // Handle milestone notifications
+        // 2. Increment the total clicks counter on the link
+        const linkRef = doc(db, 'links', linkData.id);
+        batch.update(linkRef, { clicks: increment(1) });
+        
+        // 3. Handle monetization earnings for the click if applicable
+        if (linkData.monetizable) {
+            const CPM = 3.00; // Cost Per Mille (1000 views)
+            const earningsPerClick = CPM / 1000;
+            const linkEarningsUpdate = { generatedEarnings: increment(earningsPerClick) };
+            batch.update(linkRef, linkEarningsUpdate);
+        }
+
+        // 4. Handle milestone notifications
         const currentClicks = linkData.clicks;
         const newClicks = currentClicks + 1;
         const milestone = 1000;
@@ -259,11 +209,9 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
         return;
     };
 
-    const visitorId = getVisitorId();
-
     const getLink = async () => {
       try {
-        const q = query(collection(db, 'links'), where('shortId', '==', shortId), limit(1));
+        const q = query(collection(db, 'links'), where('shortId', '==', shortId));
         const querySnapshot = await getDocs(q);
 
         if (querySnapshot.empty) {
@@ -283,16 +231,16 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
             userId: data.userId,
             monetizable: data.monetizable || false,
             clicks: data.clicks || 0,
-            realClicks: data.realClicks || 0,
         };
         
-        const isReal = await isRealClick(fetchedLinkData.id, visitorId);
-        await recordClick(fetchedLinkData, visitorId, isReal);
+        // Record the click immediately upon fetching the link data
+        await recordClick(fetchedLinkData);
 
         if (fetchedLinkData.rules.length > 0) {
             setLinkData(fetchedLinkData);
             setStatus('gate');
         } else {
+            // For non-gate links, redirect immediately.
             setStatus('redirecting');
             window.location.href = fetchedLinkData.original;
         }
@@ -323,6 +271,7 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
       return <LinkGate linkData={linkData} />;
   }
 
+  // Fallback state, should be brief
   return (
      <div className="flex h-screen w-full flex-col items-center justify-center bg-background text-foreground">
         <Loader2 className="h-12 w-12 animate-spin text-primary"/>

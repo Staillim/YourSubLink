@@ -13,12 +13,12 @@ import Link from 'next/link';
 
 type Click = {
     id: string;
-    visitorId: string;
+    ipAddress: string;
     timestamp: any;
 };
 
-type StatByVisitor = {
-    visitorId: string;
+type IpStat = {
+    ip: string;
     count: number;
     timestamps: Date[];
 };
@@ -26,15 +26,42 @@ type StatByVisitor = {
 type LinkData = {
     title: string;
     original: string;
-    clicks: number;
-    realClicks: number;
+    clicks: number; // Total Clicks
+    realClicks: number; // Real Clicks (calculated)
     userName: string;
 };
+
+const calculateRealClicks = (clicks: Click[]): number => {
+    if (clicks.length === 0) return 0;
+
+    const clicksByIp: { [key: string]: Date[] } = {};
+    clicks.forEach(click => {
+        if (!clicksByIp[click.ipAddress]) {
+            clicksByIp[click.ipAddress] = [];
+        }
+        clicksByIp[click.ipAddress].push(new Date(click.timestamp.seconds * 1000));
+    });
+
+    let realClickCount = 0;
+    for (const ip in clicksByIp) {
+        const timestamps = clicksByIp[ip].sort((a,b) => a.getTime() - b.getTime());
+        let lastCountedTimestamp: Date | null = null;
+
+        timestamps.forEach(timestamp => {
+            if (!lastCountedTimestamp || (timestamp.getTime() - lastCountedTimestamp.getTime()) > 3600000) { // 1 hour in ms
+                realClickCount++;
+                lastCountedTimestamp = timestamp;
+            }
+        });
+    }
+
+    return realClickCount;
+}
 
 export default function LinkStatsPage({ params }: { params: { linkId: string } }) {
     const { linkId } = use(params);
     const [linkData, setLinkData] = useState<LinkData | null>(null);
-    const [visitorStats, setVisitorStats] = useState<StatByVisitor[]>([]);
+    const [ipStats, setIpStats] = useState<IpStat[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -63,25 +90,27 @@ export default function LinkStatsPage({ params }: { params: { linkId: string } }
                 const querySnapshot = await getDocs(clicksQuery);
                 const clicks: Click[] = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Click));
 
+                // Calculate stats
+                const realClicks = calculateRealClicks(clicks);
 
-                const visitorCounts = clicks.reduce((acc, click) => {
-                    const visitor = click.visitorId;
-                    if (!acc[visitor]) {
-                        acc[visitor] = { visitorId: visitor, count: 0, timestamps: [] };
+                const ipCounts = clicks.reduce((acc, click) => {
+                    const ip = click.ipAddress;
+                    if (!acc[ip]) {
+                        acc[ip] = { ip: ip, count: 0, timestamps: [] };
                     }
-                    acc[visitor].count++;
-                    acc[visitor].timestamps.push(new Date(click.timestamp.seconds * 1000));
+                    acc[ip].count++;
+                    acc[ip].timestamps.push(new Date(click.timestamp.seconds * 1000));
                     return acc;
-                }, {} as { [key: string]: StatByVisitor });
+                }, {} as { [key: string]: IpStat });
 
-                const sortedVisitorStats = Object.values(visitorCounts).sort((a, b) => b.count - a.count);
+                const sortedIpStats = Object.values(ipCounts).sort((a, b) => b.count - a.count);
                 
-                setVisitorStats(sortedVisitorStats);
+                setIpStats(sortedIpStats);
                 setLinkData({
                     title: data.title,
                     original: data.original,
-                    clicks: data.clicks || 0,
-                    realClicks: data.realClicks || 0,
+                    clicks: data.clicks,
+                    realClicks: realClicks,
                     userName: userName,
                 });
 
@@ -144,7 +173,7 @@ export default function LinkStatsPage({ params }: { params: { linkId: string } }
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{linkData.realClicks.toLocaleString()}</div>
-                         <p className="text-xs text-muted-foreground">Unique visitors per hour.</p>
+                         <p className="text-xs text-muted-foreground">Unique IPs per hour.</p>
                     </CardContent>
                 </Card>
                 <Card>
@@ -170,25 +199,25 @@ export default function LinkStatsPage({ params }: { params: { linkId: string } }
             
              <Card>
                 <CardHeader>
-                    <CardTitle>Clicks by Visitor ID</CardTitle>
-                    <CardDescription>A list of unique visitor IDs and how many times each has clicked the link.</CardDescription>
+                    <CardTitle>Clicks by IP Address</CardTitle>
+                    <CardDescription>A list of unique IP addresses and how many times each has clicked the link.</CardDescription>
                 </CardHeader>
                 <CardContent>
                    <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead>Visitor ID</TableHead>
+                                <TableHead>IP Address</TableHead>
                                 <TableHead className="text-right">Click Count</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {visitorStats.map((stat) => (
-                                <TableRow key={stat.visitorId}>
-                                    <TableCell className="font-mono">{stat.visitorId}</TableCell>
+                            {ipStats.map((stat) => (
+                                <TableRow key={stat.ip}>
+                                    <TableCell className="font-mono">{stat.ip}</TableCell>
                                     <TableCell className="text-right font-semibold">{stat.count}</TableCell>
                                 </TableRow>
                             ))}
-                            {visitorStats.length === 0 && (
+                            {ipStats.length === 0 && (
                                 <TableRow>
                                     <TableCell colSpan={2} className="h-24 text-center">
                                         No click data available for this link yet.

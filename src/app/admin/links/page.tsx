@@ -35,7 +35,6 @@ type Link = {
   shortId: string;
   short: string;
   clicks: number;
-  realClicks: number;
   monetizable: boolean;
   createdAt: any;
   userId: string;
@@ -71,7 +70,6 @@ export default function AdminLinksPage() {
           ...data,
           short: `${window.location.origin}/${data.shortId}`,
           createdAt: data.createdAt,
-          realClicks: data.realClicks || 0,
           userName,
           userEmail
         } as Link);
@@ -114,13 +112,13 @@ export default function AdminLinksPage() {
              <Table>
                 <TableHeader>
                     <TableRow>
-                        {[...Array(7)].map((_,i) => <TableHead key={i}><Skeleton className="h-5 w-full" /></TableHead>)}
+                        {[...Array(6)].map((_,i) => <TableHead key={i}><Skeleton className="h-5 w-full" /></TableHead>)}
                     </TableRow>
                 </TableHeader>
                 <TableBody>
                     {[...Array(5)].map((_, i) => (
                          <TableRow key={i}>
-                             {[...Array(7)].map((_,j) => <TableCell key={j}><Skeleton className="h-5 w-full" /></TableCell>)}
+                             {[...Array(6)].map((_,j) => <TableCell key={j}><Skeleton className="h-5 w-full" /></TableCell>)}
                          </TableRow>
                     ))}
                 </TableBody>
@@ -146,8 +144,7 @@ export default function AdminLinksPage() {
                 <TableRow>
                     <TableHead>Link</TableHead>
                     <TableHead>User</TableHead>
-                    <TableHead>Total Clicks</TableHead>
-                    <TableHead>Real Clicks</TableHead>
+                    <TableHead>Clicks</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -165,7 +162,6 @@ export default function AdminLinksPage() {
                             <div className="text-xs text-muted-foreground">{link.userEmail}</div>
                         </TableCell>
                         <TableCell>{link.clicks}</TableCell>
-                        <TableCell>{link.realClicks}</TableCell>
                         <TableCell>
                             <Badge variant={link.monetizable ? 'default' : 'secondary'} className={link.monetizable ? 'bg-green-600' : ''}>
                                 {link.monetizable ? 'Monetizable' : 'Not Monetizable'}
@@ -199,7 +195,7 @@ export default function AdminLinksPage() {
                 ))}
                  {links.length === 0 && (
                 <TableRow>
-                    <TableCell colSpan={7} className="h-24 text-center">
+                    <TableCell colSpan={6} className="h-24 text-center">
                     No links found in the system.
                     </TableCell>
                 </TableRow>

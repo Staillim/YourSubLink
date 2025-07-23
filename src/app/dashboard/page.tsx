@@ -5,7 +5,7 @@ import { useState, useTransition, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, deleteDoc, doc, updateDoc, getDocs } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -47,6 +47,13 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Rule, RuleEditor } from '@/components/rule-editor';
 import { Label } from '@/components/ui/label';
 
+
+type Click = {
+    id: string;
+    ipAddress: string;
+    timestamp: any;
+};
+
 export type LinkItem = {
   id: string;
   original: string;
@@ -62,6 +69,33 @@ export type LinkItem = {
   rules: Rule[];
   generatedEarnings: number;
 };
+
+const calculateRealClicks = (clicks: Click[]): number => {
+    if (clicks.length === 0) return 0;
+
+    const clicksByIp: { [key: string]: Date[] } = {};
+    clicks.forEach(click => {
+        if (!clicksByIp[click.ipAddress]) {
+            clicksByIp[click.ipAddress] = [];
+        }
+        clicksByIp[click.ipAddress].push(new Date(click.timestamp.seconds * 1000));
+    });
+
+    let realClickCount = 0;
+    for (const ip in clicksByIp) {
+        const timestamps = clicksByIp[ip].sort((a,b) => a.getTime() - b.getTime());
+        let lastCountedTimestamp: Date | null = null;
+
+        timestamps.forEach(timestamp => {
+            if (!lastCountedTimestamp || (timestamp.getTime() - lastCountedTimestamp.getTime()) > 3600000) { // 1 hour in ms
+                realClickCount++;
+                lastCountedTimestamp = timestamp;
+            }
+        });
+    }
+
+    return realClickCount;
+}
 
 export default function DashboardPage() {
   const [user, loading] = useAuthState(auth);
@@ -91,21 +125,25 @@ export default function DashboardPage() {
     if (user) {
       setLinksLoading(true);
       const q = query(collection(db, "links"), where("userId", "==", user.uid));
-      const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const unsubscribe = onSnapshot(q, async (querySnapshot) => {
         const linksData: LinkItem[] = [];
-        querySnapshot.forEach((doc) => {
-            const data = doc.data();
-            // Fallback for old links that might not have createdAt
-            const date = data.createdAt ? new Date(data.createdAt.seconds * 1000).toISOString().split('T')[0] : 'N/A';
+        for (const docSnapshot of querySnapshot.docs) {
+            const data = docSnapshot.data();
             
+            // Fetch clicks for each link to calculate real clicks
+            const clicksQuery = query(collection(db, 'clicks'), where('linkId', '==', docSnapshot.id));
+            const clicksSnapshot = await getDocs(clicksQuery);
+            const clicks: Click[] = clicksSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Click));
+            const realClicks = calculateRealClicks(clicks);
+
             linksData.push({
-                id: doc.id,
+                id: docSnapshot.id,
                 original: data.original,
                 shortId: data.shortId,
                 short: `${window.location.origin}/${data.shortId}`,
-                clicks: data.clicks || 0,
-                realClicks: data.realClicks || 0,
-                date: date,
+                clicks: data.clicks,
+                realClicks: realClicks,
+                date: new Date(data.createdAt.seconds * 1000).toISOString().split('T')[0],
                 userId: data.userId,
                 title: data.title,
                 description: data.description,
@@ -113,18 +151,14 @@ export default function DashboardPage() {
                 rules: data.rules || [],
                 generatedEarnings: data.generatedEarnings || 0,
             });
-        });
+        }
         setLinks(linksData.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
         setLinksLoading(false);
-      }, (error) => {
-        console.error("Error fetching links:", error);
-        setLinksLoading(false);
-        toast({ title: "Error", description: "Could not fetch your links.", variant: "destructive" });
       });
 
       return () => unsubscribe();
     }
-  }, [user, toast]);
+  }, [user]);
 
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -192,20 +226,9 @@ export default function DashboardPage() {
   if (loading || linksLoading) {
     return (
       <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-            <Skeleton className="h-8 w-48" />
-            <Skeleton className="h-10 w-40" />
-        </div>
+        <Skeleton className="h-8 w-48" />
         <div className="grid gap-6">
-            <Card>
-                <CardHeader>
-                    <Skeleton className="h-6 w-32" />
-                    <Skeleton className="h-4 w-72" />
-                </CardHeader>
-                <CardContent>
-                    <Skeleton className="h-60 w-full" />
-                </CardContent>
-            </Card>
+            <Skeleton className="h-72 w-full" />
         </div>
       </div>
     );
@@ -366,3 +389,5 @@ export default function DashboardPage() {
     </TooltipProvider>
   );
 }
+
+    

@@ -1,61 +1,65 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-  
-    // Helper function to check for admin role
-    function isAdmin() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
-
-    match /users/{userId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth.uid == userId || isAdmin();
-      allow list: if isAdmin();
-    }
-
+    
+    // LINKS
     match /links/{linkId} {
-      allow get, list: if true;
-      allow create: if request.auth.uid == request.resource.data.userId;
-
-      // Allow owner/admin to update/delete.
-      // Also allow public client to increment click counts, but not set them arbitrarily.
-      allow update: if (resource.data.userId == request.auth.uid || isAdmin()) ||
-                    (request.auth == null && request.resource.data.clicks == resource.data.clicks + 1);
-      
-      allow delete: if resource.data.userId == request.auth.uid || isAdmin();
-    }
-    
-    match /clicks/{clickId} {
-      allow create: if true;
-      allow read, list: if request.auth != null;
-    }
-
-    match /dailyStats/{day} {
-        allow create, update: if true;
-        allow read, list: if isAdmin();
-    }
-    
-    match /notifications/{notificationId} {
-        allow create: if true;
-        allow read, list: if request.auth != null;
-    }
-
-    match /payoutRequests/{requestId} {
-        allow create: if request.auth != null;
-        allow read, list: if request.auth.uid == resource.data.userId || isAdmin();
-        allow update: if isAdmin();
-    }
-    
-    match /settings/global {
       allow read: if true;
-      allow write: if isAdmin();
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow delete: if request.auth != null && (resource.data.userId == request.auth.uid || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+      
+      // Allow public to update clicks/earnings on a link, and owners/admins to update details
+      allow update: if (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks', 'generatedEarnings'])) ||
+                      (request.auth != null && resource.data.userId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'rules', 'monetizable']));
     }
-    
-    match /cpmHistory/{historyId} {
-        allow get, list: if true;
-        allow write: if isAdmin();
+
+    // USERS
+    match /users/{userId} {
+        allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
+        allow read: if request.auth != null;
+        allow list: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      
+        // Allow users to update their own profile, or admins to update any user
+        allow update: if (request.auth != null && request.auth.uid == userId &&
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'photoURL'])) ||
+                      (request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
+                      (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['generatedEarnings']));
+    }
+
+    // PAYOUT REQUESTS
+    match /payoutRequests/{requestId} {
+        allow read: if request.auth != null && (resource.data.userId == request.auth.uid || 
+                    get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+        
+        allow list: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+
+        // Allow users to create requests if they are authenticated
+        allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+
+        // Admins can update any payout request
+        allow update: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+      
+    // NOTIFICATIONS
+    match /notifications/{notificationId} {
+        allow read: if request.auth != null && (resource.data.userId == request.auth.uid || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+        allow create: if true; // Created by the system
+        allow list: if request.auth != null && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+    }
+      
+    // CLICKS
+    match /clicks/{clickId} {
+        allow create: if true;
+
+        // Allow reading/listing clicks ONLY by the link owner or an admin.
+        allow read, list: if request.auth != null && (
+                            get(/databases/$(database)/documents/links/$(resource.data.linkId)).data.userId == request.auth.uid ||
+                            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+                          );
+
+        // Nobody can update or delete click logs.
+        allow update, delete: if false;
     }
   }
 }
