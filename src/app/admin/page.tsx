@@ -2,7 +2,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { collection, onSnapshot, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, orderBy, limit, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -73,7 +73,19 @@ export default function AdminDashboardPage() {
             const payoutsData: RecentPayout[] = [];
             for (const payoutDoc of snapshot.docs) {
                 const data = payoutDoc.data();
-                payoutsData.push({ id: payoutDoc.id, ...data } as RecentPayout);
+                let userName = 'Unknown User';
+                if (data.userId) {
+                    const userSnap = await getDoc(doc(db, 'users', data.userId));
+                    if(userSnap.exists()) {
+                        userName = userSnap.data().displayName;
+                    }
+                }
+                payoutsData.push({ 
+                    id: payoutDoc.id, 
+                    amount: data.amount,
+                    processedAt: data.processedAt,
+                    userName: userName,
+                } as RecentPayout);
             }
             setRecentPayouts(payoutsData);
             setPayoutsLoading(false);
