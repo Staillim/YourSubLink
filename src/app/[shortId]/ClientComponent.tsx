@@ -58,13 +58,16 @@ async function recordClick(linkData: LinkData, visitorId: string, isReal: boolea
     try {
         const batch = writeBatch(db);
         const linkRef = doc(db, 'links', linkData.id);
-        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-        const dailyStatRef = doc(db, 'dailyStats', today);
         
-        let cpmRateForClick = 0;
+        const updatePayload: { [key: string]: any } = {
+            clicks: increment(1)
+        };
         
-        // Handle monetization earnings and daily stats
-        if (linkData.monetizable) {
+        if (isReal) {
+            updatePayload.realClicks = increment(1);
+        }
+
+        if (linkData.monetizable && isReal) {
             const cpmQuery = query(collection(db, 'cpmHistory'), orderBy('startDate', 'desc'), limit(1));
             const cpmSnapshot = await getDocs(cpmQuery);
             
@@ -72,54 +75,22 @@ async function recordClick(linkData: LinkData, visitorId: string, isReal: boolea
                 const activeCpmDoc = cpmSnapshot.docs[0];
                 const cpmData = activeCpmDoc.data();
                 const cpmId = activeCpmDoc.id;
-                cpmRateForClick = cpmData.rate;
+                const earningsPerClick = cpmData.rate / 1000;
 
-                // Only generate earnings for real clicks
-                if (isReal) {
-                    const earningsPerClick = cpmRateForClick / 1000;
-
-                    // Update link-specific earnings
-                    batch.update(linkRef, {
-                        generatedEarnings: increment(earningsPerClick),
-                        [`earningsByCpm.${cpmId}`]: increment(earningsPerClick)
-                    });
-                    
-                    // Update daily statistics for monetized clicks
-                    batch.set(dailyStatRef, { 
-                        totalEarnings: increment(earningsPerClick),
-                        cpmRate: cpmRateForClick,
-                    }, { merge: true });
-                }
+                updatePayload.generatedEarnings = increment(earningsPerClick);
+                updatePayload[`earningsByCpm.${cpmId}`] = increment(earningsPerClick);
             }
         }
         
-        // Always update total clicks on daily stats regardless of monetization or real status
-        batch.set(dailyStatRef, { 
-            totalClicks: increment(1),
-            date: serverTimestamp() 
-        }, { merge: true });
-        
+        batch.update(linkRef, updatePayload);
+
         // Create a historical click record
         const clickDocRef = doc(collection(db, 'clicks'));
         batch.set(clickDocRef, {
             linkId: linkData.id,
             timestamp: serverTimestamp(),
             visitorId: visitorId,
-            cpmAtClick: cpmRateForClick,
         });
-
-        // Increment the total clicks counter on the link
-        const updatePayload: { clicks: any, realClicks?: any } = {
-            clicks: increment(1)
-        };
-        
-        // Increment real clicks only if it's a real click
-        if (isReal) {
-            updatePayload.realClicks = increment(1);
-        }
-
-        batch.update(linkRef, updatePayload);
-
 
         // Handle milestone notifications
         const currentClicks = linkData.clicks;
@@ -141,7 +112,7 @@ async function recordClick(linkData: LinkData, visitorId: string, isReal: boolea
         }
 
         await batch.commit();
-        console.log("Click and daily stats recorded successfully.");
+        console.log("Click recorded successfully.");
         
     } catch (error) {
         console.error("Error processing click:", error);
@@ -281,7 +252,7 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
 
     const getLink = async () => {
       try {
-        const q = query(collection(db, 'links'), where('shortId', '==', shortId));
+        const q = query(collection(db, 'links'), where('shortId', '==', shortId), limit(1));
         const querySnapshot = await getDocs(q);
 
         if (querySnapshot.empty) {
@@ -348,3 +319,4 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
     </div>
   );
 }
+

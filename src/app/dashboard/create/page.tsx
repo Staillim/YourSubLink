@@ -63,6 +63,7 @@ export default function CreateLinkPage() {
           rules,
           monetizable: rules.length >= 3,
           generatedEarnings: 0,
+          earningsByCpm: {},
         };
         await addDoc(collection(db, "links"), newLink);
         const url = `${window.location.origin}/${shortId}`;

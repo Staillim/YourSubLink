@@ -26,37 +26,10 @@ type StatByVisitor = {
 type LinkData = {
     title: string;
     original: string;
-    clicks: number; // Total Clicks
-    realClicks: number; // Real Clicks (calculated)
+    clicks: number;
+    realClicks: number;
     userName: string;
 };
-
-const calculateRealClicks = (clicks: Click[]): number => {
-    if (clicks.length === 0) return 0;
-
-    const clicksByVisitor: { [key: string]: Date[] } = {};
-    clicks.forEach(click => {
-        if (!clicksByVisitor[click.visitorId]) {
-            clicksByVisitor[click.visitorId] = [];
-        }
-        clicksByVisitor[click.visitorId].push(new Date(click.timestamp.seconds * 1000));
-    });
-
-    let realClickCount = 0;
-    for (const visitorId in clicksByVisitor) {
-        const timestamps = clicksByVisitor[visitorId].sort((a,b) => a.getTime() - b.getTime());
-        let lastCountedTimestamp: Date | null = null;
-
-        timestamps.forEach(timestamp => {
-            if (!lastCountedTimestamp || (timestamp.getTime() - lastCountedTimestamp.getTime()) > 3600000) { // 1 hour in ms
-                realClickCount++;
-                lastCountedTimestamp = timestamp;
-            }
-        });
-    }
-
-    return realClickCount;
-}
 
 export default function LinkStatsPage({ params }: { params: { linkId: string } }) {
     const { linkId } = use(params);
@@ -90,8 +63,6 @@ export default function LinkStatsPage({ params }: { params: { linkId: string } }
                 const querySnapshot = await getDocs(clicksQuery);
                 const clicks: Click[] = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Click));
 
-                // Calculate stats
-                const realClicks = calculateRealClicks(clicks);
 
                 const visitorCounts = clicks.reduce((acc, click) => {
                     const visitor = click.visitorId;
@@ -109,8 +80,8 @@ export default function LinkStatsPage({ params }: { params: { linkId: string } }
                 setLinkData({
                     title: data.title,
                     original: data.original,
-                    clicks: data.clicks,
-                    realClicks: realClicks,
+                    clicks: data.clicks || 0,
+                    realClicks: data.realClicks || 0,
                     userName: userName,
                 });
 
