@@ -326,5 +326,3 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
     </div>
   );
 }
-
-    
