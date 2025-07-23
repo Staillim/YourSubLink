@@ -12,21 +12,23 @@ export async function POST(request: Request) {
         if (!linkId) {
             return new NextResponse('Link ID is required', { status: 400 });
         }
-
-        const headersList = headers();
-        // Use a combination of headers for a more unique identifier, falling back to a default.
-        const ip = (headersList.get('x-forwarded-for') ?? '127.0.0.1').split(',')[0].trim();
-        const userAgent = headersList.get('user-agent') ?? 'unknown';
-
+        
         const linkRef = doc(db, 'links', linkId);
         const linkSnap = await getDoc(linkRef);
 
         if (!linkSnap.exists()) {
-             return new NextResponse('Link not found', { status: 404 });
+             return new NextResponse(JSON.stringify({ error: 'Link not found' }), { 
+                status: 404,
+                headers: { 'Content-Type': 'application/json' }
+            });
         }
-
+        
         const linkData = linkSnap.data();
         const batch = writeBatch(db);
+
+        const headersList = headers();
+        const ip = (headersList.get('x-forwarded-for') ?? '127.0.0.1').split(',')[0].trim();
+        const userAgent = headersList.get('user-agent') ?? 'unknown';
         
         // --- Real Click Logic (Server-Side) ---
         let isRealClick = false;
@@ -46,7 +48,7 @@ export async function POST(request: Request) {
         }
 
         // --- Firestore Updates ---
-        // 1. Always create a historical click record. THIS IS THE FIX.
+        // 1. Always create a historical click record.
         const clickDocRef = doc(collection(db, 'clicks'));
         batch.set(clickDocRef, {
             linkId: linkId,
@@ -117,10 +119,20 @@ export async function POST(request: Request) {
         // Commit all batched writes to Firestore
         await batch.commit();
         
-        return new NextResponse('Click recorded', { status: 200 });
+        // Return the necessary link data to the client
+        return new NextResponse(JSON.stringify({ 
+            originalUrl: linkData.original,
+            rules: linkData.rules || [] 
+        }), { 
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+        });
 
     } catch (error) {
         console.error("Error in /api/click:", error);
-        return new NextResponse('Internal Server Error', { status: 500 });
+        return new NextResponse(JSON.stringify({ error: 'Internal Server Error' }), { 
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
+        });
     }
 }

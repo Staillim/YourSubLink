@@ -3,8 +3,6 @@
 
 import { useEffect, useState } from 'react';
 import { notFound } from 'next/navigation';
-import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, writeBatch, serverTimestamp, increment, Timestamp } from 'firebase/firestore';
 import { Loader2, ExternalLink, CheckCircle2, Lock, Link as LinkIcon, ChevronRight, Youtube, Instagram } from 'lucide-react';
 import type { Rule } from '@/components/rule-editor';
 import { Button } from '@/components/ui/button';
@@ -15,12 +13,6 @@ type LinkData = {
   id: string;
   original: string;
   rules: Rule[];
-  title: string;
-  description?: string;
-  userId: string;
-  monetizable: boolean;
-  clicks: number;
-  realClicks?: number;
 };
 
 const RULE_DETAILS = {
@@ -29,20 +21,6 @@ const RULE_DETAILS = {
   follow: { text: 'Follow On Instagram', icon: Instagram, color: 'bg-blue-600 hover:bg-blue-700' },
   visit: { text: 'Visit Website', icon: ExternalLink, color: 'bg-gray-500 hover:bg-gray-600' },
 };
-
-async function recordClick(linkId: string): Promise<void> {
-    try {
-        await fetch('/api/click', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ linkId }),
-        });
-    } catch (error) {
-        console.error("Error sending click record request:", error);
-    }
-}
 
 
 function RuleItem({ rule, onComplete, isCompleted }: { rule: Rule; onComplete: () => void; isCompleted: boolean }) {
@@ -63,6 +41,8 @@ function RuleItem({ rule, onComplete, isCompleted }: { rule: Rule; onComplete: (
         setVerifyingText(`Verificando${'.'.repeat(dots)}`);
     }, 500);
 
+    // Instead of a timeout, you could implement a more robust verification system
+    // (e.g., using a backend check), but for now, we'll keep the timeout.
     const completionTimeout = setTimeout(() => {
       clearInterval(verifyingInterval);
       onComplete();
@@ -173,70 +153,55 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
         return;
     };
 
-    const getLink = async () => {
+    const processLinkVisit = async () => {
       try {
-        const q = query(collection(db, 'links'), where('shortId', '==', shortId));
-        const querySnapshot = await getDocs(q);
-
-        if (querySnapshot.empty) {
-          setStatus('not-found');
-          return;
+        // The API route now handles all DB logic and returns the destination URL
+        const response = await fetch('/api/click', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ shortId }), // Pass shortId to API
+        });
+        
+        if (!response.ok) {
+            // If the link is not found (404) or other error, set status to not-found
+            setStatus('not-found');
+            return;
         }
-        
-        const linkDoc = querySnapshot.docs[0];
-        const data = linkDoc.data();
-        
-        const fetchedLinkData: LinkData = {
-            id: linkDoc.id,
-            original: data.original,
-            rules: data.rules || [],
-            title: data.title,
-            description: data.description,
-            userId: data.userId,
-            monetizable: data.monetizable || false,
-            clicks: data.clicks || 0,
-            realClicks: data.realClicks || 0,
-        };
-        
-        // Record the click via the API route
-        recordClick(fetchedLinkData.id);
 
-        if (fetchedLinkData.rules.length > 0) {
-            setLinkData(fetchedLinkData);
+        const data = await response.json();
+        
+        // Check if the link has rules to show the gate
+        if (data.rules && data.rules.length > 0) {
+            setLinkData({
+                id: shortId, // We use shortId as the identifier here
+                original: data.originalUrl,
+                rules: data.rules
+            });
             setStatus('gate');
         } else {
             // For non-gate links, redirect immediately.
             setStatus('redirecting');
-            window.location.href = fetchedLinkData.original;
+            window.location.href = data.originalUrl;
         }
 
       } catch (error) {
-        console.error("Error getting link:", error);
+        console.error("Error processing link visit:", error);
         setStatus('not-found');
       }
     };
 
-    getLink();
+    processLinkVisit();
   }, [shortId]);
   
   if (status === 'not-found') {
       notFound();
-  }
-
-  if (status === 'loading' || status === 'redirecting') {
-    return (
-        <div className="flex h-screen w-full flex-col items-center justify-center bg-background text-foreground">
-            <Loader2 className="h-12 w-12 animate-spin text-primary"/>
-            <p className="mt-4 text-lg text-muted-foreground">Redirecting...</p>
-        </div>
-      );
   }
   
   if (status === 'gate' && linkData) {
       return <LinkGate linkData={linkData} />;
   }
 
-  // Fallback state, should be brief
+  // Loading, redirecting, or fallback state
   return (
      <div className="flex h-screen w-full flex-col items-center justify-center bg-background text-foreground">
         <Loader2 className="h-12 w-12 animate-spin text-primary"/>
