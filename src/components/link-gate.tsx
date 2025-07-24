@@ -46,7 +46,7 @@ const getPlatformStyle = (url: string) => {
     if (url.includes('instagram.com')) {
         return { 
             icon: Instagram, 
-            className: 'bg-[#E4405F] hover:bg-[#E4405F]/90 text-white', // A single color from the gradient
+            className: 'bg-gradient-to-r from-purple-400 via-pink-500 to-red-500 hover:opacity-90 text-white',
             platformName: 'Instagram'
         };
     }
@@ -59,7 +59,7 @@ const getPlatformStyle = (url: string) => {
     }
     return { 
         icon: Globe, 
-        className: 'bg-muted hover:bg-muted/80',
+        className: 'bg-muted hover:bg-muted/90 text-muted-foreground',
         platformName: 'Website'
     };
 };
@@ -190,8 +190,8 @@ export default function LinkGate({ linkData, onAllStepsCompleted }: { linkData: 
                                 className={cn(
                                   "flex items-center justify-between p-3 rounded-lg transition-all text-left",
                                   details.className,
-                                  isCompleted && "bg-green-600 hover:bg-green-600/90 ring-1 ring-green-400",
-                                  isLoading && "cursor-wait bg-yellow-600 hover:bg-yellow-600/90",
+                                  isCompleted && "bg-green-600 hover:bg-green-600/90 ring-1 ring-green-400 !text-white",
+                                  isLoading && "cursor-wait bg-yellow-600 hover:bg-yellow-600/90 !text-white",
                                   state !== 'pending' && "pointer-events-none"
                                 )}
                             >
