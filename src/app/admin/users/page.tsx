@@ -164,17 +164,17 @@ export default function AdminUsersPage() {
     setIsPayoutHistoryDialogOpen(true);
     setHistoryLoading(true);
     try {
-        // CORRECCIÓN (2024-05-23): Se simplifica la consulta para evitar error de índice compuesto.
-        // Se filtra solo por usuario y se ordena. El filtro por 'status' se hace en el cliente.
+        // CORRECCIÓN (2024-05-24): Se simplifica la consulta para evitar error de índice compuesto.
+        // Se filtra solo por usuario. El filtrado por 'status' y el ordenamiento se hacen en el cliente.
         const q = query(
             collection(db, 'payoutRequests'),
-            where('userId', '==', user.uid),
-            orderBy('processedAt', 'desc')
+            where('userId', '==', user.uid)
         );
         const querySnapshot = await getDocs(q);
         const historyData = querySnapshot.docs
             .map(doc => doc.data() as PayoutRequest)
-            .filter(payout => payout.status === 'completed'); // Filtrado en el cliente.
+            .filter(payout => payout.status === 'completed') // Filtrado en el cliente.
+            .sort((a, b) => (b.processedAt?.seconds ?? 0) - (a.processedAt?.seconds ?? 0)); // Ordenamiento en el cliente.
             
         setPayoutHistory(historyData);
     } catch (error) {
