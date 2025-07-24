@@ -1,4 +1,3 @@
-
 /**
  * !! ANTES DE EDITAR ESTE ARCHIVO, REVISA LAS DIRECTRICES EN LOS SIGUIENTES DOCUMENTOS: !!
  * - /README.md
@@ -57,6 +56,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { PayoutRequest } from '@/hooks/use-user';
+import { cn } from '@/lib/utils';
 
 type UserProfile = {
   uid: string;
@@ -456,5 +456,3 @@ export default function AdminUsersPage() {
     </>
   );
 }
-
-    
