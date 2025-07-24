@@ -164,17 +164,15 @@ export default function AdminUsersPage() {
     setIsPayoutHistoryDialogOpen(true);
     setHistoryLoading(true);
     try {
-        // CORRECCIÓN (2024-05-24): Se simplifica la consulta para evitar error de índice compuesto.
-        // Se filtra solo por usuario. El filtrado por 'status' y el ordenamiento se hacen en el cliente.
         const q = query(
             collection(db, 'payoutRequests'),
             where('userId', '==', user.uid)
         );
         const querySnapshot = await getDocs(q);
         const historyData = querySnapshot.docs
-            .map(doc => doc.data() as PayoutRequest)
-            .filter(payout => payout.status === 'completed') // Filtrado en el cliente.
-            .sort((a, b) => (b.processedAt?.seconds ?? 0) - (a.processedAt?.seconds ?? 0)); // Ordenamiento en el cliente.
+            .map(doc => ({ id: doc.id, ...doc.data() } as PayoutRequest))
+            .filter(payout => payout.status === 'completed')
+            .sort((a, b) => (b.processedAt?.seconds ?? 0) - (a.processedAt?.seconds ?? 0));
             
         setPayoutHistory(historyData);
     } catch (error) {
@@ -368,8 +366,8 @@ export default function AdminUsersPage() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {payoutHistory.map(payout => (
-                                    <TableRow key={payout.id}>
+                                {payoutHistory.map((payout) => (
+                                    <TableRow key={`${selectedUser?.uid}-${payout.id}`}>
                                         <TableCell>{payout.processedAt ? new Date(payout.processedAt.seconds * 1000).toLocaleString() : 'N/A'}</TableCell>
                                         <TableCell className="font-semibold">${payout.amount.toFixed(4)}</TableCell>
                                         <TableCell className="capitalize">{payout.method}</TableCell>
