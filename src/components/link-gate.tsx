@@ -5,8 +5,18 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import type { LinkData } from '@/types';
-import { Loader2, ArrowRight, CheckCircle, ExternalLink, Circle } from 'lucide-react';
+import { Loader2, ArrowRight, CheckCircle, ExternalLink, Circle, MoreHorizontal } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+function LoadingDots() {
+    return (
+        <div className="flex items-center space-x-1">
+            <span className="animate-[pulse_1.5s_ease-in-out_infinite] rounded-full h-1.5 w-1.5 bg-current"></span>
+            <span className="animate-[pulse_1.5s_ease-in-out_0.2s_infinite] rounded-full h-1.5 w-1.5 bg-current"></span>
+            <span className="animate-[pulse_1.5s_ease-in-out_0.4s_infinite] rounded-full h-1.5 w-1.5 bg-current"></span>
+        </div>
+    )
+}
 
 export default function LinkGate({ linkData, onAllStepsCompleted }: { linkData: LinkData, onAllStepsCompleted: () => void }) {
   const [step, setStep] = useState<'rules' | 'countdown'>('rules');
@@ -14,9 +24,9 @@ export default function LinkGate({ linkData, onAllStepsCompleted }: { linkData: 
   const [isReady, setIsReady] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
   
-  // State to track clicked rules
-  const [completedRules, setCompletedRules] = useState<boolean[]>(() => 
-    Array(linkData.rules.length).fill(false)
+  // State to track rule status: pending, loading, or completed
+  const [ruleStates, setRuleStates] = useState<('pending' | 'loading' | 'completed')[]>(
+    () => Array(linkData.rules.length).fill('pending')
   );
 
   useEffect(() => {
@@ -42,9 +52,22 @@ export default function LinkGate({ linkData, onAllStepsCompleted }: { linkData: 
   }
 
   const handleRuleClick = (index: number) => {
-    const newCompletedRules = [...completedRules];
-    newCompletedRules[index] = true;
-    setCompletedRules(newCompletedRules);
+    // Prevent action if already loading or completed
+    if (ruleStates[index] !== 'pending') return;
+
+    // Set state to loading
+    const newRuleStates = [...ruleStates];
+    newRuleStates[index] = 'loading';
+    setRuleStates(newRuleStates);
+
+    // After 10 seconds, set to completed
+    setTimeout(() => {
+        setRuleStates(prevStates => {
+            const updatedStates = [...prevStates];
+            updatedStates[index] = 'completed';
+            return updatedStates;
+        });
+    }, 10000); // 10 seconds
   };
 
   const getRuleDescription = (type: string) => {
@@ -57,7 +80,7 @@ export default function LinkGate({ linkData, onAllStepsCompleted }: { linkData: 
     return descriptions[type] || 'Complete this action:';
   }
   
-  const allRulesCompleted = completedRules.every(Boolean);
+  const allRulesCompleted = ruleStates.every(state => state === 'completed');
 
   return (
     <div className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4">
@@ -73,7 +96,10 @@ export default function LinkGate({ linkData, onAllStepsCompleted }: { linkData: 
                 <CardContent className="space-y-4">
                     <div className="space-y-3">
                         {linkData.rules.map((rule, index) => {
-                          const isCompleted = completedRules[index];
+                          const state = ruleStates[index];
+                          const isCompleted = state === 'completed';
+                          const isLoading = state === 'loading';
+                          
                           return (
                             <a 
                                 href={rule.url} 
@@ -83,12 +109,16 @@ export default function LinkGate({ linkData, onAllStepsCompleted }: { linkData: 
                                 onClick={() => handleRuleClick(index)}
                                 className={cn(
                                   "flex items-center justify-between p-3 rounded-lg bg-muted hover:bg-muted/80 transition-all",
-                                  isCompleted && "bg-green-900/50 ring-1 ring-green-500"
+                                  isCompleted && "bg-green-900/50 ring-1 ring-green-500",
+                                  isLoading && "cursor-not-allowed bg-yellow-900/50",
+                                  state !== 'pending' && "pointer-events-none"
                                 )}
                             >
                                 <div className="flex items-center gap-3">
                                    {isCompleted ? (
                                      <CheckCircle className="h-5 w-5 text-green-500 shrink-0" />
+                                   ) : isLoading ? (
+                                     <div className="h-5 w-5 text-yellow-400 shrink-0 flex items-center justify-center"><LoadingDots/></div>
                                    ) : (
                                      <Circle className="h-5 w-5 text-muted-foreground shrink-0" />
                                    )}
@@ -97,7 +127,7 @@ export default function LinkGate({ linkData, onAllStepsCompleted }: { linkData: 
                                       <span className="text-xs text-muted-foreground truncate">{rule.url}</span>
                                    </div>
                                 </div>
-                                <ExternalLink className="h-5 w-5 text-primary shrink-0" />
+                                {!isLoading && <ExternalLink className="h-5 w-5 text-primary shrink-0" />}
                             </a>
                           )
                         })}
