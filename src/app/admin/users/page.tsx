@@ -164,14 +164,18 @@ export default function AdminUsersPage() {
     setIsPayoutHistoryDialogOpen(true);
     setHistoryLoading(true);
     try {
+        // CORRECCIÓN (2024-05-23): Se simplifica la consulta para evitar error de índice compuesto.
+        // Se filtra solo por usuario y se ordena. El filtro por 'status' se hace en el cliente.
         const q = query(
             collection(db, 'payoutRequests'),
             where('userId', '==', user.uid),
-            where('status', '==', 'completed'),
             orderBy('processedAt', 'desc')
         );
         const querySnapshot = await getDocs(q);
-        const historyData = querySnapshot.docs.map(doc => doc.data() as PayoutRequest);
+        const historyData = querySnapshot.docs
+            .map(doc => doc.data() as PayoutRequest)
+            .filter(payout => payout.status === 'completed'); // Filtrado en el cliente.
+            
         setPayoutHistory(historyData);
     } catch (error) {
         console.error("Error fetching payout history: ", error);
