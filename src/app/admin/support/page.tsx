@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -59,10 +58,9 @@ export default function AdminSupportPage() {
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (userLoading) return;
-    if (role !== 'admin') {
-      if (!userLoading) setLoadingTickets(false);
-      return;
+    if (userLoading || role !== 'admin') {
+        if (!userLoading) setLoadingTickets(false);
+        return;
     }
     
     setLoadingTickets(true);
@@ -119,6 +117,8 @@ export default function AdminSupportPage() {
     e.preventDefault();
     if (!newMessage.trim() || !selectedTicket || !user) return;
     
+    if (selectedTicket.status === 'completed') return;
+
     const messageText = newMessage;
     setNewMessage('');
 
@@ -161,26 +161,22 @@ export default function AdminSupportPage() {
     }
   };
 
-  const handleChangeStatus = async (ticketId: string, status: SupportTicket['status']) => {
+  const handleChangeStatus = async (ticket: SupportTicket, status: SupportTicket['status']) => {
     const batch = writeBatch(db);
-    const ticketRef = doc(db, 'supportTickets', ticketId);
+    const ticketRef = doc(db, 'supportTickets', ticket.id);
     
     batch.update(ticketRef, { status });
 
     if(status === 'completed') {
-        const ticketDoc = await getDoc(ticketRef);
-        if(ticketDoc.exists()){
-            const ticketData = ticketDoc.data() as SupportTicket;
-            const notificationRef = doc(collection(db, 'notifications'));
-             const notif: Omit<Notification, 'id'> = {
-                userId: ticketData.userId,
-                type: 'ticket_completed',
-                message: `Your support ticket "${ticketData.subject}" has been closed.`,
-                createdAt: serverTimestamp(),
-                isRead: false,
-            };
-            batch.set(notificationRef, notif);
-        }
+        const notificationRef = doc(collection(db, 'notifications'));
+         const notif: Omit<Notification, 'id'> = {
+            userId: ticket.userId,
+            type: 'ticket_completed',
+            message: `Your support ticket "${ticket.subject}" has been closed.`,
+            createdAt: serverTimestamp(),
+            isRead: false,
+        };
+        batch.set(notificationRef, notif);
     }
     
     await batch.commit();
@@ -288,9 +284,9 @@ export default function AdminSupportPage() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => handleChangeStatus(selectedTicket.id, 'pending')}>Mark as Pending</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleChangeStatus(selectedTicket.id, 'answered')}>Mark as Answered</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleChangeStatus(selectedTicket.id, 'completed')}>Mark as Completed</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleChangeStatus(selectedTicket, 'pending')}>Mark as Pending</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleChangeStatus(selectedTicket, 'answered')}>Mark as Answered</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleChangeStatus(selectedTicket, 'completed')}>Mark as Completed</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
