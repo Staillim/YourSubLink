@@ -180,7 +180,7 @@ export default function LinkGate({ linkData, onAllStepsCompleted }: { linkData: 
                     </Button>
 
                     <div className="text-xs text-muted-foreground pt-4">
-                        <p>Your destination: <span className="font-semibold truncate">{linkData.original}</span></p>
+                        <p>Your destination: <span className="font-semibold truncate">{linkData.title}</span></p>
                     </div>
                 </CardContent>
             </>
