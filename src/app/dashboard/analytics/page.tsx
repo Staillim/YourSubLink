@@ -2,8 +2,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useUser } from '@/hooks/use-user';
-import { db } from '@/lib/firebase';
+import { useAuthState } from 'react-firebase-hooks/auth';
+import { auth, db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import {
@@ -38,7 +38,7 @@ const chartConfig = {
 
 
 export default function AnalyticsPage() {
-  const { user, profile, loading: userLoading } = useUser();
+  const [user, loading] = useAuthState(auth);
   const [links, setLinks] = useState<LinkItem[]>([]);
   const [linksLoading, setLinksLoading] = useState(true);
   const [activeCpm, setActiveCpm] = useState<number>(3.00); // Default CPM
@@ -70,28 +70,25 @@ export default function AnalyticsPage() {
         setLinksLoading(false);
       });
 
-      // Always fetch the global CPM
       const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
       const unsubCpm = onSnapshot(cpmQuery, (snapshot) => {
           if (!snapshot.empty) {
               const cpmDoc = snapshot.docs[0];
               setActiveCpm(cpmDoc.data().rate);
-          } else {
-              setActiveCpm(3.00); // Default if no global is set
           }
       });
-       return () => {
-         unsubscribe();
-         unsubCpm();
-       }
-      
-    } else if (!userLoading) {
+
+      return () => {
+        unsubscribe();
+        unsubCpm();
+      }
+    } else if (!loading) {
         setLinksLoading(false);
     }
-  }, [user, userLoading]);
+  }, [user, loading]);
 
   const totalClicks = links.reduce((acc, link) => acc + link.clicks, 0);
-  const totalEarnings = profile?.generatedEarnings ?? 0;
+  const totalEarnings = links.reduce((acc, link) => acc + (link.generatedEarnings || 0), 0);
 
   const getChartData = () => {
     const monthlyEarnings: { [key: string]: number } = {};
@@ -130,9 +127,9 @@ export default function AnalyticsPage() {
   })).sort((a,b) => b.earnings - a.earnings);
 
 
-  if (userLoading || linksLoading) {
+  if (loading || linksLoading) {
       return (
-        <div className="flex flex-col gap-6">
+        <>
             <div className="flex items-center">
                 <h1 className="text-lg font-semibold md:text-2xl">Analytics</h1>
             </div>
@@ -145,12 +142,12 @@ export default function AnalyticsPage() {
                 <Skeleton className="h-80" />
                 <Skeleton className="h-80" />
             </div>
-        </div>
+        </>
       )
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <>
       <div className="flex items-center">
         <h1 className="text-lg font-semibold md:text-2xl">Analytics</h1>
       </div>
@@ -244,6 +241,6 @@ export default function AnalyticsPage() {
             </CardContent>
         </Card>
       </div>
-    </div>
+    </>
   );
 }

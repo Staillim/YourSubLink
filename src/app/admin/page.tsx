@@ -9,11 +9,11 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Users, Link2, DollarSign, Eye } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import type { UserProfile } from '@/hooks/use-user';
 
 type Link = {
     clicks: number;
     monetizable: boolean;
+    generatedEarnings: number;
 };
 
 type PayoutRequest = {
@@ -30,90 +30,81 @@ export default function AdminDashboardPage() {
     const [totalRevenue, setTotalRevenue] = useState<number | null>(null);
     const [monetizableLinks, setMonetizableLinks] = useState<number | null>(null);
     const [monetizableClicks, setMonetizableClicks] = useState<number | null>(null);
-    const [activeCpm, setActiveCpm] = useState<number | null>(null);
+    const [activeCpm, setActiveCpm] = useState<number>(3.00); // Default CPM
     const [recentPayouts, setRecentPayouts] = useState<PayoutRequest[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const usersQuery = query(collection(db, 'users'));
         const linksQuery = query(collection(db, 'links'));
+        const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
+        // Simplified query to avoid composite index requirement.
+        // We will filter out 'pending' status on the client side.
         const payoutsQuery = query(
             collection(db, 'payoutRequests'), 
             orderBy('processedAt', 'desc'), 
-            limit(10)
+            limit(10) // Fetch a bit more to ensure we get 5 non-pending
         );
-        const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
 
         const unsubUsers = onSnapshot(usersQuery, (snapshot) => {
             setUserCount(snapshot.size);
-            setLoadingIfNecessary();
+            if(loading) setLoading(false);
         });
 
         const unsubLinks = onSnapshot(linksQuery, (snapshot) => {
             let clicks = 0;
             let monetizable = 0;
+            let revenue = 0;
             let monetizableClicksCount = 0;
             snapshot.forEach((doc) => {
                 const data = doc.data() as Link;
                 clicks += data.clicks || 0;
                 if (data.monetizable) {
+                    revenue += data.generatedEarnings || 0;
                     monetizable++;
                     monetizableClicksCount += data.clicks || 0;
                 }
             });
             setTotalClicks(clicks);
+            setTotalRevenue(revenue);
             setMonetizableLinks(monetizable);
             setMonetizableClicks(monetizableClicksCount);
-            setLoadingIfNecessary();
-        });
-
-        const unsubPayouts = onSnapshot(payoutsQuery, (snapshot) => {
-            const payoutsData: PayoutRequest[] = [];
-            snapshot.forEach((doc) => {
-                const data = doc.data() as PayoutRequest;
-                if (data.status !== 'pending' && data.processedAt) {
-                    payoutsData.push({ id: doc.id, ...data });
-                }
-            });
-            setRecentPayouts(payoutsData.slice(0, 5));
+            if (loading) setLoading(false);
         });
 
         const unsubCpm = onSnapshot(cpmQuery, (snapshot) => {
             if (!snapshot.empty) {
                 const cpmDoc = snapshot.docs[0];
                 setActiveCpm(cpmDoc.data().rate);
-            } else {
-                setActiveCpm(3.00); // Default fallback CPM
             }
-            setLoadingIfNecessary();
         });
 
-        const setLoadingIfNecessary = () => {
-             // Set loading to false only after initial data is fetched
-            if (userCount !== null && totalClicks !== null && activeCpm !== null && loading) {
-                setLoading(false);
-            }
-        }
-        
+        const unsubPayouts = onSnapshot(payoutsQuery, (snapshot) => {
+            const payoutsData: PayoutRequest[] = [];
+            snapshot.forEach((doc) => {
+                const data = doc.data() as PayoutRequest;
+                 // Client-side filtering
+                if (data.status !== 'pending' && data.processedAt) {
+                    payoutsData.push({ id: doc.id, ...data });
+                }
+            });
+            // Slice to get the top 5 after filtering
+            setRecentPayouts(payoutsData.slice(0, 5));
+        });
+
         return () => {
             unsubUsers();
             unsubLinks();
-            unsubPayouts();
             unsubCpm();
+            unsubPayouts();
         };
-    }, [loading, userCount, totalClicks, activeCpm]);
-
-    useEffect(() => {
-        if (monetizableClicks !== null && activeCpm !== null) {
-            setTotalRevenue((monetizableClicks / 1000) * activeCpm);
-        }
-    }, [monetizableClicks, activeCpm]);
+    }, [loading]);
 
     const stats = [
         { title: 'Total Users', value: userCount, icon: Users, description: 'Live count' },
         { title: 'Total Clicks', value: totalClicks, icon: Eye, description: 'All clicks in the system' },
         { title: 'Monetizable Clicks', value: monetizableClicks, icon: Eye, description: 'Clicks on monetizable links' },
-        { title: 'Total Revenue', value: totalRevenue, icon: DollarSign, isCurrency: true, description: `Based on an active CPM of $${activeCpm?.toFixed(4)}` },
+        { title: 'Total Revenue', value: totalRevenue, icon: DollarSign, isCurrency: true, description: `Based on an average CPM` },
     ];
 
     return (
