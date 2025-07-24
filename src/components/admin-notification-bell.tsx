@@ -12,18 +12,20 @@ import { Bell, CreditCard, ShieldAlert, Trophy, MessageSquare } from 'lucide-rea
 import type { PayoutRequest } from '@/hooks/use-user';
 import { Skeleton } from './ui/skeleton';
 
-type MilestoneNotification = {
+type AdminNotification = {
     id: string;
-    linkTitle: string;
-    milestone: number;
     userName: string;
+    // These fields are optional because a notification can be one of many types.
+    linkTitle?: string;
+    milestone?: number;
+    message?: string;
 }
 
 export function AdminNotificationBell() {
     const { user, role } = useUser();
     const [payouts, setPayouts] = useState<PayoutRequest[]>([]);
     const [unreadChats, setUnreadChats] = useState<any[]>([]);
-    const [milestones, setMilestones] = useState<MilestoneNotification[]>([]);
+    const [notifications, setNotifications] = useState<AdminNotification[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -44,26 +46,28 @@ export function AdminNotificationBell() {
                 setUnreadChats(chatData);
             });
 
-            const milestoneQuery = query(collection(db, "notifications"), where("type", "==", "milestone"));
-            const unsubMilestones = onSnapshot(milestoneQuery, async (snapshot) => {
-                const milestoneData: MilestoneNotification[] = [];
+            const generalNotificationsQuery = query(collection(db, "notifications"), where("type", "==", "milestone"));
+            const unsubNotifications = onSnapshot(generalNotificationsQuery, async (snapshot) => {
+                const notificationsData: AdminNotification[] = [];
                 for(const notificationDoc of snapshot.docs) {
                     const data = notificationDoc.data();
                     const userDoc = await getDoc(doc(db, "users", data.userId));
                     const userName = userDoc.exists() ? userDoc.data().displayName : "A user";
-                    milestoneData.push({
+                    notificationsData.push({
                         id: notificationDoc.id,
+                        userName: userName,
+                        // Add all potential fields, they might be undefined
                         linkTitle: data.linkTitle,
                         milestone: data.milestone,
-                        userName: userName
+                        message: data.message,
                     });
                 }
-                setMilestones(milestoneData);
+                setNotifications(notificationsData);
             });
 
             return () => {
                 unsubPayouts();
-                unsubMilestones();
+                unsubNotifications();
                 unsubChats();
             };
         } else {
@@ -71,7 +75,7 @@ export function AdminNotificationBell() {
         }
     }, [user, role]);
 
-    const hasUnread = payouts.length > 0 || milestones.length > 0 || unreadChats.length > 0;
+    const hasUnread = payouts.length > 0 || notifications.length > 0 || unreadChats.length > 0;
 
     if (loading) {
         return <Skeleton className="h-9 w-9 rounded-full" />;
@@ -95,7 +99,7 @@ export function AdminNotificationBell() {
                     <h4 className="font-medium text-sm">Admin Notifications</h4>
                 </div>
                 <div className="space-y-2 p-4 pt-0 max-h-80 overflow-y-auto">
-                    {payouts.length === 0 && milestones.length === 0 && unreadChats.length === 0 ? (
+                    {payouts.length === 0 && notifications.length === 0 && unreadChats.length === 0 ? (
                          <div className="text-center text-muted-foreground py-8">
                              <Bell className="mx-auto h-8 w-8 mb-2" />
                              <p className="text-sm">No new notifications.</p>
@@ -124,14 +128,25 @@ export function AdminNotificationBell() {
                                     </div>
                                 </div>
                             ))}
-                            {milestones.map(milestone => (
-                                <div key={milestone.id} className="flex items-start gap-3">
+                            {notifications.map(notification => (
+                                <div key={notification.id} className="flex items-start gap-3">
                                     <Trophy className="h-5 w-5 mt-1 shrink-0 text-blue-500" />
                                     <div className="flex-1 text-sm">
-                                        <p className="font-medium">Link Milestone</p>
-                                        <p className="text-xs text-muted-foreground">
-                                            {milestone.userName}'s link "{milestone.linkTitle}" reached {milestone.milestone.toLocaleString()} visits.
-                                        </p>
+                                        {notification.milestone ? (
+                                            <>
+                                                <p className="font-medium">Link Milestone</p>
+                                                <p className="text-xs text-muted-foreground">
+                                                    {notification.userName}'s link "{notification.linkTitle}" reached {notification.milestone.toLocaleString()} visits.
+                                                </p>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <p className="font-medium">Admin Action</p>
+                                                <p className="text-xs text-muted-foreground">
+                                                    {notification.message}
+                                                </p>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
                             ))}
