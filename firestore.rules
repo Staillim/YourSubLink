@@ -34,7 +34,8 @@ service cloud.firestore {
         allow create: if isOwner(request.resource.data.userId);
         allow read: if isOwner(resource.data.userId) || isAdmin();
         allow update: if isAdmin();
-        allow list: if (request.query.where.path == 'userId' && request.query.where.value == request.auth.uid) || isAdmin();
+        // Users can list their own requests, admins can list all.
+        allow list: if (request.auth != null && request.query.where.path == 'userId' && request.query.where.value == request.auth.uid) || isAdmin();
     }
 
     match /cpmHistory/{cpmId} {
@@ -51,12 +52,14 @@ service cloud.firestore {
       allow create: if isOwner(request.resource.data.userId);
       allow read: if isOwner(resource.data.userId) || isAdmin();
       allow update: if isAdmin();
-      allow list: if (request.query.where.path == 'userId' && request.query.where.value == request.auth.uid) || isAdmin();
+      // Users can only list tickets by their own userId. Admins can list all.
+      allow list: if (request.auth != null && request.query.where.path == 'userId' && request.query.where.value == request.auth.uid) || isAdmin();
       
       match /messages/{messageId} {
         allow read, list: if isAdmin() || get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId == request.auth.uid;
-        // The create rule must check the incoming data, not the parent doc (which doesn't exist yet in a batch)
-        allow create: if isAdmin() || request.resource.data.senderId == request.auth.uid;
+        // A message can only be created if the ticket is NOT completed.
+        allow create: if get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.status != 'completed' &&
+                       (isAdmin() || request.resource.data.senderId == request.auth.uid);
       }
     }
   }
