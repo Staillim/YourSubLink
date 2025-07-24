@@ -362,7 +362,7 @@ export default function AdminUsersPage() {
                                 <TableRow>
                                     <TableHead>Processed Date</TableHead>
                                     <TableHead>Amount</TableHead>
-                                    <TableHead>Method</TableHead>
+                                    <TableHead>Method & Details</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -370,7 +370,10 @@ export default function AdminUsersPage() {
                                     <TableRow key={`${selectedUser?.uid}-${payout.id}`}>
                                         <TableCell>{payout.processedAt ? new Date(payout.processedAt.seconds * 1000).toLocaleString() : 'N/A'}</TableCell>
                                         <TableCell className="font-semibold">${payout.amount.toFixed(4)}</TableCell>
-                                        <TableCell className="capitalize">{payout.method}</TableCell>
+                                        <TableCell>
+                                            <div className="capitalize font-medium">{payout.method}</div>
+                                            <div className="text-xs text-muted-foreground">{payout.details}</div>
+                                        </TableCell>
                                     </TableRow>
                                 ))}
                             </TableBody>
