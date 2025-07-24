@@ -23,6 +23,7 @@ import { auth } from '@/lib/firebase';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useRouter } from 'next/navigation';
 import { NotificationBell } from '@/components/notification-bell';
+import SupportChat from '@/components/support-chat';
 
 
 export default function DashboardLayout({
@@ -132,6 +133,7 @@ export default function DashboardLayout({
         <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-8">
           {children}
         </main>
+        <SupportChat />
       </div>
     </div>
   )

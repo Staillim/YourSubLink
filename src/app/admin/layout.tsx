@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -89,7 +88,7 @@ export default function AdminLayout({
               <span className="text-sm bg-primary text-primary-foreground px-2 py-1 rounded-md">Admin</span>
             </Link>
           </div>
-          <div className="flex-1">
+          <div className="flex-1 overflow-y-auto">
             <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
               <AdminNav />
             </nav>

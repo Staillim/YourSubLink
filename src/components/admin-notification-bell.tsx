@@ -8,7 +8,7 @@ import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, getDoc, doc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Bell, CreditCard, ShieldAlert, Trophy } from 'lucide-react';
+import { Bell, CreditCard, ShieldAlert, Trophy, MessageSquare } from 'lucide-react';
 import type { PayoutRequest } from '@/hooks/use-user';
 import { Skeleton } from './ui/skeleton';
 
@@ -22,6 +22,7 @@ type MilestoneNotification = {
 export function AdminNotificationBell() {
     const { user, role } = useUser();
     const [payouts, setPayouts] = useState<PayoutRequest[]>([]);
+    const [unreadChats, setUnreadChats] = useState<any[]>([]);
     const [milestones, setMilestones] = useState<MilestoneNotification[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -35,6 +36,12 @@ export function AdminNotificationBell() {
             }, (error) => {
                 console.error("Error fetching payout requests: ", error);
                 setLoading(false);
+            });
+
+            const chatsQuery = query(collection(db, 'chats'), where('isReadByAdmin', '==', false));
+            const unsubChats = onSnapshot(chatsQuery, (snapshot) => {
+                const chatData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                setUnreadChats(chatData);
             });
 
             const milestoneQuery = query(collection(db, "notifications"), where("type", "==", "milestone"));
@@ -57,13 +64,14 @@ export function AdminNotificationBell() {
             return () => {
                 unsubPayouts();
                 unsubMilestones();
+                unsubChats();
             };
         } else {
             setLoading(false);
         }
     }, [user, role]);
 
-    const hasUnread = payouts.length > 0 || milestones.length > 0;
+    const hasUnread = payouts.length > 0 || milestones.length > 0 || unreadChats.length > 0;
 
     if (loading) {
         return <Skeleton className="h-9 w-9 rounded-full" />;
@@ -87,13 +95,24 @@ export function AdminNotificationBell() {
                     <h4 className="font-medium text-sm">Admin Notifications</h4>
                 </div>
                 <div className="space-y-2 p-4 pt-0 max-h-80 overflow-y-auto">
-                    {payouts.length === 0 && milestones.length === 0 ? (
+                    {payouts.length === 0 && milestones.length === 0 && unreadChats.length === 0 ? (
                          <div className="text-center text-muted-foreground py-8">
                              <Bell className="mx-auto h-8 w-8 mb-2" />
                              <p className="text-sm">No new notifications.</p>
                         </div>
                     ) : (
                         <>
+                            {unreadChats.map(chat => (
+                                <div key={chat.id} className="flex items-start gap-3">
+                                    <MessageSquare className="h-5 w-5 mt-1 shrink-0 text-blue-500" />
+                                    <div className="flex-1 text-sm">
+                                        <p className="font-medium">New Support Message</p>
+                                        <p className="text-xs text-muted-foreground">
+                                            New message from {chat.userName}.
+                                        </p>
+                                    </div>
+                                </div>
+                            ))}
                             {payouts.map(payout => (
                                 <div key={payout.id} className="flex items-start gap-3">
                                     <CreditCard className="h-5 w-5 mt-1 shrink-0 text-yellow-500" />
