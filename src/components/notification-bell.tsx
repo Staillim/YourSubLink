@@ -37,6 +37,7 @@ export function NotificationBell() {
     const [payouts, setPayouts] = useState<PayoutRequest[]>([]);
     const [milestones, setMilestones] = useState<MilestoneNotification[]>([]);
     const [hasUnread, setHasUnread] = useState(false);
+    const [isOpen, setIsOpen] = useState(false);
 
     useEffect(() => {
         if (user) {
@@ -68,7 +69,7 @@ export function NotificationBell() {
     }, [user]);
 
     return (
-        <Popover>
+        <Popover open={isOpen} onOpenChange={setIsOpen}>
             <PopoverTrigger asChild>
                 <Button variant="ghost" size="icon" className="relative">
                     <Bell className="h-5 w-5" />
@@ -118,7 +119,7 @@ export function NotificationBell() {
                 </div>
                 <div className="p-2 border-t">
                     <Button variant="link" size="sm" asChild className="w-full">
-                        <Link href="/dashboard/notifications">View all notifications</Link>
+                        <Link href="/dashboard/notifications" onClick={() => setIsOpen(false)}>View all notifications</Link>
                     </Button>
                 </div>
             </PopoverContent>

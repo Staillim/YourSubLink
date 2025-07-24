@@ -79,7 +79,7 @@ const getNotificationDetails = (notification: Notification): FormattedNotificati
                 description: notification.message,
                 date,
                 timestamp,
-                href: `/dashboard/links/${notification.linkId}`,
+                href: notification.linkId ? `/dashboard/links/${notification.linkId}` : '/dashboard',
                 isUnread: notification.isRead === false,
                 type: notification.type,
             };
@@ -143,7 +143,6 @@ export default function NotificationsPage() {
             const generalNotificationsQuery = query(
                 collection(db, "notifications"), 
                 where("userId", "==", user.uid)
-                // Removed orderBy to prevent composite index requirement
             );
             
             const payoutRequestsQuery = query(
@@ -159,7 +158,7 @@ export default function NotificationsPage() {
                     const payoutNotifications = processPayouts(payoutData);
 
                     const allNotifications = [...generalData, ...payoutNotifications];
-                    // Sort on the client-side
+                    
                     allNotifications.sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
                     
                     const formatted = allNotifications.map(getNotificationDetails);

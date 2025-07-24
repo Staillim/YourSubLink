@@ -1,3 +1,4 @@
+
 /**
  * !! ANTES DE EDITAR ESTE ARCHIVO, REVISA LAS DIRECTRICES EN LOS SIGUIENTES DOCUMENTOS: !!
  * - /README.md
@@ -9,7 +10,7 @@
 
 'use client';
 
-import { useState, useTransition, useEffect } from 'react';
+import { useState, useTransition, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
@@ -32,7 +33,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Copy, Link as LinkIcon, Loader2, MoreVertical, Trash2, ExternalLink, BadgeHelp, Edit, PlusCircle, BarChart3, DollarSign, Calendar, Eye } from 'lucide-react';
+import { Copy, Link as LinkIcon, Loader2, MoreVertical, Trash2, ExternalLink, BadgeHelp, Edit, PlusCircle, BarChart3, DollarSign, Calendar, Eye, ShieldCheck, ShieldX, ShieldQuestion } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
@@ -54,6 +55,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Rule, RuleEditor } from '@/components/rule-editor';
 import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 
 export type LinkItem = {
@@ -130,6 +132,14 @@ export default function DashboardPage() {
     }
   }, [user]);
 
+  const { monetizableLinks, notMonetizableLinks, suspendedLinks } = useMemo(() => {
+    const monetizableLinks = links.filter(link => link.monetizable && link.monetizationStatus === 'active');
+    const notMonetizableLinks = links.filter(link => !link.monetizable && link.monetizationStatus === 'active');
+    const suspendedLinks = links.filter(link => link.monetizationStatus === 'suspended');
+    return { monetizableLinks, notMonetizableLinks, suspendedLinks };
+  }, [links]);
+
+
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
     toast({
@@ -140,6 +150,7 @@ export default function DashboardPage() {
   };
   
   const handleDelete = async (id: string) => {
+    if(!confirm("Are you sure you want to delete this link? This action cannot be undone.")) return;
     try {
         await deleteDoc(doc(db, "links", id));
         toast({
@@ -193,6 +204,151 @@ export default function DashboardPage() {
     });
   }
 
+  const renderLinksTable = (linksToRender: LinkItem[], category: string) => {
+    if (linksToRender.length === 0) {
+        return (
+            <div className="text-center text-muted-foreground py-12">
+                <p>No links in the "{category}" category.</p>
+            </div>
+        )
+    }
+    return (
+        <div className="overflow-x-auto">
+            <Table>
+                <TableHeader>
+                <TableRow>
+                    <TableHead className="w-full md:w-2/5">Link</TableHead>
+                    <TableHead className="hidden md:table-cell">Status</TableHead>
+                    <TableHead className="hidden sm:table-cell">Clicks</TableHead>
+                    <TableHead className="hidden sm:table-cell">Earnings</TableHead>
+                    <TableHead className="hidden lg:table-cell">Date</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+                </TableHeader>
+                <TableBody>
+                {linksToRender.map((link) => (
+                    <TableRow key={link.id} className="hover:bg-muted/50">
+                    <TableCell className="font-medium">
+                        <div className="flex flex-col gap-1">
+                            <span className="font-bold truncate max-w-[200px] sm:max-w-xs">{link.title}</span>
+                            <div className="flex items-center gap-2">
+                                <a href={link.short} target="_blank" rel="noopener noreferrer" className="font-mono text-sm text-primary hover:underline block truncate max-w-[200px] sm:max-w-xs">{link.short.replace('https://','')}</a>
+                            </div>
+                        </div>
+                        {/* Mobile-only details */}
+                        <div className="md:hidden mt-2 space-y-2 text-xs">
+                            <div className="flex items-center gap-2">
+                                <span className="font-medium">Status:</span>
+                                <div className="flex items-center gap-1">
+                                    {link.monetizationStatus === 'suspended' ? (
+                                        <Badge variant="secondary" className="h-5 bg-yellow-500 text-black">Suspended</Badge>
+                                    ) : (
+                                        <Badge variant={link.monetizable ? 'default' : 'secondary'} className={`h-5 ${link.monetizable ? 'bg-green-600' : ''}`}>
+                                            {link.monetizable ? 'Monetizable' : 'Not Monetizable'}
+                                        </Badge>
+                                    )}
+                                    {link.monetizationStatus === 'suspended' && (
+                                          <Tooltip>
+                                              <TooltipTrigger asChild>
+                                                  <button>
+                                                      <BadgeHelp className="h-4 w-4 text-muted-foreground"/>
+                                                  </button>
+                                              </TooltipTrigger>
+                                              <TooltipContent>
+                                                  <p>Monetization for this link has been suspended due to suspicious activity. <br/> If you believe this is an error, please contact support.</p>
+                                              </TooltipContent>
+                                          </Tooltip>
+                                    )}
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-4">
+                                <div className="flex items-center gap-1 text-muted-foreground">
+                                    <Eye className="h-3 w-3" />
+                                    <span>{link.clicks} Clicks</span>
+                                </div>
+                                 <div className="flex items-center gap-1 text-muted-foreground">
+                                    <DollarSign className="h-3 w-3" />
+                                    <span>${link.generatedEarnings.toFixed(4)}</span>
+                                </div>
+                                <div className="flex items-center gap-1 text-muted-foreground">
+                                    <Calendar className="h-3 w-3" />
+                                    <span>{link.date}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                        <div className="flex items-center gap-1.5">
+                            {link.monetizationStatus === 'suspended' ? (
+                                <Badge variant="secondary" className="bg-yellow-500 text-black">Suspended</Badge>
+                            ) : (
+                                <Badge variant={link.monetizable ? 'default' : 'secondary'} className={link.monetizable ? 'bg-green-600' : ''}>
+                                    {link.monetizable ? 'Monetizable' : 'Not Monetizable'}
+                                </Badge>
+                            )}
+                            {link.monetizationStatus === 'suspended' ? (
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                          <button>
+                                              <BadgeHelp className="h-4 w-4 text-muted-foreground"/>
+                                          </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p className="max-w-xs">Monetization for this link has been suspended due to suspicious activity. If you believe this is an error, please contact support.</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            ) : (
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                       <button>
+                                          <BadgeHelp className="h-4 w-4 text-muted-foreground"/>
+                                       </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p>{link.monetizable ? 'This link is eligible for monetization.' : `This link needs at least ${3 - link.rules.length} more rule(s) to be monetizable.`}</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            )}
+                        </div>
+                    </TableCell>
+                    <TableCell className="hidden sm:table-cell">{link.clicks}</TableCell>
+                    <TableCell className="font-semibold text-green-500 hidden sm:table-cell">${link.generatedEarnings.toFixed(4)}</TableCell>
+                    <TableCell className="hidden lg:table-cell text-muted-foreground">{link.date}</TableCell>
+                    <TableCell className="text-right">
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                                <MoreVertical className="h-4 w-4" />
+                            </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => router.push(`/dashboard/links/${link.id}`)}>
+                                <BarChart3 className="mr-2 h-4 w-4" />
+                                <span>View Stats</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openEditDialog(link)}>
+                                <Edit className="mr-2 h-4 w-4" />
+                                <span>Edit</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleCopy(link.short)}>
+                                <Copy className="mr-2 h-4 w-4" />
+                                <span>Copy</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(link.id)}>
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                <span>Delete</span>
+                            </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </TableCell>
+                    </TableRow>
+                ))}
+                </TableBody>
+            </Table>
+        </div>
+    );
+  }
+
   if (loading || linksLoading) {
     return (
       <div className="flex flex-col gap-4">
@@ -217,156 +373,58 @@ export default function DashboardPage() {
           </Button>
       </div>
       <div className="grid gap-6">
-           <Card>
-              <CardHeader>
-                  <CardTitle>My Links</CardTitle>
-                  <CardDescription>
-                  Here are all the links you've created.
-                  </CardDescription>
-              </CardHeader>
-              <CardContent>
-                  <div className="overflow-x-auto">
-                  <Table>
-                      <TableHeader>
-                      <TableRow>
-                          <TableHead className="w-full md:w-2/5">Link</TableHead>
-                          <TableHead className="hidden md:table-cell">Status</TableHead>
-                          <TableHead className="hidden sm:table-cell">Clicks</TableHead>
-                          <TableHead className="hidden sm:table-cell">Earnings</TableHead>
-                          <TableHead className="hidden lg:table-cell">Date</TableHead>
-                          <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                      {links.map((link) => (
-                          <TableRow key={link.id} className="hover:bg-muted/50">
-                          <TableCell className="font-medium">
-                              <div className="flex flex-col gap-1">
-                                  <span className="font-bold truncate max-w-[200px] sm:max-w-xs">{link.title}</span>
-                                  <div className="flex items-center gap-2">
-                                      <a href={link.short} target="_blank" rel="noopener noreferrer" className="font-mono text-sm text-primary hover:underline block truncate max-w-[200px] sm:max-w-xs">{link.short.replace('https://','')}</a>
-                                  </div>
-                              </div>
-                              {/* Mobile-only details */}
-                              <div className="md:hidden mt-2 space-y-2 text-xs">
-                                  <div className="flex items-center gap-2">
-                                      <span className="font-medium">Status:</span>
-                                      <div className="flex items-center gap-1">
-                                          {link.monetizationStatus === 'suspended' ? (
-                                              <Badge variant="secondary" className="h-5 bg-yellow-500 text-black">Suspended</Badge>
-                                          ) : (
-                                              <Badge variant={link.monetizable ? 'default' : 'secondary'} className={`h-5 ${link.monetizable ? 'bg-green-600' : ''}`}>
-                                                  {link.monetizable ? 'Monetizable' : 'Not Monetizable'}
-                                              </Badge>
-                                          )}
-                                          {link.monetizationStatus === 'suspended' && (
-                                                <Tooltip>
-                                                    <TooltipTrigger asChild>
-                                                        <button>
-                                                            <BadgeHelp className="h-4 w-4 text-muted-foreground"/>
-                                                        </button>
-                                                    </TooltipTrigger>
-                                                    <TooltipContent>
-                                                        <p>Monetization for this link has been suspended due to suspicious activity. <br/> If you believe this is an error, please contact support.</p>
-                                                    </TooltipContent>
-                                                </Tooltip>
-                                          )}
-                                      </div>
-                                  </div>
-                                  <div className="flex items-center gap-4">
-                                      <div className="flex items-center gap-1 text-muted-foreground">
-                                          <Eye className="h-3 w-3" />
-                                          <span>{link.clicks} Clicks</span>
-                                      </div>
-                                       <div className="flex items-center gap-1 text-muted-foreground">
-                                          <DollarSign className="h-3 w-3" />
-                                          <span>${link.generatedEarnings.toFixed(4)}</span>
-                                      </div>
-                                      <div className="flex items-center gap-1 text-muted-foreground">
-                                          <Calendar className="h-3 w-3" />
-                                          <span>{link.date}</span>
-                                      </div>
-                                  </div>
-                              </div>
-                          </TableCell>
-                          <TableCell className="hidden md:table-cell">
-                              <div className="flex items-center gap-1.5">
-                                  {link.monetizationStatus === 'suspended' ? (
-                                      <Badge variant="secondary" className="bg-yellow-500 text-black">Suspended</Badge>
-                                  ) : (
-                                      <Badge variant={link.monetizable ? 'default' : 'secondary'} className={link.monetizable ? 'bg-green-600' : ''}>
-                                          {link.monetizable ? 'Monetizable' : 'Not Monetizable'}
-                                      </Badge>
-                                  )}
-                                  {link.monetizationStatus === 'suspended' ? (
-                                      <Tooltip>
-                                          <TooltipTrigger asChild>
-                                                <button>
-                                                    <BadgeHelp className="h-4 w-4 text-muted-foreground"/>
-                                                </button>
-                                          </TooltipTrigger>
-                                          <TooltipContent>
-                                              <p className="max-w-xs">Monetization for this link has been suspended due to suspicious activity. If you believe this is an error, please contact support.</p>
-                                          </TooltipContent>
-                                      </Tooltip>
-                                  ) : (
-                                      <Tooltip>
-                                          <TooltipTrigger asChild>
-                                             <button>
-                                                <BadgeHelp className="h-4 w-4 text-muted-foreground"/>
-                                             </button>
-                                          </TooltipTrigger>
-                                          <TooltipContent>
-                                              <p>{link.monetizable ? 'This link is eligible for monetization.' : `This link needs at least ${3 - link.rules.length} more rule(s) to be monetizable.`}</p>
-                                          </TooltipContent>
-                                      </Tooltip>
-                                  )}
-                              </div>
-                          </TableCell>
-                          <TableCell className="hidden sm:table-cell">{link.clicks}</TableCell>
-                          <TableCell className="font-semibold text-green-500 hidden sm:table-cell">${link.generatedEarnings.toFixed(4)}</TableCell>
-                          <TableCell className="hidden lg:table-cell text-muted-foreground">{link.date}</TableCell>
-                          <TableCell className="text-right">
-                              <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="icon">
-                                      <MoreVertical className="h-4 w-4" />
-                                  </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onClick={() => router.push(`/dashboard/links/${link.id}`)}>
-                                      <BarChart3 className="mr-2 h-4 w-4" />
-                                      <span>View Stats</span>
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => openEditDialog(link)}>
-                                      <Edit className="mr-2 h-4 w-4" />
-                                      <span>Edit</span>
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => handleCopy(link.short)}>
-                                      <Copy className="mr-2 h-4 w-4" />
-                                      <span>Copy</span>
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(link.id)}>
-                                      <Trash2 className="mr-2 h-4 w-4" />
-                                      <span>Delete</span>
-                                  </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                              </DropdownMenu>
-                          </TableCell>
-                          </TableRow>
-                      ))}
-                       {links.length === 0 && (
-                          <TableRow>
-                              <TableCell colSpan={7} className="text-center h-24">
-                              No links created yet.
-                              </TableCell>
-                          </TableRow>
-                      )}
-                      </TableBody>
-                  </Table>
-                  </div>
-              </CardContent>
-          </Card>
+            <Tabs defaultValue="monetizable" className="w-full">
+                <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="monetizable">
+                        <ShieldCheck className="mr-2"/> Monetizable
+                    </TabsTrigger>
+                    <TabsTrigger value="not-monetizable">
+                        <ShieldX className="mr-2"/> Not Monetizable
+                    </TabsTrigger>
+                    <TabsTrigger value="suspended">
+                        <ShieldQuestion className="mr-2"/> Suspended
+                    </TabsTrigger>
+                </TabsList>
+                <TabsContent value="monetizable">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Monetizable Links</CardTitle>
+                            <CardDescription>
+                                These links are active and generating revenue.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                           {renderLinksTable(monetizableLinks, "Monetizable")}
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+                <TabsContent value="not-monetizable">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Not Monetizable Links</CardTitle>
+                            <CardDescription>
+                                These links are active, but need 3 or more rules to generate revenue.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {renderLinksTable(notMonetizableLinks, "Not Monetizable")}
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+                <TabsContent value="suspended">
+                     <Card>
+                        <CardHeader>
+                            <CardTitle>Suspended Links</CardTitle>
+                            <CardDescription>
+                                Monetization for these links has been paused due to suspicious activity.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {renderLinksTable(suspendedLinks, "Suspended")}
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+            </Tabs>
       </div>
 
       {/* Edit Link Dialog */}
