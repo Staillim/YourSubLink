@@ -1,3 +1,4 @@
+
 /**
  * !! ANTES DE EDITAR ESTE ARCHIVO, REVISA LAS DIRECTRICES EN LOS SIGUIENTES DOCUMENTOS: !!
  * - /README.md
@@ -109,7 +110,7 @@ export default function DashboardPage() {
                 id: docSnapshot.id,
                 original: data.original,
                 shortId: data.shortId,
-                short: `${window.location.origin}/${data.shortId}`,
+                short: `${window.location.origin}/link/${data.shortId}`,
                 clicks: data.clicks,
                 date: new Date(data.createdAt.seconds * 1000).toISOString().split('T')[0],
                 userId: data.userId,
