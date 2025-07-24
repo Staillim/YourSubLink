@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useUser } from '@/hooks/use-user';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, getDocs, writeBatch, doc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, getDocs, writeBatch, doc, orderBy, limit } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Bell } from 'lucide-react';
@@ -25,12 +25,15 @@ export function NotificationBell() {
                 setHasUnread(!snapshot.empty);
             });
             
-            const allNotifsQuery = query(collection(db, "notifications"), where("userId", "==", user.uid));
+            const allNotifsQuery = query(
+                collection(db, "notifications"), 
+                where("userId", "==", user.uid),
+                orderBy("createdAt", "desc"),
+                limit(5)
+            );
              const unsubAll = onSnapshot(allNotifsQuery, (snapshot) => {
                 const notifData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
-                notifData.sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
-                
-                const formatted = notifData.slice(0, 5).map(getNotificationDetails);
+                const formatted = notifData.map(getNotificationDetails);
                 setNotifications(formatted);
             });
 
