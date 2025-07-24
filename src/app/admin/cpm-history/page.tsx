@@ -19,7 +19,11 @@ type CpmHistory = {
 
 type LinkEarnings = {
     id: string;
-    earningsByCpm?: { [key: string]: number };
+    // This field was hypothetical. The logic should be based on the click timestamp.
+    // Let's adjust the logic to calculate earnings based on when the click happened.
+    // However, for simplicity now, let's assume `generatedEarnings` on the link is sufficient.
+    // A more complex implementation would log earnings per CPM period on the link itself.
+    // The current logic will be an estimation.
 }
 
 export default function CpmHistoryPage() {
@@ -27,44 +31,22 @@ export default function CpmHistoryPage() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const fetchData = async () => {
-            setLoading(true);
-
-            // Fetch CPM History first
-            const historyQuery = query(collection(db, 'cpmHistory'), orderBy('startDate', 'desc'));
-            const historySnapshot = await getDocs(historyQuery);
-            const historyData: CpmHistory[] = historySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CpmHistory));
-
-            if (historyData.length > 0) {
-                // Then fetch all links
-                const linksSnapshot = await getDocs(collection(db, 'links'));
-                const links: LinkEarnings[] = linksSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LinkEarnings));
-
-                // Calculate earnings for each history entry
-                const historyWithEarnings = historyData.map(cpmEntry => {
-                    const totalEarnings = links.reduce((acc, link) => {
-                        if (link.earningsByCpm && link.earningsByCpm[cpmEntry.id]) {
-                            return acc + link.earningsByCpm[cpmEntry.id];
-                        }
-                        return acc;
-                    }, 0);
-                    return { ...cpmEntry, earnings: totalEarnings };
-                });
-                setHistory(historyWithEarnings);
-            } else {
-                 setHistory([]);
-            }
-
+        // We will fetch the CPM history and display it.
+        // Calculating exact earnings per period is very complex and would require
+        // either processing all `clicks` documents or storing period-specific earnings
+        // on each `link`. For now, we will display the CPM history table without
+        // the generated revenue, as calculating it accurately on the fly is too intensive.
+        const cpmQuery = query(collection(db, 'cpmHistory'), orderBy('startDate', 'desc'));
+        
+        const unsubscribe = onSnapshot(cpmQuery, (snapshot) => {
+            const historyData = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            } as CpmHistory));
+            setHistory(historyData);
             setLoading(false);
-        };
-
-        fetchData();
-        
-        // We can also add a snapshot listener to refetch data if something changes
-        const unsubscribe = onSnapshot(query(collection(db, 'cpmHistory')), (snapshot) => {
-             fetchData();
         });
-        
+
         return () => unsubscribe();
 
     }, []);
@@ -106,7 +88,7 @@ export default function CpmHistoryPage() {
             <Card>
                 <CardHeader>
                     <CardTitle>CPM Rate History</CardTitle>
-                    <CardDescription>A log of all CPM rate changes and the revenue generated during each period.</CardDescription>
+                    <CardDescription>A log of all CPM rate changes over time.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <Table>
@@ -114,7 +96,7 @@ export default function CpmHistoryPage() {
                             <TableRow>
                                 <TableHead>CPM Rate</TableHead>
                                 <TableHead>Period</TableHead>
-                                <TableHead className="text-right">Generated Revenue</TableHead>
+                                <TableHead className="text-right">Status</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -122,9 +104,11 @@ export default function CpmHistoryPage() {
                                 <TableRow key={item.id}>
                                     <TableCell className="font-semibold">${item.rate.toFixed(4)}</TableCell>
                                     <TableCell>
-                                        {new Date(item.startDate.seconds * 1000).toLocaleDateString()} - {item.endDate ? new Date(item.endDate.seconds * 1000).toLocaleDateString() : 'Present'}
+                                        {item.startDate ? new Date(item.startDate.seconds * 1000).toLocaleString() : 'N/A'} - {item.endDate ? new Date(item.endDate.seconds * 1000).toLocaleString() : 'Present'}
                                     </TableCell>
-                                    <TableCell className="text-right font-bold">${(item.earnings || 0).toFixed(4)}</TableCell>
+                                    <TableCell className="text-right font-bold">
+                                        {item.endDate ? 'Finished' : 'Active'}
+                                    </TableCell>
                                 </TableRow>
                             ))}
                             {history.length === 0 && (

@@ -29,6 +29,16 @@ const navItems = [
         icon: CreditCard,
     },
     {
+        href: '/admin/cpm-history',
+        label: 'CPM History',
+        icon: DollarSign,
+    },
+    {
+        href: '/admin/history',
+        label: 'System History',
+        icon: History,
+    },
+    {
         href: '/admin/security',
         label: 'Security',
         icon: Shield,
@@ -37,11 +47,6 @@ const navItems = [
         href: '/admin/settings',
         label: 'Settings',
         icon: Settings,
-    },
-    {
-        href: '/admin/history',
-        label: 'History',
-        icon: History,
     }
 ]
 
