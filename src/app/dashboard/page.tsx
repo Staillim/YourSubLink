@@ -10,8 +10,8 @@
 
 'use client';
 
-import { useState, useTransition, useEffect, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useTransition, useEffect, useMemo, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, deleteDoc, doc, updateDoc, getDocs } from 'firebase/firestore';
@@ -74,10 +74,10 @@ export type LinkItem = {
   monetizationStatus: 'active' | 'suspended';
 };
 
-
-export default function DashboardPage() {
+function DashboardPageComponent() {
   const [user, loading] = useAuthState(auth);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
 
   const [links, setLinks] = useState<LinkItem[]>([]);
@@ -349,6 +349,9 @@ export default function DashboardPage() {
     );
   }
 
+  const tab = searchParams.get('tab');
+  const defaultTab = tab === 'monetizable' || tab === 'not-monetizable' || tab === 'suspended' ? tab : 'all';
+
   if (loading || linksLoading) {
     return (
       <div className="flex flex-col gap-4">
@@ -373,7 +376,7 @@ export default function DashboardPage() {
           </Button>
       </div>
       <div className="grid gap-6">
-            <Tabs defaultValue="all" className="w-full">
+            <Tabs defaultValue={defaultTab} className="w-full">
                 <TabsList className="grid w-full grid-cols-4">
                     <TabsTrigger value="all">
                         <LinkIcon className="mr-2"/> Todos
@@ -492,4 +495,12 @@ export default function DashboardPage() {
       </Dialog>
     </TooltipProvider>
   );
+}
+
+export default function DashboardPage() {
+    return (
+        <Suspense fallback={<div>Loading...</div>}>
+            <DashboardPageComponent />
+        </Suspense>
+    )
 }

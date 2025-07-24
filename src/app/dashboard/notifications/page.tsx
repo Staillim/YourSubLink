@@ -79,7 +79,7 @@ export const getNotificationDetails = (notification: Notification): FormattedNot
                 description: notification.message,
                 date,
                 timestamp,
-                href: notification.linkId ? `/dashboard/links/${notification.linkId}` : '/dashboard',
+                href: '/dashboard?tab=suspended',
                 isUnread: notification.isRead === false,
                 type: notification.type,
             };
@@ -157,11 +157,11 @@ export default function NotificationsPage() {
                     const payoutData = payoutSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data()} as PayoutRequest));
                     const payoutNotifications = processPayouts(payoutData);
 
-                    const allNotifications = [...generalData, ...payoutNotifications];
+                    const allNotificationsData = [...generalData, ...payoutNotifications];
                     
-                    allNotifications.sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
+                    const sortedNotifications = allNotificationsData.sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
                     
-                    const formatted = allNotifications.map(getNotificationDetails);
+                    const formatted = sortedNotifications.map(getNotificationDetails);
                     setNotifications(formatted);
                     setLoading(false);
                 });
