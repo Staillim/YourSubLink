@@ -137,40 +137,39 @@ export default function LinkGate({ linkData, onAllStepsCompleted }: { linkData: 
   const allRulesCompleted = ruleStates.every(state => state === 'completed');
 
   return (
-    <div className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4">
+    <div className="relative flex min-h-screen w-full flex-col items-center justify-center bg-background p-4">
+      <div className="absolute top-4 left-4 sm:top-8 sm:left-8">
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <button className="focus:outline-none">
+                    <Logo />
+                </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+                <DropdownMenuItem asChild>
+                    <Link href="/">
+                        <LogIn className="mr-2 h-4 w-4" />
+                        <span>Login</span>
+                    </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                        <Link href="/">
+                        <UserPlus className="mr-2 h-4 w-4" />
+                        <span>Register</span>
+                    </Link>
+                </DropdownMenuItem>
+            </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
       <Card className="w-full max-w-md shadow-2xl bg-card border-gray-800">
          {step === 'rules' && (
             <>
-                <CardHeader className="p-4 sm:p-6 space-y-4">
-                    <div className="flex justify-start">
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <button className="focus:outline-none">
-                                    <Logo />
-                                </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="start">
-                                <DropdownMenuItem asChild>
-                                    <Link href="/">
-                                        <LogIn className="mr-2 h-4 w-4" />
-                                        <span>Login</span>
-                                    </Link>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem asChild>
-                                     <Link href="/">
-                                        <UserPlus className="mr-2 h-4 w-4" />
-                                        <span>Register</span>
-                                    </Link>
-                                </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                    </div>
-                    <div className="text-center">
-                        <CardTitle className="text-xl sm:text-2xl font-bold tracking-tight">Complete the steps</CardTitle>
-                        <CardDescription className="text-muted-foreground text-sm pt-1">
-                            To unlock the link, please complete the following steps.
-                        </CardDescription>
-                    </div>
+                <CardHeader className="p-4 sm:p-6 text-center">
+                    <CardTitle className="text-xl sm:text-2xl font-bold tracking-tight">Complete the steps</CardTitle>
+                    <CardDescription className="text-muted-foreground text-sm pt-1">
+                        To unlock the link, please complete the following steps.
+                    </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4 p-4 sm:p-6">
                     <div className="space-y-3">
@@ -224,21 +223,19 @@ export default function LinkGate({ linkData, onAllStepsCompleted }: { linkData: 
                         Unlock Link
                     </Button>
                 </CardContent>
+                <CardFooter className="p-4 sm:p-6 text-center text-sm text-muted-foreground">
+                    <p>Want to earn money with your links? <Link href="/" className="font-bold text-primary hover:underline">Register here.</Link></p>
+                </CardFooter>
             </>
         )}
 
         {step === 'countdown' && (
             <>
-                <CardHeader className="p-4 sm:p-6 space-y-4">
-                    <div className="flex justify-start">
-                        <Logo />
-                    </div>
-                    <div className="text-center">
-                        <CardTitle className="text-xl sm:text-2xl font-bold tracking-tight">Almost there!</CardTitle>
-                        <CardDescription className="text-muted-foreground text-sm pt-1">
-                            You are about to be redirected.
-                        </CardDescription>
-                    </div>
+                <CardHeader className="p-4 sm:p-6 text-center">
+                    <CardTitle className="text-xl sm:text-2xl font-bold tracking-tight">Almost there!</CardTitle>
+                    <CardDescription className="text-muted-foreground text-sm pt-1">
+                        You are about to be redirected.
+                    </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4 text-center p-4 sm:p-6">
                     {isReady ? (
