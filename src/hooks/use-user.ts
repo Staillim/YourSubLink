@@ -4,10 +4,11 @@
 import { useEffect, useState } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db, createUserProfile } from '@/lib/firebase';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, collection, query, where, getDocs } from 'firebase/firestore';
 import type { User as FirebaseUser } from 'firebase/auth';
 
 export type UserProfile = {
+  uid: string;
   displayName: string;
   email: string;
   photoURL: string;
@@ -47,20 +48,30 @@ export function useUser() {
 
     // This is the ideal place to ensure the user profile exists.
     const userDocRef = doc(db, 'users', authUser.uid);
-    const unsubscribe = onSnapshot(userDocRef, (doc) => {
-      if (doc.exists()) {
-        const data = doc.data();
+    
+    const unsubscribe = onSnapshot(userDocRef, async (userDoc) => {
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        
+        // Fetch all links for this user to calculate total earnings dynamically
+        const linksQuery = query(collection(db, 'links'), where('userId', '==', authUser.uid));
+        const linksSnapshot = await getDocs(linksQuery);
+        const totalGeneratedEarnings = linksSnapshot.docs.reduce((acc, doc) => {
+            return acc + (doc.data().generatedEarnings || 0);
+        }, 0);
+
         setUserProfile({
-            displayName: data.displayName || 'User',
-            email: data.email || '',
-            photoURL: data.photoURL || '',
-            role: data.role || 'user',
-            generatedEarnings: data.generatedEarnings || 0,
-            paidEarnings: data.paidEarnings || 0,
+            uid: authUser.uid,
+            displayName: userData.displayName || 'User',
+            email: userData.email || '',
+            photoURL: userData.photoURL || '',
+            role: userData.role || 'user',
+            generatedEarnings: totalGeneratedEarnings, // Use calculated value
+            paidEarnings: userData.paidEarnings || 0,
         });
       } else {
         // User is authenticated, but no profile exists. Create it now.
-        createUserProfile(authUser);
+        await createUserProfile(authUser);
         // The onSnapshot listener will automatically pick up the new profile
         // and update the state, so we don't need to set it here.
       }

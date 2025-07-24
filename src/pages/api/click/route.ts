@@ -1,7 +1,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, updateDoc, increment, addDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc, increment, addDoc, serverTimestamp, writeBatch, runTransaction } from 'firebase/firestore';
 
 // Main logic to process a link click
 export async function POST(req: NextRequest) {
@@ -55,8 +55,6 @@ export async function POST(req: NextRequest) {
             const earningsPerClick = activeCpm / 1000;
 
             // Increment earnings ON THE LINK DOCUMENT.
-            // DO NOT update the user document from this public API, as it will fail due to security rules.
-            // The total user earnings can be aggregated from their links.
             batch.update(linkRef, { generatedEarnings: increment(earningsPerClick) });
         }
         
