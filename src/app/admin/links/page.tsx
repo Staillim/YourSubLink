@@ -156,7 +156,7 @@ export default function AdminLinksPage() {
                         <TableCell>
                             <div className="font-semibold truncate max-w-[200px] sm:max-w-xs">{link.title}</div>
                             <div className="text-xs text-muted-foreground md:hidden">{link.userName}</div>
-                            <a href={link.short} target='_blank' rel='noopener noreferrer' className="text-xs text-muted-foreground hover:underline">{link.short}</a>
+                            <a href={link.short} target='_blank' rel='noopener noreferrer' className="text-xs text-muted-foreground hover:underline block truncate max-w-[200px] sm:max-w-xs">{link.short}</a>
                         </TableCell>
                          <TableCell className="hidden md:table-cell">
                             <div className="font-medium">{link.userName}</div>
