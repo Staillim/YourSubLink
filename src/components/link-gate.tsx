@@ -6,10 +6,16 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import type { LinkData } from '@/types';
-import { Loader2, ArrowRight, CheckCircle, ExternalLink, Circle } from 'lucide-react';
+import { Loader2, ArrowRight, CheckCircle, ExternalLink, LogIn, UserPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Facebook, Instagram, Youtube,Globe, MessageCircle, ThumbsUp } from 'lucide-react';
-import { TikTokIcon } from '@/components/icons';
+import { Logo, TikTokIcon } from '@/components/icons';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+  } from '@/components/ui/dropdown-menu';
 
 
 function LoadingDots() {
@@ -135,11 +141,36 @@ export default function LinkGate({ linkData, onAllStepsCompleted }: { linkData: 
       <Card className="w-full max-w-md shadow-2xl bg-card border-gray-800">
          {step === 'rules' && (
             <>
-                <CardHeader className="text-center p-4 sm:p-6">
-                    <CardTitle className="text-xl sm:text-2xl font-bold tracking-tight">Complete the steps</CardTitle>
-                    <CardDescription className="text-muted-foreground text-sm pt-1">
-                        To unlock the link, please complete the following steps.
-                    </CardDescription>
+                <CardHeader className="text-center p-4 sm:p-6 space-y-4">
+                    <div className="flex justify-center">
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <button className="focus:outline-none">
+                                    <Logo />
+                                </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="center">
+                                <DropdownMenuItem asChild>
+                                    <Link href="/">
+                                        <LogIn className="mr-2 h-4 w-4" />
+                                        <span>Login</span>
+                                    </Link>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem asChild>
+                                     <Link href="/">
+                                        <UserPlus className="mr-2 h-4 w-4" />
+                                        <span>Register</span>
+                                    </Link>
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </div>
+                    <div>
+                        <CardTitle className="text-xl sm:text-2xl font-bold tracking-tight">Complete the steps</CardTitle>
+                        <CardDescription className="text-muted-foreground text-sm pt-1">
+                            To unlock the link, please complete the following steps.
+                        </CardDescription>
+                    </div>
                 </CardHeader>
                 <CardContent className="space-y-4 p-4 sm:p-6">
                     <div className="space-y-3">
@@ -198,11 +229,16 @@ export default function LinkGate({ linkData, onAllStepsCompleted }: { linkData: 
 
         {step === 'countdown' && (
             <>
-                <CardHeader className="text-center p-4 sm:p-6">
-                    <CardTitle className="text-xl sm:text-2xl font-bold tracking-tight">Almost there!</CardTitle>
-                    <CardDescription className="text-muted-foreground text-sm pt-1">
-                        You are about to be redirected.
-                    </CardDescription>
+                <CardHeader className="text-center p-4 sm:p-6 space-y-4">
+                     <div className="flex justify-center">
+                        <Logo />
+                    </div>
+                    <div>
+                        <CardTitle className="text-xl sm:text-2xl font-bold tracking-tight">Almost there!</CardTitle>
+                        <CardDescription className="text-muted-foreground text-sm pt-1">
+                            You are about to be redirected.
+                        </CardDescription>
+                    </div>
                 </CardHeader>
                 <CardContent className="space-y-4 text-center p-4 sm:p-6">
                     {isReady ? (
@@ -235,15 +271,6 @@ export default function LinkGate({ linkData, onAllStepsCompleted }: { linkData: 
                 </CardContent>
             </>
         )}
-         <CardFooter className="flex justify-center text-center text-sm p-4 border-t border-gray-800">
-            <p className="text-muted-foreground">
-                Want to earn money shortening links?{' '}
-                <Link href="/" className="font-semibold text-primary hover:underline">
-                    Register here
-                </Link>
-                .
-            </p>
-        </CardFooter>
       </Card>
     </div>
   );
