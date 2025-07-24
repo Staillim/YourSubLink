@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useUser } from '@/hooks/use-user';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, getDoc, doc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, getDoc, doc, writeBatch } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Bell, CreditCard, ShieldAlert, Trophy, MessageSquare } from 'lucide-react';
@@ -46,36 +46,32 @@ export function AdminNotificationBell() {
                 setUnreadChats(chatData);
             });
 
-            const generalNotificationsQuery = query(collection(db, "notifications"));
-            const unsubNotifications = onSnapshot(generalNotificationsQuery, async (snapshot) => {
-                const notificationsData: AdminNotification[] = [];
-                for(const notificationDoc of snapshot.docs) {
-                    const data = notificationDoc.data();
-                    const userDoc = await getDoc(doc(db, "users", data.userId));
-                    const userName = userDoc.exists() ? userDoc.data().displayName : "A user";
-                    notificationsData.push({
-                        id: notificationDoc.id,
-                        userName: userName,
-                        // Add all potential fields, they might be undefined
-                        linkTitle: data.linkTitle,
-                        milestone: data.milestone,
-                        message: data.message,
-                    });
-                }
-                setNotifications(notificationsData);
-            });
-
             return () => {
                 unsubPayouts();
-                unsubNotifications();
                 unsubChats();
             };
         } else {
             setLoading(false);
         }
     }, [user, role]);
+    
+    const handleViewAllClick = async () => {
+        if (unreadChats.length === 0) return;
 
-    const hasUnread = payouts.length > 0 || notifications.length > 0 || unreadChats.length > 0;
+        const batch = writeBatch(db);
+        unreadChats.forEach(chat => {
+            const chatRef = doc(db, 'chats', chat.id);
+            batch.update(chatRef, { isReadByAdmin: true });
+        });
+
+        try {
+            await batch.commit();
+        } catch (error) {
+            console.error("Error marking chats as read: ", error);
+        }
+    };
+
+    const hasUnread = payouts.length > 0 || unreadChats.length > 0;
 
     if (loading) {
         return <Skeleton className="h-9 w-9 rounded-full" />;
@@ -98,8 +94,8 @@ export function AdminNotificationBell() {
                 <div className="p-4">
                     <h4 className="font-medium text-sm">Admin Notifications</h4>
                 </div>
-                <div className="space-y-2 p-4 pt-0 max-h-80 overflow-y-auto">
-                    {payouts.length === 0 && notifications.length === 0 && unreadChats.length === 0 ? (
+                <div className="space-y-1 p-4 pt-0 max-h-80 overflow-y-auto">
+                    {!hasUnread ? (
                          <div className="text-center text-muted-foreground py-8">
                              <Bell className="mx-auto h-8 w-8 mb-2" />
                              <p className="text-sm">No new notifications.</p>
@@ -107,55 +103,37 @@ export function AdminNotificationBell() {
                     ) : (
                         <>
                             {unreadChats.map(chat => (
-                                <div key={chat.id} className="flex items-start gap-3">
-                                    <MessageSquare className="h-5 w-5 mt-1 shrink-0 text-blue-500" />
-                                    <div className="flex-1 text-sm">
-                                        <p className="font-medium">New Support Message</p>
-                                        <p className="text-xs text-muted-foreground">
-                                            New message from {chat.userName}.
-                                        </p>
+                                <Link href="/admin/support" key={chat.id} className="block p-2 rounded-md hover:bg-muted">
+                                    <div className="flex items-start gap-3">
+                                        <MessageSquare className="h-5 w-5 mt-1 shrink-0 text-blue-500" />
+                                        <div className="flex-1 text-sm">
+                                            <p className="font-medium">New Support Message</p>
+                                            <p className="text-xs text-muted-foreground">
+                                                New message from {chat.userName}.
+                                            </p>
+                                        </div>
                                     </div>
-                                </div>
+                                </Link>
                             ))}
                             {payouts.map(payout => (
-                                <div key={payout.id} className="flex items-start gap-3">
-                                    <CreditCard className="h-5 w-5 mt-1 shrink-0 text-yellow-500" />
-                                    <div className="flex-1 text-sm">
-                                        <p className="font-medium">New Payout Request</p>
-                                        <p className="text-xs text-muted-foreground">
-                                            {payout.userName} requested ${payout.amount.toFixed(4)}.
-                                        </p>
+                                <Link href="/admin/payout-requests" key={payout.id} className="block p-2 rounded-md hover:bg-muted">
+                                    <div className="flex items-start gap-3">
+                                        <CreditCard className="h-5 w-5 mt-1 shrink-0 text-yellow-500" />
+                                        <div className="flex-1 text-sm">
+                                            <p className="font-medium">New Payout Request</p>
+                                            <p className="text-xs text-muted-foreground">
+                                                {payout.userName} requested ${payout.amount.toFixed(4)}.
+                                            </p>
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
-                            {notifications.map(notification => (
-                                <div key={notification.id} className="flex items-start gap-3">
-                                    <Trophy className="h-5 w-5 mt-1 shrink-0 text-blue-500" />
-                                    <div className="flex-1 text-sm">
-                                        {notification.milestone ? (
-                                            <>
-                                                <p className="font-medium">Link Milestone</p>
-                                                <p className="text-xs text-muted-foreground">
-                                                    {notification.userName}'s link "{notification.linkTitle}" reached {notification.milestone.toLocaleString()} visits.
-                                                </p>
-                                            </>
-                                        ) : (
-                                             <>
-                                                <p className="font-medium">Admin Action</p>
-                                                <p className="text-xs text-muted-foreground">
-                                                    {notification.message}
-                                                </p>
-                                            </>
-                                        )}
-                                    </div>
-                                </div>
+                                </Link>
                             ))}
                         </>
                     )}
                 </div>
                 <div className="p-2 border-t">
                     <Button variant="link" size="sm" asChild className="w-full">
-                        <Link href="/admin/history">View all system events</Link>
+                        <Link href="/admin/support" onClick={handleViewAllClick}>View all support chats</Link>
                     </Button>
                 </div>
             </PopoverContent>
