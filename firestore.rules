@@ -4,65 +4,68 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     function isAdmin() {
+      // Check if the user is authenticated and has the 'admin' role in their user document.
       return request.auth != null && exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
+    // Rules for the 'users' collection
     match /users/{userId} {
+      // Any authenticated user can create their own profile.
       allow create: if request.auth.uid == userId;
+      // Users can read/update their own profile. Admins can read/update any profile.
       allow read, update: if request.auth.uid == userId || isAdmin();
+      // Only admins can list all users.
       allow list: if isAdmin();
     }
 
+    // Rules for the 'links' collection
     match /links/{linkId} {
-      // ANYONE can query the links collection to find the destination URL.
-      // This is essential for the link redirection to work for public users.
-      allow list: if true;
-
-      // ANYONE can read a single link document if they have the direct ID.
-      // This is also required for redirection.
-      allow get: if true;
-      
-      // LOGGED-IN users can create links.
+      // Authenticated users can create links.
       allow create: if request.auth.uid != null;
+      // Users can update/delete their own links. Admins can manage any link.
+      allow update, delete: if resource.data.userId == request.auth.uid || isAdmin();
       
-      // LOGGED-IN users can update/delete their OWN links. Admins have full write access.
-      allow update, delete: if (request.auth.uid == resource.data.userId) || isAdmin();
+      // ANYONE (public, unauthenticated users) can get a single link document. This is critical for the link gate to work.
+      allow get: if true;
 
-      // Admins have full read/write access.
-      allow read, write: if isAdmin();
+      // ANYONE (public, unauthenticated users) can query the links collection.
+      // This is essential for the initial `where('shortId', '==', ...)` query to succeed for visitors.
+      allow list: if true;
     }
     
+    // Rules for the 'clicks' collection
     match /clicks/{clickId} {
-        // ANYONE can create a click document. This is done client-side.
+        // ANYONE can create a click record. This happens on the client side.
         allow create: if true;
-        allow list, get: if isAdmin();
+        // Only admins can read click data.
+        allow read: if isAdmin();
     }
 
+    // Rules for payout requests
     match /payoutRequests/{requestId} {
-        // Users can create and read their own requests.
+        // Users can create their own payout requests.
         allow create: if request.auth.uid == request.resource.data.userId;
-        allow read: if (request.auth.uid == resource.data.userId) || isAdmin();
-        // Admins can manage all requests.
-        allow write: if isAdmin();
-        allow list: if isAdmin(); // Allow admins to list all requests.
+        // Users can read their own requests. Admins can read all requests.
+        allow read: if request.auth.uid == resource.data.userId || isAdmin();
+        // Only admins can update the status of requests.
+        allow update: if isAdmin();
     }
 
+    // Rules for CPM history
     match /cpmHistory/{cpmId} {
-        // Authenticated users can read CPM data.
+        // Any authenticated user (user or admin) can read CPM history.
         allow read: if request.auth.uid != null;
-        allow list: if request.auth.uid != null;
-        // Only admins can write to CPM history.
+        // Only admins can create/update CPM history.
         allow write: if isAdmin();
     }
 
+    // Rules for notifications
     match /notifications/{notificationId} {
-        // Users can read their own notifications. Admins can read all.
-        allow read: if (request.auth.uid == resource.data.userId) || isAdmin();
-        // Admins can list all notifications for the notification bell.
-        allow list: if isAdmin();
-        // System can create notifications.
-        allow create: if true;
+        // Users can read their own notifications. Admins can read all notifications.
+        allow read: if request.auth.uid == resource.data.userId || isAdmin();
+        // The system (or an admin) can create notifications.
+        allow create: if true; 
     }
   }
 }
