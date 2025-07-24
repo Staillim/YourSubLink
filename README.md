@@ -91,7 +91,7 @@ Componentes reutilizables que construyen la interfaz de la aplicación.
 -   `admin-notification-bell.tsx`: La campana de notificaciones en la cabecera del panel de admin, que muestra alertas en tiempo real.
 -   `dashboard-nav.tsx`: La barra de navegación lateral para el panel de usuario.
 -   `icons.tsx`: Componentes SVG personalizados, como el logo de la aplicación.
--   `link-gate.tsx`: La interfaz de la puerta de monetización. Muestra al usuario las reglas que debe completar (visitar, seguir, etc.) y el temporizador de espera.
+-   `link-gate.tsx`: La interfaz de la puerta de monetización. Muestra al usuario las reglas que debe completar. **Importante**: Los botones de las reglas ahora detectan la plataforma (YouTube, Facebook, etc.) y aplican un color e icono distintivos para mejorar la UX.
 -   `notification-bell.tsx`: La campana de notificaciones para el panel de usuario.
 -   `rule-editor.tsx`: Un componente interactivo para añadir, editar y eliminar las reglas de monetización de un enlace.
 -   `user-nav.tsx`: El menú desplegable del avatar de usuario, que se muestra en la cabecera y contiene el balance y los enlaces al perfil y cierre de sesión.
@@ -154,4 +154,3 @@ Esta funcionalidad se gestiona **enteramente en el lado del cliente** para mayor
 *   **Sincronización de Datos**: La aplicación utiliza `onSnapshot` de Firestore extensivamente para una experiencia de usuario reactiva en todos los paneles.
 *   **Cálculo de Balance**: El hook `useUser.ts` es la **única fuente de la verdad** para el balance del usuario. Calcula el balance disponible (`availableBalance`) restando los pagos completados (`paidEarnings`) y los pagos pendientes (`payoutsPending`) de las ganancias generadas totales (que se calculan sumando las ganancias de todos los enlaces del usuario). Esto asegura consistencia en toda la app.
 *   **Adición de Balance Manual**: Cuando un administrador añade balance manualmente, se trata como un "pago negativo". En lugar de modificar las ganancias generadas, se decrementa el campo `paidEarnings` del usuario. Esto aumenta correctamente el balance disponible (`Generated - Paid`).
-```

@@ -106,7 +106,7 @@ Panel para usuarios autenticados.
 #### `src/components/` - Componentes de React
 
 -   `admin-nav.tsx` / `dashboard-nav.tsx`: Componentes de navegación lateral.
--   `link-gate.tsx`: **Componente Crítico**. La interfaz que se muestra al visitar un enlace monetizado. Gestiona los temporizadores de las reglas y el contador final antes de desbloquear el enlace.
+-   `link-gate.tsx`: **Componente Crítico**. La interfaz que se muestra al visitar un enlace monetizado. Gestiona los temporizadores y el contador final. **Importante**: Los botones de las reglas ahora detectan la plataforma (YouTube, Facebook, etc.) y aplican un color e icono distintivos para mejorar la UX.
 -   `rule-editor.tsx`: Editor interactivo para añadir/eliminar reglas de monetización.
 -   `user-nav.tsx`: El menú desplegable del avatar de usuario.
 -   `ui/`: Todos los componentes base de ShadCN/UI.
@@ -159,4 +159,3 @@ Este flujo se gestiona **enteramente en el lado del cliente** para simplificar l
         2.  Crea un nuevo documento en la colección `clicks` con detalles de la visita.
         3.  Si el enlace es monetizable, consulta la tasa de CPM activa y actualiza el campo `generatedEarnings` en el documento del enlace.
     *   Una vez que `batch.commit()` se resuelve, y solo entonces, el usuario es redirigido a la URL original usando `window.location.href`. Esto garantiza que la visita se cuente antes de que el usuario abandone la página.
-```
