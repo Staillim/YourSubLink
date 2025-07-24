@@ -44,7 +44,7 @@ export default function AnalyticsPage() {
   const [activeCpm, setActiveCpm] = useState<number>(3.00); // Default CPM
 
   useEffect(() => {
-    if (user && profile) {
+    if (user) {
       setLinksLoading(true);
       const q = query(collection(db, "links"), where("userId", "==", user.uid));
       const unsubscribe = onSnapshot(q, (querySnapshot) => {
@@ -70,31 +70,25 @@ export default function AnalyticsPage() {
         setLinksLoading(false);
       });
 
-      // Check for user-specific CPM first
-      if (profile.customCpm != null) {
-          setActiveCpm(profile.customCpm);
-      } else {
-          // Fallback to global CPM
-          const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
-          const unsubCpm = onSnapshot(cpmQuery, (snapshot) => {
-              if (!snapshot.empty) {
-                  const cpmDoc = snapshot.docs[0];
-                  setActiveCpm(cpmDoc.data().rate);
-              } else {
-                  setActiveCpm(3.00); // Default if no global is set
-              }
-          });
-           return () => {
-             unsubscribe();
-             unsubCpm();
-           }
-      }
-
-      return () => unsubscribe();
+      // Always fetch the global CPM
+      const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
+      const unsubCpm = onSnapshot(cpmQuery, (snapshot) => {
+          if (!snapshot.empty) {
+              const cpmDoc = snapshot.docs[0];
+              setActiveCpm(cpmDoc.data().rate);
+          } else {
+              setActiveCpm(3.00); // Default if no global is set
+          }
+      });
+       return () => {
+         unsubscribe();
+         unsubCpm();
+       }
+      
     } else if (!userLoading) {
         setLinksLoading(false);
     }
-  }, [user, userLoading, profile]);
+  }, [user, userLoading]);
 
   const totalClicks = links.reduce((acc, link) => acc + link.clicks, 0);
   const totalEarnings = links.reduce((acc, link) => acc + (link.generatedEarnings || 0), 0);

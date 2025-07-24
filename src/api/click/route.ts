@@ -32,27 +32,21 @@ export async function POST(req: NextRequest) {
         // If the link is monetizable, we also calculate earnings based on this click.
         if (linkData.monetizable && linkData.userId) {
             const userRef = doc(db, 'users', linkData.userId);
-            const userSnap = await getDoc(userRef);
-            let earningsPerClick = 0;
+            
+            // Use the global CPM for all calculations.
+            const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
+            const cpmSnapshot = await getDocs(cpmQuery);
+            let activeCpm = 3.00; // Default fallback CPM in case nothing is set
             let activeCpmId = 'default';
+            let earningsPerClick = 0;
 
-            // Check for a custom user CPM first.
-            if (userSnap.exists() && userSnap.data().customCpm != null) {
-                 earningsPerClick = userSnap.data().customCpm / 1000;
-                 activeCpmId = `user_${linkData.userId}`; // Custom ID for user-specific CPM earnings
-            } else {
-                // If no custom user CPM, fallback to global CPM
-                const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
-                const cpmSnapshot = await getDocs(cpmQuery);
-                let activeCpm = 3.00; // Default fallback CPM in case nothing is set
-
-                if (!cpmSnapshot.empty) {
-                    const cpmDoc = cpmSnapshot.docs[0];
-                    activeCpm = cpmDoc.data().rate;
-                    activeCpmId = cpmDoc.id;
-                }
-                earningsPerClick = activeCpm / 1000;
+            if (!cpmSnapshot.empty) {
+                const cpmDoc = cpmSnapshot.docs[0];
+                activeCpm = cpmDoc.data().rate;
+                activeCpmId = cpmDoc.id;
             }
+            earningsPerClick = activeCpm / 1000;
+            
 
             if (earningsPerClick > 0) {
                 batch.update(userRef, { generatedEarnings: increment(earningsPerClick) });
