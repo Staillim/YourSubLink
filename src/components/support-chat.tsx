@@ -140,7 +140,7 @@ export default function SupportChat() {
 
           {/* Input */}
           <div className="p-3 border-t">
-            {isSuspended ? (
+            {isSuspended && messages.length === 0 ? (
               <div className="space-y-2">
                 <p className="text-xs text-center text-muted-foreground mb-2">Select a predefined question to send:</p>
                 {PREDEFINED_QUESTIONS.map((q) => (
