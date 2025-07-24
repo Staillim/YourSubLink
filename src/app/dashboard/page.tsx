@@ -33,7 +33,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Copy, Link as LinkIcon, Loader2, MoreVertical, Trash2, ExternalLink, BadgeHelp, Edit, PlusCircle, BarChart3, DollarSign } from 'lucide-react';
+import { Copy, Link as LinkIcon, Loader2, MoreVertical, Trash2, ExternalLink, BadgeHelp, Edit, PlusCircle, BarChart3, DollarSign, Calendar, Eye } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
@@ -227,8 +227,8 @@ export default function DashboardPage() {
                         <TableRow>
                             <TableHead className="w-full md:w-2/5">Link</TableHead>
                             <TableHead className="hidden md:table-cell">Status</TableHead>
-                            <TableHead>Clicks</TableHead>
-                            <TableHead>Earnings</TableHead>
+                            <TableHead className="hidden sm:table-cell">Clicks</TableHead>
+                            <TableHead className="hidden sm:table-cell">Earnings</TableHead>
                             <TableHead className="hidden lg:table-cell">Date</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
@@ -238,9 +238,32 @@ export default function DashboardPage() {
                             <TableRow key={link.id} className="hover:bg-muted/50">
                             <TableCell className="font-medium">
                                 <div className="flex flex-col gap-1">
-                                    <span className="font-bold truncate max-w-xs">{link.title}</span>
+                                    <span className="font-bold truncate max-w-[200px] sm:max-w-xs">{link.title}</span>
                                     <div className="flex items-center gap-2">
-                                        <a href={link.short} target="_blank" rel="noopener noreferrer" className="font-mono text-sm text-primary hover:underline">{link.short.replace('https://','')}</a>
+                                        <a href={link.short} target="_blank" rel="noopener noreferrer" className="font-mono text-sm text-primary hover:underline block truncate max-w-[200px] sm:max-w-xs">{link.short.replace('https://','')}</a>
+                                    </div>
+                                </div>
+                                {/* Mobile-only details */}
+                                <div className="md:hidden mt-2 space-y-2 text-xs">
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-medium">Status:</span>
+                                        <Badge variant={link.monetizable ? 'default' : 'secondary'} className={`h-5 ${link.monetizable ? 'bg-green-600' : ''}`}>
+                                            {link.monetizable ? 'Monetizable' : 'Not Monetizable'}
+                                        </Badge>
+                                    </div>
+                                    <div className="flex items-center gap-4">
+                                        <div className="flex items-center gap-1 text-muted-foreground">
+                                            <Eye className="h-3 w-3" />
+                                            <span>{link.clicks} Clicks</span>
+                                        </div>
+                                         <div className="flex items-center gap-1 text-muted-foreground">
+                                            <DollarSign className="h-3 w-3" />
+                                            <span>${link.generatedEarnings.toFixed(4)}</span>
+                                        </div>
+                                        <div className="flex items-center gap-1 text-muted-foreground">
+                                            <Calendar className="h-3 w-3" />
+                                            <span>{link.date}</span>
+                                        </div>
                                     </div>
                                 </div>
                             </TableCell>
@@ -257,8 +280,8 @@ export default function DashboardPage() {
                                     </Tooltip>
                                 </Badge>
                             </TableCell>
-                            <TableCell>{link.clicks}</TableCell>
-                            <TableCell className="font-semibold text-green-500">${link.generatedEarnings.toFixed(4)}</TableCell>
+                            <TableCell className="hidden sm:table-cell">{link.clicks}</TableCell>
+                            <TableCell className="font-semibold text-green-500 hidden sm:table-cell">${link.generatedEarnings.toFixed(4)}</TableCell>
                             <TableCell className="hidden lg:table-cell text-muted-foreground">{link.date}</TableCell>
                             <TableCell className="text-right">
                                 <DropdownMenu>
@@ -353,3 +376,4 @@ export default function DashboardPage() {
     </TooltipProvider>
   );
 }
+
