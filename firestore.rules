@@ -4,17 +4,19 @@ service cloud.firestore {
   match /databases/{database}/documents {
     
     function isAdmin() {
+      // Check if the user making the request has the 'admin' role in their user document.
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
     
     function isOwner(userId) {
+      // Check if the authenticated user's ID matches the provided userId.
       return request.auth != null && request.auth.uid == userId;
     }
 
     match /users/{userId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth.uid == userId;
-      allow update: if isOwner(userId) || isAdmin();
+      allow read: if request.auth != null; // Any authenticated user can read any profile (for display names, etc.)
+      allow create: if request.auth.uid == userId; // A user can only create their own user document.
+      allow update: if isOwner(userId) || isAdmin(); // A user can update their own profile, or an admin can update any profile.
     }
     
     match /links/{linkId} {
@@ -22,44 +24,44 @@ service cloud.firestore {
       // 2. Admins can create, update, or delete any link.
       // 3. Unauthenticated visitors can ONLY update the 'clicks' and 'generatedEarnings' fields.
       allow create: if isOwner(request.resource.data.userId) || isAdmin();
-      allow read: if true;
+      allow read: if true; // Links are public
       allow update: if (isOwner(resource.data.userId) || isAdmin()) ||
                       (request.auth == null && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks', 'generatedEarnings']));
       allow delete: if isOwner(resource.data.userId) || isAdmin();
     }
     
     match /clicks/{clickId} {
-      // Anyone can create a click log (this happens server-side via ClientComponent).
-      // Reading click logs should be restricted.
+      // Anyone can create a click log.
+      // Only admins can read the logs for analysis.
       allow create: if true;
-      allow read, list: if isAdmin(); // Only admins can analyze click patterns
+      allow read, list: if isAdmin();
     }
 
     match /payoutRequests/{requestId} {
         allow create: if isOwner(request.resource.data.userId);
+        // A user can list/read their own requests. An admin can list/read all.
+        allow list: if (request.auth != null && request.query.where.path.get(0) == 'userId' && request.query.where.value == request.auth.uid) || isAdmin();
         allow read: if isOwner(resource.data.userId) || isAdmin();
-        // Admins can list all. Users must filter by their own userId.
-        allow list: if isAdmin() || (request.query.where.path == 'userId' && request.query.where.value == request.auth.uid);
         allow update: if isAdmin(); // Only admins can approve/reject payouts
     }
 
     match /cpmHistory/{cpmId} {
-        allow read, list: if request.auth != null;
-        allow create, update: if isAdmin();
+        allow read, list: if request.auth != null; // Any authenticated user can see history.
+        allow create, update: if isAdmin(); // Only admins can change rates.
     }
     
     match /notifications/{notificationId} {
-        allow read, list, update: if isOwner(resource.data.userId) || isAdmin();
+        allow read, list, update: if isOwner(resource.data.userId);
         allow create: if isAdmin(); // Notifications are created by the system (admin)
     }
     
     match /supportTickets/{ticketId} {
       allow create: if isOwner(request.resource.data.userId);
-      // A user can read/update their own ticket, an admin can read/update any.
-      allow read, update: if isOwner(resource.data.userId) || isAdmin();
-      // Only admins are allowed to query the entire collection.
-      // Users fetch their tickets individually via IDs in their user profile.
-      allow list: if isAdmin();
+      allow read: if isOwner(resource.data.userId) || isAdmin();
+      allow list: if isAdmin(); // Only admins can list all tickets.
+      // Critical Fix: ONLY admins can update a ticket (e.g., change its status).
+      // Users can only create tickets and messages, not change the ticket's state.
+      allow update: if isAdmin();
       
       match /messages/{messageId} {
         // An admin can do anything. A user can read/create/list if they own the parent ticket.
