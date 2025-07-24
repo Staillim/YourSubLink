@@ -16,7 +16,7 @@ import { Loader2 } from 'lucide-react';
 import LinkGate from '@/components/link-gate'; 
 import type { LinkData } from '@/types'; 
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, writeBatch, increment, serverTimestamp, runTransaction } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, writeBatch, increment, serverTimestamp } from 'firebase/firestore';
 
 export default function ClientComponent({ shortId }: { shortId: string }) {
   const [status, setStatus] = useState<'loading' | 'gate' | 'redirecting' | 'not-found'>('loading');
@@ -64,26 +64,47 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
   
   const handleAllStepsCompleted = async (finalLinkData?: LinkData) => {
     const dataToUse = finalLinkData || linkData;
-    if (!shortId || !dataToUse) return;
+    if (!dataToUse) return;
 
     setStatus('redirecting');
 
     try {
-        const response = await fetch('/api/click', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ shortId: dataToUse.shortId }),
+        const linkRef = doc(db, 'links', dataToUse.id);
+        const batch = writeBatch(db);
+
+        // 1. Increment the click counter
+        batch.update(linkRef, { clicks: increment(1) });
+        
+        // 2. Create a log of the click
+        const clickLogRef = doc(collection(db, 'clicks'));
+        batch.set(clickLogRef, {
+            linkId: dataToUse.id,
+            userId: dataToUse.userId,
+            timestamp: serverTimestamp(),
+            // IP and User-Agent cannot be reliably collected from the client.
         });
 
-        if (!response.ok) {
-            const errorData = await response.json();
-            console.error('Failed to record click:', errorData.error);
+        // 3. If monetizable, calculate and increment earnings
+        if (dataToUse.monetizable) {
+            let activeCpm = 3.00; // Default fallback CPM
+            
+            const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
+            const cpmSnapshot = await getDocs(cpmQuery);
+
+            if (!cpmSnapshot.empty) {
+                activeCpm = cpmSnapshot.docs[0].data().rate;
+            }
+
+            const earningsPerClick = activeCpm / 1000;
+            batch.update(linkRef, { generatedEarnings: increment(earningsPerClick) });
         }
+        
+        // Commit all operations atomically
+        await batch.commit();
+
     } catch(error) {
         console.error("Failed to count click:", error);
-        // We still redirect the user even if counting fails
+        // We still redirect the user even if counting fails to ensure a good user experience.
     } finally {
         // Redirect to the final destination
         window.location.href = dataToUse.original;

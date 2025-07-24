@@ -3,72 +3,99 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper function to check if the requesting user is an admin.
-    function isAdmin() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    // Helper function to check if the user is an admin
+    function isAdmin(userId) {
+      return exists(/databases/$(database)/documents/users/$(userId)) &&
+             get(/databases/$(database)/documents/users/$(userId)).data.role == 'admin';
     }
 
-    // Rules for the 'users' collection
+    // Helper function to check if a user is the owner of a document
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Helper function to check if only allowed fields are being updated for link clicks
+    function isOnlyClickUpdate() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['clicks', 'generatedEarnings']);
+    }
+
+    // Users collection
     match /users/{userId} {
-      // Admins can read any user profile. Users can only read their own.
-      allow read: if isAdmin() || request.auth.uid == userId;
-      // Users can only update their own profile.
-      allow update: if request.auth.uid == userId;
-       // Admins can manage all user data.
-      allow write: if isAdmin();
-      // Allow users to create their own profile document.
-      allow create: if request.auth.uid == userId;
+      // Any authenticated user can create their own profile
+      allow create: if request.auth != null && request.auth.uid == userId;
+      
+      // Admins can read any profile, users can read their own
+      allow read: if isAdmin(request.auth.uid) || isOwner(userId);
+      
+      // Admins can update any profile, users can update their own
+      allow update: if isAdmin(request.auth.uid) || isOwner(userId);
+      
+      // Only admins can delete users
+      allow delete: if isAdmin(request.auth.uid);
     }
-
-    // Rules for the 'links' collection
+    
+    // Links collection
     match /links/{linkId} {
-      // Allow anyone to get a single link document for redirection.
-      allow get: if true;
-      // Allow admins to list all links. Authenticated users can only list their own links.
-      allow list: if isAdmin() || (request.auth != null && request.query.where.userId == request.auth.uid);
-      // Allow authenticated users to create links for themselves.
-      allow create: if request.auth.uid == request.resource.data.userId;
-      // Allow public updates only to 'clicks' and 'generatedEarnings' for counting visits.
-      // Admins or link owners can update other fields.
-      allow update: if (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks', 'generatedEarnings']))
-                    || isAdmin()
-                    || (request.auth != null && request.auth.uid == resource.data.userId);
-      // Admins or link owners can delete links.
-      allow delete: if isAdmin() || (request.auth != null && request.auth.uid == resource.data.userId);
+        // Anyone can read a link document, which is necessary to get the redirect URL.
+        allow read: if true;
+        
+        // Only authenticated users can create links for themselves.
+        allow create: if isOwner(request.resource.data.userId);
+        
+        // Owners can update their own links.
+        // Also, ANYONE can update a link IF they are only incrementing the 'clicks' and 'generatedEarnings' fields.
+        allow update: if isOwner(resource.data.userId) || isOnlyClickUpdate();
+        
+        // Owners and admins can delete links.
+        allow delete: if isOwner(resource.data.userId) || isAdmin(request.auth.uid);
     }
     
-    // Rules for the 'clicks' collection
+    // Clicks collection (for logging individual clicks)
     match /clicks/{clickId} {
-      // Allow anyone to create a click document. This is a public write.
-      allow create: if true;
-      // Admins or the owner of the link can read the click data.
-      allow read, list: if isAdmin() || (get(/databases/$(database)/documents/links/$(request.query.where.linkId)).data.userId == request.auth.uid);
+        // Anyone can create a new click record.
+        allow create: if true;
+        
+        // Only admins should be able to read detailed click logs for analytics.
+        allow read, list: if request.auth != null && isAdmin(request.auth.uid);
+        
+        // No one should be able to update or delete click logs to maintain data integrity.
+        allow update, delete: if false;
     }
 
-    // Rules for the 'payoutRequests' collection
+    // Payout Requests collection
     match /payoutRequests/{requestId} {
-      // Users can read/list their own requests. Admins can read/list all.
-      allow read, list: if isAdmin() || (request.auth != null && resource.data.userId == request.auth.uid);
-      // Users can create their own requests.
-      allow create: if request.auth.uid == request.resource.data.userId;
-      // Only admins can update (approve/reject) requests.
-      allow update: if isAdmin();
+      // Users can read their own requests, admins can read all
+      allow read, list: if isOwner(resource.data.userId) || isAdmin(request.auth.uid);
+      
+      // Users can create their own requests
+      allow create: if isOwner(request.resource.data.userId);
+      
+      // Only admins can update requests (to approve/reject them)
+      allow update: if isAdmin(request.auth.uid);
+      
+      // No one can delete requests to maintain history
+      allow delete: if false;
     }
     
-    // Rules for the 'cpmHistory' collection
+    // CPM History collection
     match /cpmHistory/{cpmId} {
-      // Any authenticated user can read the CPM history.
-      allow read, list: if request.auth != null;
-      // Only admins can manage CPM rates.
-      allow write: if isAdmin();
+        // Anyone needs to be able to read the active CPM to calculate earnings on the client.
+        allow read: if true;
+        
+        // Only admins can create or update CPM rates.
+        allow create, update, delete: if isAdmin(request.auth.uid);
     }
-    
-    // Rules for the 'notifications' collection
+
+    // Notifications collection
     match /notifications/{notificationId} {
-      // Admins can list/read all notifications. Users can only read their own.
-      allow read, list: if isAdmin() || (request.auth != null && resource.data.userId == request.auth.uid);
-      // Only admins (or a backend process) can create notifications.
-      allow create: if isAdmin();
+      // Users can read their own notifications, admins can read all
+      allow read, list: if isOwner(resource.data.userId) || isAdmin(request.auth.uid);
+      
+      // Only the server (or admins) should create notifications
+      allow create: if isAdmin(request.auth.uid);
+      
+      allow update, delete: if false;
     }
   }
 }
