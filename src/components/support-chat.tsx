@@ -14,6 +14,8 @@ import {
   serverTimestamp,
   where,
   updateDoc,
+  getDoc,
+  arrayUnion,
 } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -53,28 +55,56 @@ export default function SupportChat() {
   const hasUnread = tickets.some(ticket => !ticket.isReadByUser);
 
 
-  // Effect to subscribe to the user's tickets
+  // Effect to subscribe to the user's tickets via their profile
   useEffect(() => {
     if (!user) return;
     setLoading(true);
-    const ticketsQuery = query(
-        collection(db, 'supportTickets'), 
-        where('userId', '==', user.uid)
-    );
-    const unsubscribe = onSnapshot(ticketsQuery, (snapshot) => {
-        const ticketsData = snapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-        })) as SupportTicket[];
-        
-        // Sort tickets by last message timestamp descending on the client side
-        ticketsData.sort((a, b) => (b.lastMessageTimestamp?.seconds ?? 0) - (a.lastMessageTimestamp?.seconds ?? 0));
 
-        setTickets(ticketsData);
+    // Watch the user's own profile document for the list of ticket IDs
+    const userDocRef = doc(db, 'users', user.uid);
+    const unsubscribeUser = onSnapshot(userDocRef, (userDoc) => {
+        const userData = userDoc.data();
+        const ticketIds = userData?.supportTicketIds || [];
+
+        if (ticketIds.length === 0) {
+            setTickets([]);
+            setLoading(false);
+            return;
+        }
+
+        // Now, for each ticket ID, set up a listener
+        const unsubscribers = ticketIds.map((ticketId: string) => {
+            const ticketDocRef = doc(db, 'supportTickets', ticketId);
+            return onSnapshot(ticketDocRef, (ticketDoc) => {
+                if (ticketDoc.exists()) {
+                    const newTicketData = { id: ticketDoc.id, ...ticketDoc.data() } as SupportTicket;
+                    setTickets(currentTickets => {
+                        const existingIndex = currentTickets.findIndex(t => t.id === newTicketData.id);
+                        let updatedTickets;
+                        if (existingIndex > -1) {
+                            updatedTickets = [...currentTickets];
+                            updatedTickets[existingIndex] = newTicketData;
+                        } else {
+                            updatedTickets = [...currentTickets, newTicketData];
+                        }
+                        // Sort tickets by last message timestamp descending
+                        return updatedTickets.sort((a, b) => (b.lastMessageTimestamp?.seconds ?? 0) - (a.lastMessageTimestamp?.seconds ?? 0));
+                    });
+                }
+            });
+        });
+
         setLoading(false);
+        
+        // Return a cleanup function that unsubscribes from all ticket listeners
+        return () => {
+            unsubscribers.forEach(unsub => unsub());
+        };
     });
-    return () => unsubscribe();
-  }, [user]);
+
+    return () => unsubscribeUser();
+}, [user]);
+
 
   // Effect to load messages when a ticket is selected
   useEffect(() => {
@@ -95,6 +125,9 @@ export default function SupportChat() {
       })) as ChatMessage[];
       setMessages(messagesData);
       setLoading(false);
+    }, (error) => {
+        console.error("Error fetching messages:", error);
+        setLoading(false);
     });
 
     return () => unsubscribe();
@@ -165,6 +198,12 @@ export default function SupportChat() {
         text: newMessage,
         senderId: user.uid,
         timestamp: serverTimestamp(),
+    });
+
+    // Add the new ticket ID to the user's profile
+    const userDocRef = doc(db, 'users', user.uid);
+    await updateDoc(userDocRef, {
+        supportTicketIds: arrayUnion(ticketRef.id)
     });
     
     setNewSubject('');
