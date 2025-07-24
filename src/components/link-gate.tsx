@@ -2,8 +2,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import type { LinkData } from '@/types';
 import { Loader2, ArrowRight, CheckCircle, ExternalLink, Circle } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -83,7 +84,7 @@ export default function LinkGate({ linkData, onAllStepsCompleted }: { linkData: 
   
   // State to track rule status: pending, loading, or completed
   const [ruleStates, setRuleStates] = useState<('pending' | 'loading' | 'completed')[]>(
-    () => Array(linkData.rules.length).fill('pending')
+    () => Array((linkData.rules || []).length).fill('pending')
   );
 
   useEffect(() => {
@@ -234,6 +235,15 @@ export default function LinkGate({ linkData, onAllStepsCompleted }: { linkData: 
                 </CardContent>
             </>
         )}
+         <CardFooter className="flex justify-center text-center text-sm p-4 border-t border-gray-800">
+            <p className="text-muted-foreground">
+                Want to earn money shortening links?{' '}
+                <Link href="/" className="font-semibold text-primary hover:underline">
+                    Register here
+                </Link>
+                .
+            </p>
+        </CardFooter>
       </Card>
     </div>
   );
