@@ -4,7 +4,9 @@ service cloud.firestore {
   match /databases/{database}/documents {
     
     function isAdmin() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      // Check for the existence of the user document and their role.
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
     
     function isOwner(userId) {
@@ -43,23 +45,24 @@ service cloud.firestore {
     }
     
     match /notifications/{notificationId} {
-        allow read, list, update: if isOwner(resource.data.userId);
+        allow read, list, update: if isOwner(resource.data.userId) || isAdmin();
         allow create: if isAdmin();
     }
     
     match /supportTickets/{ticketId} {
       allow create: if isOwner(request.resource.data.userId);
-      allow read: if isOwner(resource.data.userId) || isAdmin();
-      allow update: if isAdmin(); // Only admins can change status
       allow list: if (request.query.where.path == 'userId' && request.query.where.value == request.auth.uid) || isAdmin();
+      allow read: if isOwner(resource.data.userId) || isAdmin();
+      // Admins can update any field. Users can ONLY update the 'isReadByUser' field.
+      allow update: if isAdmin() || (isOwner(resource.data.userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isReadByUser']));
       
       match /messages/{messageId} {
-        // Users can read messages on their own tickets. Admins can read any.
-        allow read, list: if get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId == request.auth.uid || isAdmin();
-        
-        // Users/Admins can only create messages if the parent ticket is NOT completed.
-        allow create: if get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.status != 'completed' &&
-                       (get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId == request.auth.uid || isAdmin());
+        // Anyone can read messages if they own the parent ticket or are an admin.
+        allow read, list: if isAdmin() || get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId == request.auth.uid;
+        // Messages can only be created if the ticket is NOT completed.
+        // This is checked by reading the parent ticket's status.
+        allow create: if (isAdmin() || request.resource.data.senderId == request.auth.uid) &&
+                         get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.status != 'completed';
       }
     }
   }
