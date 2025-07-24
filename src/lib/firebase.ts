@@ -23,6 +23,7 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app: FirebaseApp = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+
 const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
@@ -44,6 +45,7 @@ const createUserProfile = async (user: User) => {
                 createdAt: serverTimestamp(),
                 generatedEarnings: 0,
                 paidEarnings: 0,
+                accountStatus: 'active',
             });
         } catch (error) {
             console.error("Error creating user profile:", error);

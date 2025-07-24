@@ -51,7 +51,9 @@ const prompt = ai.definePrompt({
   Provide a brief 'reason' for your conclusion.
   
   Click Timestamps (ISO 8601 format):
-  {{{json clickTimestamps}}}
+  {{#each clickTimestamps}}
+  - {{this}}
+  {{/each}}
   `,
 });
 
