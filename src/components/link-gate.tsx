@@ -141,15 +141,15 @@ export default function LinkGate({ linkData, onAllStepsCompleted }: { linkData: 
       <Card className="w-full max-w-md shadow-2xl bg-card border-gray-800">
          {step === 'rules' && (
             <>
-                <CardHeader className="text-center p-4 sm:p-6 space-y-4">
-                    <div className="flex justify-center">
+                <CardHeader className="p-4 sm:p-6 space-y-4">
+                    <div className="flex justify-start">
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <button className="focus:outline-none">
                                     <Logo />
                                 </button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="center">
+                            <DropdownMenuContent align="start">
                                 <DropdownMenuItem asChild>
                                     <Link href="/">
                                         <LogIn className="mr-2 h-4 w-4" />
@@ -165,7 +165,7 @@ export default function LinkGate({ linkData, onAllStepsCompleted }: { linkData: 
                             </DropdownMenuContent>
                         </DropdownMenu>
                     </div>
-                    <div>
+                    <div className="text-center">
                         <CardTitle className="text-xl sm:text-2xl font-bold tracking-tight">Complete the steps</CardTitle>
                         <CardDescription className="text-muted-foreground text-sm pt-1">
                             To unlock the link, please complete the following steps.
@@ -229,11 +229,11 @@ export default function LinkGate({ linkData, onAllStepsCompleted }: { linkData: 
 
         {step === 'countdown' && (
             <>
-                <CardHeader className="text-center p-4 sm:p-6 space-y-4">
-                     <div className="flex justify-center">
+                <CardHeader className="p-4 sm:p-6 space-y-4">
+                    <div className="flex justify-start">
                         <Logo />
                     </div>
-                    <div>
+                    <div className="text-center">
                         <CardTitle className="text-xl sm:text-2xl font-bold tracking-tight">Almost there!</CardTitle>
                         <CardDescription className="text-muted-foreground text-sm pt-1">
                             You are about to be redirected.
