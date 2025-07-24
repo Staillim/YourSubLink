@@ -46,7 +46,7 @@ export function AdminNotificationBell() {
                 setUnreadChats(chatData);
             });
 
-            const generalNotificationsQuery = query(collection(db, "notifications"), where("type", "==", "milestone"));
+            const generalNotificationsQuery = query(collection(db, "notifications"));
             const unsubNotifications = onSnapshot(generalNotificationsQuery, async (snapshot) => {
                 const notificationsData: AdminNotification[] = [];
                 for(const notificationDoc of snapshot.docs) {
@@ -140,7 +140,7 @@ export function AdminNotificationBell() {
                                                 </p>
                                             </>
                                         ) : (
-                                            <>
+                                             <>
                                                 <p className="font-medium">Admin Action</p>
                                                 <p className="text-xs text-muted-foreground">
                                                     {notification.message}
@@ -155,7 +155,7 @@ export function AdminNotificationBell() {
                 </div>
                 <div className="p-2 border-t">
                     <Button variant="link" size="sm" asChild className="w-full">
-                        <Link href="/admin/payout-requests">View all payouts</Link>
+                        <Link href="/admin/history">View all system events</Link>
                     </Button>
                 </div>
             </PopoverContent>

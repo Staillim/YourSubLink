@@ -5,17 +5,12 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useUser } from '@/hooks/use-user';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, getDocs, writeBatch, doc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Bell, CheckCircle2, XCircle, Clock, Trophy } from 'lucide-react';
 import type { PayoutRequest } from '@/hooks/use-user';
-
-type MilestoneNotification = {
-    id: string;
-    message: string;
-    createdAt: any;
-}
+import type { Notification } from '@/types';
 
 const getPayoutNotificationDetails = (payout: PayoutRequest) => {
     const date = payout.requestedAt ? new Date(payout.requestedAt.seconds * 1000).toLocaleDateString() : 'N/A';
@@ -35,38 +30,55 @@ const getPayoutNotificationDetails = (payout: PayoutRequest) => {
 export function NotificationBell() {
     const { user } = useUser();
     const [payouts, setPayouts] = useState<PayoutRequest[]>([]);
-    const [milestones, setMilestones] = useState<MilestoneNotification[]>([]);
+    const [milestones, setMilestones] = useState<Notification[]>([]);
     const [hasUnread, setHasUnread] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
 
     useEffect(() => {
         if (user) {
-            const payoutQuery = query(collection(db, "payoutRequests"), where("userId", "==", user.uid));
-            const unsubPayouts = onSnapshot(payoutQuery, (snapshot) => {
+            // Check for unread general notifications
+            const generalQuery = query(collection(db, "notifications"), where("userId", "==", user.uid), where("isRead", "==", false));
+            const unsubGeneral = onSnapshot(generalQuery, (snapshot) => {
+                setHasUnread(!snapshot.empty);
+            });
+            
+            // Fetch all notifications for display
+            const allPayoutsQuery = query(collection(db, "payoutRequests"), where("userId", "==", user.uid));
+            const unsubPayouts = onSnapshot(allPayoutsQuery, (snapshot) => {
                 const payoutData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PayoutRequest));
                 payoutData.sort((a, b) => (b.requestedAt?.seconds ?? 0) - (a.requestedAt?.seconds ?? 0));
                 setPayouts(payoutData);
-                
-                if (payoutData.some(p => p.status === 'pending')) {
-                    setHasUnread(true);
-                } else {
-                    setHasUnread(false);
-                }
             });
 
-            const milestoneQuery = query(collection(db, "notifications"), where("userId", "==", user.uid), where("type", "==", "milestone"));
-            const unsubMilestones = onSnapshot(milestoneQuery, (snapshot) => {
-                const milestoneData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as MilestoneNotification));
+            const milestoneQuery = query(collection(db, "notifications"), where("userId", "==", user.uid));
+             const unsubMilestones = onSnapshot(milestoneQuery, (snapshot) => {
+                const milestoneData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
                 milestoneData.sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
                 setMilestones(milestoneData);
             });
 
             return () => {
+                unsubGeneral();
                 unsubPayouts();
                 unsubMilestones();
             }
         }
     }, [user]);
+
+    const handleMarkAsRead = async () => {
+        if (!user) return;
+        const q = query(collection(db, 'notifications'), where('userId', '==', user.uid), where('isRead', '==', false));
+        const unreadSnapshot = await getDocs(q);
+        
+        if (unreadSnapshot.empty) return;
+
+        const batch = writeBatch(db);
+        unreadSnapshot.docs.forEach(d => {
+            batch.update(d.ref, { isRead: true });
+        });
+        await batch.commit();
+        setIsOpen(false); // Close popover after click
+    }
 
     return (
         <Popover open={isOpen} onOpenChange={setIsOpen}>
@@ -118,9 +130,11 @@ export function NotificationBell() {
                     )}
                 </div>
                 <div className="p-2 border-t">
-                    <Button variant="link" size="sm" asChild className="w-full">
-                        <Link href="/dashboard/notifications" onClick={() => setIsOpen(false)}>View all notifications</Link>
-                    </Button>
+                    <Link href="/dashboard/notifications" onClick={handleMarkAsRead} className="w-full">
+                        <Button variant="link" size="sm" className="w-full">
+                           View all notifications
+                        </Button>
+                    </Link>
                 </div>
             </PopoverContent>
         </Popover>
