@@ -80,6 +80,9 @@ export default function AdminUsersPage() {
         const linksQuery = query(collection(db, 'links'), where('userId', '==', userDoc.id));
         const linksSnapshot = await getDocs(linksQuery);
 
+        // DOCUMENTACIÓN: El cálculo correcto de las ganancias generadas.
+        // Se deben sumar las ganancias de cada enlace individualmente, ya que ese es el origen de la verdad.
+        // El campo 'generatedEarnings' en el documento del usuario no se utiliza para este cálculo.
         const totalGeneratedEarnings = linksSnapshot.docs.reduce((acc, doc) => {
             return acc + (doc.data().generatedEarnings || 0);
         }, 0);
@@ -122,7 +125,12 @@ export default function AdminUsersPage() {
     setIsSubmitting(true);
     try {
         const userDocRef = doc(db, 'users', selectedUser.uid);
-        await updateDoc(userDocRef, { generatedEarnings: increment(amountToAdd) });
+
+        // DOCUMENTACIÓN: Corrección de lógica de balance.
+        // Para añadir saldo a un usuario (por ej. un bono), debemos tratarlo como una "ganancia pagada negativa".
+        // Decrementar 'paidEarnings' aumenta el balance disponible (Generated - Paid).
+        // Esto es contablemente correcto y evita alterar la suma de 'generatedEarnings' de los enlaces.
+        await updateDoc(userDocRef, { paidEarnings: increment(-amountToAdd) });
         
         toast({
             title: 'Balance Added',
