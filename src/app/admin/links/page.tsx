@@ -17,7 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
-import { MoreVertical, Trash2, ExternalLink, BarChart3 } from 'lucide-react';
+import { MoreVertical, Trash2, ExternalLink, BarChart3, Eye, Calendar } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
     DropdownMenu,
@@ -155,8 +155,30 @@ export default function AdminLinksPage() {
                     <TableRow key={link.id}>
                         <TableCell>
                             <div className="font-semibold truncate max-w-[200px] sm:max-w-xs">{link.title}</div>
-                            <div className="text-xs text-muted-foreground md:hidden">{link.userName}</div>
                             <a href={link.short} target='_blank' rel='noopener noreferrer' className="text-xs text-muted-foreground hover:underline block truncate max-w-[200px] sm:max-w-xs">{link.short}</a>
+                            {/* Mobile-only details */}
+                            <div className="md:hidden mt-2 space-y-2 text-xs">
+                                <div className="flex items-center gap-2">
+                                    <span className="font-medium">User:</span>
+                                    <div className="text-muted-foreground">{link.userName}</div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="font-medium">Status:</span>
+                                    <Badge variant={link.monetizable ? 'default' : 'secondary'} className={`h-5 ${link.monetizable ? 'bg-green-600' : ''}`}>
+                                        {link.monetizable ? 'Monetizable' : 'Not Monetizable'}
+                                    </Badge>
+                                </div>
+                                <div className="flex items-center gap-4 text-xs">
+                                    <div className="flex items-center gap-1 text-muted-foreground">
+                                        <Eye className="h-3 w-3" />
+                                        <span>{link.clicks} Clicks</span>
+                                    </div>
+                                    <div className="flex items-center gap-1 text-muted-foreground">
+                                        <Calendar className="h-3 w-3" />
+                                        <span>{link.createdAt ? new Date(link.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}</span>
+                                    </div>
+                                </div>
+                            </div>
                         </TableCell>
                          <TableCell className="hidden md:table-cell">
                             <div className="font-medium">{link.userName}</div>
