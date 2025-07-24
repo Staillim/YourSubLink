@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useUser } from '@/hooks/use-user';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, getDocs, writeBatch, doc, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, getDocs, writeBatch, doc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Bell } from 'lucide-react';
@@ -25,15 +25,21 @@ export function NotificationBell() {
                 setHasUnread(!snapshot.empty);
             });
             
+            // Simplified query to avoid composite index requirement.
             const allNotifsQuery = query(
                 collection(db, "notifications"), 
-                where("userId", "==", user.uid),
-                orderBy("createdAt", "desc"),
-                limit(5)
+                where("userId", "==", user.uid)
             );
+            
              const unsubAll = onSnapshot(allNotifsQuery, (snapshot) => {
                 const notifData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
-                const formatted = notifData.map(getNotificationDetails);
+                
+                // Sort and limit on the client side
+                const sortedAndLimited = notifData
+                    .sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0))
+                    .slice(0, 5);
+
+                const formatted = sortedAndLimited.map(getNotificationDetails);
                 setNotifications(formatted);
             });
 
@@ -77,7 +83,7 @@ export function NotificationBell() {
                 <div className="p-4">
                     <h4 className="font-medium text-sm">Notifications</h4>
                 </div>
-                <div className="space-y-2 p-4 pt-0 max-h-80 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                <div className="space-y-2 p-4 pt-0 max-h-80 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     {notifications.length === 0 ? (
                         <div className="text-center text-muted-foreground py-8">
                              <Bell className="mx-auto h-8 w-8 mb-2" />
