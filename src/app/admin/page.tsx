@@ -2,26 +2,17 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { collection, onSnapshot, query, getDocs, where, orderBy, limit } from 'firebase/firestore';
+import { collection, onSnapshot, query } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Users, Link2, DollarSign, Eye } from 'lucide-react';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
+
+const CPM = 3.00; // Cost Per Mille (1000 views)
 
 type Link = {
     clicks: number;
     monetizable: boolean;
-    generatedEarnings: number;
-};
-
-type PayoutRequest = {
-  id: string;
-  userName: string;
-  amount: number;
-  status: 'pending' | 'completed' | 'rejected';
-  processedAt: any;
 };
 
 export default function AdminDashboardPage() {
@@ -29,82 +20,44 @@ export default function AdminDashboardPage() {
     const [totalClicks, setTotalClicks] = useState<number | null>(null);
     const [totalRevenue, setTotalRevenue] = useState<number | null>(null);
     const [monetizableLinks, setMonetizableLinks] = useState<number | null>(null);
-    const [monetizableClicks, setMonetizableClicks] = useState<number | null>(null);
-    const [activeCpm, setActiveCpm] = useState<number>(3.00); // Default CPM
-    const [recentPayouts, setRecentPayouts] = useState<PayoutRequest[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const usersQuery = query(collection(db, 'users'));
         const linksQuery = query(collection(db, 'links'));
-        const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
-        // Simplified query to avoid composite index requirement.
-        // We will filter out 'pending' status on the client side.
-        const payoutsQuery = query(
-            collection(db, 'payoutRequests'), 
-            orderBy('processedAt', 'desc'), 
-            limit(10) // Fetch a bit more to ensure we get 5 non-pending
-        );
 
         const unsubUsers = onSnapshot(usersQuery, (snapshot) => {
             setUserCount(snapshot.size);
-            if(loading) setLoading(false);
+            if (loading) setLoading(false);
         });
 
         const unsubLinks = onSnapshot(linksQuery, (snapshot) => {
             let clicks = 0;
             let monetizable = 0;
-            let revenue = 0;
-            let monetizableClicksCount = 0;
             snapshot.forEach((doc) => {
                 const data = doc.data() as Link;
                 clicks += data.clicks || 0;
                 if (data.monetizable) {
-                    revenue += data.generatedEarnings || 0;
                     monetizable++;
-                    monetizableClicksCount += data.clicks || 0;
                 }
             });
             setTotalClicks(clicks);
-            setTotalRevenue(revenue);
+            setTotalRevenue((clicks / 1000) * CPM);
             setMonetizableLinks(monetizable);
-            setMonetizableClicks(monetizableClicksCount);
             if (loading) setLoading(false);
-        });
-
-        const unsubCpm = onSnapshot(cpmQuery, (snapshot) => {
-            if (!snapshot.empty) {
-                const cpmDoc = snapshot.docs[0];
-                setActiveCpm(cpmDoc.data().rate);
-            }
-        });
-
-        const unsubPayouts = onSnapshot(payoutsQuery, (snapshot) => {
-            const payoutsData: PayoutRequest[] = [];
-            snapshot.forEach((doc) => {
-                const data = doc.data() as PayoutRequest;
-                 // Client-side filtering
-                if (data.status !== 'pending' && data.processedAt) {
-                    payoutsData.push({ id: doc.id, ...data });
-                }
-            });
-            // Slice to get the top 5 after filtering
-            setRecentPayouts(payoutsData.slice(0, 5));
         });
 
         return () => {
             unsubUsers();
             unsubLinks();
-            unsubCpm();
-            unsubPayouts();
         };
-    }, [loading]);
+    }, []);
 
     const stats = [
-        { title: 'Total Users', value: userCount, icon: Users, description: 'Live count' },
-        { title: 'Total Clicks', value: totalClicks, icon: Eye, description: 'All clicks in the system' },
-        { title: 'Monetizable Clicks', value: monetizableClicks, icon: Eye, description: 'Clicks on monetizable links' },
-        { title: 'Total Revenue', value: totalRevenue, icon: DollarSign, isCurrency: true, description: `Based on an average CPM` },
+        { title: 'Total Users', value: userCount, icon: Users },
+        { title: 'Total Clicks', value: totalClicks, icon: Eye },
+        { title: 'Total Revenue', value: totalRevenue, icon: DollarSign, isCurrency: true },
+        { title: 'Monetizable Links', value: monetizableLinks, icon: Link2 },
     ];
 
     return (
@@ -124,11 +77,11 @@ export default function AdminDashboardPage() {
                             ) : (
                                 <div className="text-2xl font-bold">
                                     {stat.isCurrency && '$'}
-                                    {stat.value !== null ? (stat.isCurrency ? stat.value.toFixed(4) : stat.value.toLocaleString()) : '0'}
+                                    {stat.value !== null ? (stat.isCurrency ? stat.value.toFixed(2) : stat.value.toLocaleString()) : '0'}
                                 </div>
                             )}
                             <p className="text-xs text-muted-foreground">
-                                {stat.description}
+                                {index === 2 ? `Based on $${CPM.toFixed(2)} CPM` : 'Live count'}
                             </p>
                         </CardContent>
                     </Card>
@@ -140,38 +93,7 @@ export default function AdminDashboardPage() {
                     <CardTitle>Recent Payouts</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    {loading ? (
-                        <Skeleton className="h-40 w-full" />
-                    ) : recentPayouts.length > 0 ? (
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>User</TableHead>
-                                    <TableHead>Amount</TableHead>
-                                    <TableHead>Date</TableHead>
-                                    <TableHead className="text-right">Status</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {recentPayouts.map((payout) => (
-                                    <TableRow key={payout.id}>
-                                        <TableCell className="font-medium">{payout.userName}</TableCell>
-                                        <TableCell>${payout.amount.toFixed(4)}</TableCell>
-                                        <TableCell>
-                                            {payout.processedAt ? new Date(payout.processedAt.seconds * 1000).toLocaleDateString() : 'N/A'}
-                                        </TableCell>
-                                        <TableCell className="text-right">
-                                            <Badge variant={payout.status === 'completed' ? 'default' : 'destructive'} className={payout.status === 'completed' ? 'bg-green-600' : ''}>
-                                                {payout.status}
-                                            </Badge>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    ) : (
-                        <p className="text-muted-foreground text-center py-8">No recent processed payouts.</p>
-                    )}
+                   <p className="text-muted-foreground">Payout history will be displayed here once payments are processed.</p>
                 </CardContent>
              </Card>
         </div>

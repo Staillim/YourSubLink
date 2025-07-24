@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { auth, db, createUserProfile } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 import type { User as FirebaseUser } from 'firebase/auth';
 
@@ -45,7 +45,6 @@ export function useUser() {
       return;
     }
 
-    // This is the ideal place to ensure the user profile exists.
     const userDocRef = doc(db, 'users', authUser.uid);
     const unsubscribe = onSnapshot(userDocRef, (doc) => {
       if (doc.exists()) {
@@ -59,10 +58,14 @@ export function useUser() {
             paidEarnings: data.paidEarnings || 0,
         });
       } else {
-        // User is authenticated, but no profile exists. Create it now.
-        createUserProfile(authUser);
-        // The onSnapshot listener will automatically pick up the new profile
-        // and update the state, so we don't need to set it here.
+        setUserProfile({
+            displayName: authUser.displayName || 'User',
+            email: authUser.email || '',
+            photoURL: authUser.photoURL || '',
+            role: 'user',
+            generatedEarnings: 0,
+            paidEarnings: 0,
+        });
       }
       setLoading(false);
     });

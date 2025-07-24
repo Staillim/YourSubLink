@@ -113,7 +113,7 @@ export default function AdminUsersPage() {
         
         toast({
             title: 'Balance Added',
-            description: `Successfully added $${amountToAdd.toFixed(4)} to ${selectedUser.displayName}'s balance.`,
+            description: `Successfully added $${amountToAdd.toFixed(2)} to ${selectedUser.displayName}'s balance.`,
         });
         
         setIsAddBalanceDialogOpen(false);
@@ -144,13 +144,22 @@ export default function AdminUsersPage() {
              <Table>
                 <TableHeader>
                     <TableRow>
-                        {[...Array(7)].map((_, i) => <TableHead key={i}><Skeleton className="h-5 w-24" /></TableHead>)}
+                        <TableHead><Skeleton className="h-5 w-24" /></TableHead>
+                        <TableHead><Skeleton className="h-5 w-20" /></TableHead>
+                        <TableHead><Skeleton className="h-5 w-24" /></TableHead>
+                        <TableHead><Skeleton className="h-5 w-24" /></TableHead>
+                        <TableHead><Skeleton className="h-5 w-16" /></TableHead>
+                        <TableHead className="text-right"><Skeleton className="h-5 w-20" /></TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
                     {[...Array(5)].map((_, i) => (
                          <TableRow key={i}>
-                            {[...Array(6)].map((_, j) => <TableCell key={j}><Skeleton className="h-5 w-full" /></TableCell>)}
+                            <TableCell><Skeleton className="h-5 w-40" /></TableCell>
+                            <TableCell><Skeleton className="h-5 w-12" /></TableCell>
+                            <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+                            <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+                            <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                             <TableCell className="text-right"><Skeleton className="h-8 w-8" /></TableCell>
                          </TableRow>
                     ))}
@@ -179,7 +188,6 @@ export default function AdminUsersPage() {
                             <TableHead>Links Created</TableHead>
                             <TableHead>Generated Earnings</TableHead>
                             <TableHead>Paid Earnings</TableHead>
-                            <TableHead>Current Balance</TableHead>
                             <TableHead>Role</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
@@ -192,9 +200,8 @@ export default function AdminUsersPage() {
                                     <div className="text-sm text-muted-foreground">{u.email}</div>
                                 </TableCell>
                                 <TableCell>{u.linksCount}</TableCell>
-                                <TableCell>${u.generatedEarnings.toFixed(4)}</TableCell>
-                                <TableCell className="text-green-500 font-semibold">${u.paidEarnings.toFixed(4)}</TableCell>
-                                <TableCell className="font-bold">${(u.generatedEarnings - u.paidEarnings).toFixed(4)}</TableCell>
+                                <TableCell>${u.generatedEarnings.toFixed(2)}</TableCell>
+                                <TableCell className="text-green-500 font-semibold">${u.paidEarnings.toFixed(2)}</TableCell>
                                 <TableCell>
                                     <Badge variant={u.role === 'admin' ? 'default' : 'secondary'} className={u.role === 'admin' ? 'bg-primary' : ''}>
                                         {u.role}
@@ -248,7 +255,7 @@ export default function AdminUsersPage() {
                         />
                     </div>
                      <div className="text-sm text-muted-foreground">
-                        Current Balance: ${selectedUser?.generatedEarnings.toFixed(4) ?? '0.0000'}
+                        Current Balance: ${selectedUser?.generatedEarnings.toFixed(2) ?? '0.00'}
                     </div>
                 </div>
                 <DialogFooter>
@@ -267,3 +274,5 @@ export default function AdminUsersPage() {
     </>
   );
 }
+
+    

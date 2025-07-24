@@ -23,7 +23,7 @@ import {
     TableRow,
   } from '@/components/ui/table';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
-import { ExternalLink, DollarSign } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { LinkItem } from '../page';
 import { format, getMonth, getYear } from 'date-fns';
@@ -36,12 +36,12 @@ const chartConfig = {
   },
 };
 
+const CPM = 3.00;
 
 export default function AnalyticsPage() {
   const [user, loading] = useAuthState(auth);
   const [links, setLinks] = useState<LinkItem[]>([]);
   const [linksLoading, setLinksLoading] = useState(true);
-  const [activeCpm, setActiveCpm] = useState<number>(3.00); // Default CPM
 
   useEffect(() => {
     if (user) {
@@ -64,46 +64,37 @@ export default function AnalyticsPage() {
             monetizable: data.monetizable || false,
             rules: data.rules || [],
             generatedEarnings: data.generatedEarnings || 0,
+            realClicks: 0, // Note: This page doesn't calculate real-time real clicks for simplicity
           });
         });
         setLinks(linksData);
         setLinksLoading(false);
       });
 
-      const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
-      const unsubCpm = onSnapshot(cpmQuery, (snapshot) => {
-          if (!snapshot.empty) {
-              const cpmDoc = snapshot.docs[0];
-              setActiveCpm(cpmDoc.data().rate);
-          }
-      });
-
-      return () => {
-        unsubscribe();
-        unsubCpm();
-      }
+      return () => unsubscribe();
     } else if (!loading) {
         setLinksLoading(false);
     }
   }, [user, loading]);
 
   const totalClicks = links.reduce((acc, link) => acc + link.clicks, 0);
-  const totalEarnings = links.reduce((acc, link) => acc + (link.generatedEarnings || 0), 0);
+  const totalEarnings = links.reduce((acc, link) => acc + (link.monetizable ? (link.clicks / 1000) * CPM : 0), 0);
 
   const getChartData = () => {
     const monthlyEarnings: { [key: string]: number } = {};
 
     links.forEach(link => {
-        if (link.generatedEarnings > 0) {
+        if (link.clicks > 0 && link.monetizable) {
             const date = new Date(link.date);
             const year = getYear(date);
             const month = getMonth(date);
             const monthKey = `${year}-${month}`;
+            const earnings = (link.clicks / 1000) * CPM;
             
             if (monthlyEarnings[monthKey]) {
-                monthlyEarnings[monthKey] += link.generatedEarnings;
+                monthlyEarnings[monthKey] += earnings;
             } else {
-                monthlyEarnings[monthKey] = link.generatedEarnings;
+                monthlyEarnings[monthKey] = earnings;
             }
         }
     });
@@ -123,7 +114,7 @@ export default function AnalyticsPage() {
   
   const linksWithEarnings = links.map(link => ({
       ...link,
-      earnings: link.generatedEarnings || 0
+      earnings: link.monetizable ? (link.clicks / 1000) * CPM : 0
   })).sort((a,b) => b.earnings - a.earnings);
 
 
@@ -156,10 +147,10 @@ export default function AnalyticsPage() {
               <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                       <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-                      <DollarSign className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">$</span>
                   </CardHeader>
                   <CardContent>
-                      <div className="text-2xl font-bold">${totalEarnings.toFixed(4)}</div>
+                      <div className="text-2xl font-bold">${totalEarnings.toFixed(2)}</div>
                       <p className="text-xs text-muted-foreground">Based on total monetizable clicks</p>
                   </CardContent>
               </Card>
@@ -175,12 +166,12 @@ export default function AnalyticsPage() {
               </Card>
               <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">Active CPM</CardTitle>
-                       <DollarSign className="h-4 w-4 text-muted-foreground" />
+                      <CardTitle className="text-sm font-medium">Average CPM</CardTitle>
+                       <span className="text-sm text-muted-foreground">$</span>
                   </CardHeader>
                   <CardContent>
-                      <div className="text-2xl font-bold">${activeCpm.toFixed(4)}</div>
-                      <p className="text-xs text-muted-foreground">Current rate per 1000 monetized views</p>
+                      <div className="text-2xl font-bold">${CPM.toFixed(2)}</div>
+                      <p className="text-xs text-muted-foreground">Fixed rate per 1000 monetized views</p>
                   </CardContent>
               </Card>
           </div>
@@ -201,7 +192,7 @@ export default function AnalyticsPage() {
                   tickFormatter={(value) => value.slice(0, 3)}
                 />
                 <YAxis tickFormatter={(value) => `$${value}`} />
-                <ChartTooltip content={<ChartTooltipContent formatter={(value) => `$${Number(value).toFixed(4)}`} />} />
+                <ChartTooltip content={<ChartTooltipContent formatter={(value) => `$${Number(value).toFixed(2)}`} />} />
                 <Bar dataKey="earnings" fill="var(--color-earnings)" radius={4} />
               </BarChart>
             </ChartContainer>
@@ -218,7 +209,7 @@ export default function AnalyticsPage() {
                       <TableRow>
                           <TableHead>Link</TableHead>
                           <TableHead className="text-right">Clicks</TableHead>
-                          <TableHead className="text-right">Generated Earnings</TableHead>
+                          <TableHead className="text-right">Estimated Earnings</TableHead>
                       </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -226,7 +217,7 @@ export default function AnalyticsPage() {
                            <TableRow key={link.id}>
                               <TableCell className="font-medium">{link.title}</TableCell>
                               <TableCell className="text-right">{link.clicks.toLocaleString()}</TableCell>
-                              <TableCell className="text-right font-semibold">${link.earnings.toFixed(4)}</TableCell>
+                              <TableCell className="text-right">${link.earnings.toFixed(2)}</TableCell>
                            </TableRow>
                       ))}
                       {links.length === 0 && (

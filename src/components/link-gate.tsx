@@ -1,15 +1,13 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import type { Rule } from '@/components/rule-editor';
 import type { LinkData } from '@/types';
-import { Loader2, ExternalLink, CheckCircle2, Lock, Link as LinkIcon, ChevronRight, Youtube, Instagram, Timer } from 'lucide-react';
-import { cn } from '@/lib/utils';
-
+import { Loader2, ExternalLink, CheckCircle2, Lock, Link as LinkIcon, ChevronRight, Youtube, Instagram } from 'lucide-react';
 
 const RULE_DETAILS = {
   like: { text: 'Like & Comment on Video', icon: Youtube, color: 'bg-red-600 hover:bg-red-700' },
@@ -24,8 +22,7 @@ function RuleItem({ rule, onComplete, isCompleted }: { rule: Rule; onComplete: (
 
   const { text, icon: Icon, color } = RULE_DETAILS[rule.type] || RULE_DETAILS.visit;
 
-  const handleClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    event.preventDefault();
+  const handleClick = () => {
     if (isCompleted || isClicked) return;
 
     window.open(rule.url, '_blank');
@@ -40,21 +37,14 @@ function RuleItem({ rule, onComplete, isCompleted }: { rule: Rule; onComplete: (
     const completionTimeout = setTimeout(() => {
       clearInterval(verifyingInterval);
       onComplete();
-    }, 10000);
+    }, 10000); // Wait 10 seconds to simulate verification
   };
 
-  const buttonClasses = cn(
-    "w-full justify-between h-auto py-4 px-5 text-base font-semibold",
-    "inline-flex items-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-    "text-primary-foreground",
-    isCompleted ? 'bg-green-600 hover:bg-green-700' : color,
-    (isClicked && !isCompleted) ? 'disabled:opacity-100 cursor-wait' : 'cursor-pointer'
-  );
-
   return (
-    <div
+    <Button
       onClick={handleClick}
-      className={buttonClasses}
+      disabled={isClicked}
+      className={`w-full justify-between h-auto py-4 px-5 text-base font-semibold ${isCompleted ? 'bg-green-600 hover:bg-green-700' : color}`}
     >
       <div className="flex items-center gap-3">
         <Icon className="h-6 w-6" />
@@ -71,50 +61,14 @@ function RuleItem({ rule, onComplete, isCompleted }: { rule: Rule; onComplete: (
             <ChevronRight className="h-6 w-6" />
         )}
       </div>
-    </div>
+    </Button>
   );
 }
 
 
-function CountdownPage({ onContinue }: { onContinue: () => void }) {
-    const [countdown, setCountdown] = useState(5);
-    const isCountdownFinished = countdown === 0;
-
-    useEffect(() => {
-        if (countdown > 0) {
-            const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
-            return () => clearTimeout(timer);
-        }
-    }, [countdown]);
-
-    return (
-        <div className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4">
-            <Card className="w-full max-w-md shadow-2xl bg-card border-gray-800">
-                <CardHeader className="text-center items-center pt-8">
-                     <Timer className="h-12 w-12 text-primary" />
-                    <CardTitle className="text-3xl font-bold tracking-tight">Please wait</CardTitle>
-                    <CardDescription className="text-muted-foreground text-base pt-1">
-                        Your link will be available shortly.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="flex flex-col items-center justify-center px-6 pb-8 pt-4">
-                   {isCountdownFinished ? (
-                        <Button onClick={onContinue} className="w-full font-bold text-lg py-7 mt-4 bg-green-600 hover:bg-green-700" size="lg">
-                            Continue to Link
-                        </Button>
-                   ) : (
-                        <div className="text-6xl font-bold text-primary tabular-nums">
-                            {countdown}
-                        </div>
-                   )}
-                </CardContent>
-            </Card>
-        </div>
-    );
-}
-
-export default function LinkGate({ linkData, onUnlock, onContinue, view }: { linkData: LinkData, onUnlock: () => void, onContinue: () => void, view: 'gate' | 'countdown' }) {
+export default function LinkGate({ linkData }: { linkData: LinkData }) {
     const [completedRules, setCompletedRules] = useState<boolean[]>(Array(linkData.rules.length).fill(false));
+    const [isRedirecting, setIsRedirecting] = useState(false);
     
     const totalRules = linkData.rules.length;
     const completedCount = completedRules.filter(Boolean).length;
@@ -129,14 +83,10 @@ export default function LinkGate({ linkData, onUnlock, onContinue, view }: { lin
     }
 
     const handleUnlockClick = () => {
-        if (!allRulesCompleted) return;
-        onUnlock(); 
+        setIsRedirecting(true);
+        window.location.href = linkData.original;
     }
     
-    if (view === 'countdown') {
-        return <CountdownPage onContinue={onContinue} />;
-    }
-
     return (
         <div className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4">
             <Card className="w-full max-w-md shadow-2xl bg-card border-gray-800">
@@ -167,13 +117,14 @@ export default function LinkGate({ linkData, onUnlock, onContinue, view }: { lin
 
                     <Button
                         onClick={handleUnlockClick}
-                        disabled={!allRulesCompleted}
+                        disabled={!allRulesCompleted || isRedirecting}
                         className="w-full font-bold text-lg py-7 mt-4 bg-green-600 hover:bg-green-700 disabled:bg-gray-800 disabled:text-muted-foreground disabled:cursor-not-allowed"
                         size="lg"
                     >
-                        <div className="flex items-center justify-center w-full gap-2">
+                        <div className="flex items-center justify-between w-full">
                            <Lock className="h-5 w-5"/>
-                           {allRulesCompleted ? <span>Unlock Link</span> : <span>Complete all actions</span>}
+                           {isRedirecting ? <span>Redirecting...</span> : <span>Unlock Link</span>}
+                           {isRedirecting ? <Loader2 className="h-5 w-5 animate-spin"/> : <LinkIcon className="h-5 w-5"/>}
                         </div>
                     </Button>
                 </CardContent>

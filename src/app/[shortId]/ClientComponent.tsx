@@ -4,11 +4,13 @@
 import { useEffect, useState } from 'react';
 import { notFound } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
-import LinkGate from '@/components/link-gate'; 
-import type { LinkData } from '@/types'; 
+import LinkGate from '@/components/link-gate'; // We'll create this component
+import type { LinkData } from '@/types'; // We'll create this types file
+
+const HOUR_IN_MS = 60 * 60 * 1000;
 
 export default function ClientComponent({ shortId }: { shortId: string }) {
-  const [status, setStatus] = useState<'loading' | 'gate' | 'countdown' | 'redirecting' | 'not-found'>('loading');
+  const [status, setStatus] = useState<'loading' | 'gate' | 'redirecting' | 'not-found'>('loading');
   const [linkData, setLinkData] = useState<LinkData | null>(null);
 
   useEffect(() => {
@@ -19,15 +21,24 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
 
     const processLinkVisit = async () => {
       try {
-        // Step 1: Just get the link data without counting any clicks.
-        const response = await fetch('/api/get-link-data', {
+        const visitKey = `visit_timestamp_${shortId}`;
+        const lastVisit = localStorage.getItem(visitKey);
+        const now = new Date().getTime();
+        
+        const isRealVisit = !lastVisit || (now - parseInt(lastVisit, 10) > HOUR_IN_MS);
+
+        const response = await fetch('/api/click', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ shortId }), 
+            body: JSON.stringify({ shortId, isRealVisit }),
         });
 
         if (!response.ok) {
             throw new Error(`API Error: ${response.statusText}`);
+        }
+        
+        if (isRealVisit) {
+            localStorage.setItem(visitKey, now.toString());
         }
 
         const data: { link: LinkData; action: 'GATE' | 'REDIRECT' } = await response.json();
@@ -35,52 +46,20 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
         setLinkData(data.link);
 
         if (data.action === 'GATE') {
-            // If there are rules, show the gate. The click will be counted later.
             setStatus('gate');
         } else if (data.action === 'REDIRECT') {
-            // If no rules, count the click and redirect immediately.
-            await fetch('/api/click', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ shortId }),
-            });
             setStatus('redirecting');
             window.location.href = data.link.original;
         }
 
       } catch (error) {
         console.error("Error processing link visit:", error);
-        setStatus('not-found');
+        setStatus('not-found'); // If anything fails, treat as not found.
       }
     };
 
     processLinkVisit();
   }, [shortId]);
-  
-  // This function is called when the user clicks the "Unlock Link" button
-  // Its only job is to switch the view to the countdown page.
-  const handleUnlock = () => {
-    setStatus('countdown');
-  }
-
-  // This function is called ONLY when the user clicks the "Continue" button
-  // after the countdown has finished.
-  const handleContinueAndCount = async () => {
-    if (!shortId || !linkData) return;
-    
-    setStatus('redirecting');
-
-    // This is the REAL click. Record it in the database.
-    await fetch('/api/click', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shortId }),
-    });
-    
-    // Redirect to the final destination
-    window.location.href = linkData.original;
-  }
-
 
   if (status === 'not-found') {
     return notFound();
@@ -95,17 +74,11 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
     );
   }
 
-  // Render the gate, passing the handleUnlock function to be called on button click.
   if (status === 'gate' && linkData) {
-    return <LinkGate linkData={linkData} onUnlock={handleUnlock} onContinue={handleContinueAndCount} view="gate" />;
-  }
-  
-  // After the button is clicked and state changes, render the countdown page.
-  if (status === 'countdown' && linkData) {
-      return <LinkGate linkData={linkData} onUnlock={handleUnlock} onContinue={handleContinueAndCount} view="countdown" />;
+    return <LinkGate linkData={linkData} />;
   }
 
-  // Fallback loading state
+  // Fallback state, should be brief
   return (
     <div className="flex h-screen w-full flex-col items-center justify-center bg-background text-foreground">
       <Loader2 className="h-12 w-12 animate-spin text-primary" />

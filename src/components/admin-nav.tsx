@@ -24,6 +24,11 @@ const navItems = [
         icon: Link2,
     },
     {
+        href: '/admin/payments',
+        label: 'Payments',
+        icon: DollarSign,
+    },
+    {
         href: '/admin/payout-requests',
         label: 'Payout Requests',
         icon: CreditCard,

@@ -48,12 +48,19 @@ import { Rule, RuleEditor } from '@/components/rule-editor';
 import { Label } from '@/components/ui/label';
 
 
+type Click = {
+    id: string;
+    ipAddress: string;
+    timestamp: any;
+};
+
 export type LinkItem = {
   id: string;
   original: string;
   shortId: string;
   short: string;
   clicks: number;
+  realClicks: number;
   date: string;
   userId: string;
   title: string;
@@ -63,6 +70,32 @@ export type LinkItem = {
   generatedEarnings: number;
 };
 
+const calculateRealClicks = (clicks: Click[]): number => {
+    if (clicks.length === 0) return 0;
+
+    const clicksByIp: { [key: string]: Date[] } = {};
+    clicks.forEach(click => {
+        if (!clicksByIp[click.ipAddress]) {
+            clicksByIp[click.ipAddress] = [];
+        }
+        clicksByIp[click.ipAddress].push(new Date(click.timestamp.seconds * 1000));
+    });
+
+    let realClickCount = 0;
+    for (const ip in clicksByIp) {
+        const timestamps = clicksByIp[ip].sort((a,b) => a.getTime() - b.getTime());
+        let lastCountedTimestamp: Date | null = null;
+
+        timestamps.forEach(timestamp => {
+            if (!lastCountedTimestamp || (timestamp.getTime() - lastCountedTimestamp.getTime()) > 3600000) { // 1 hour in ms
+                realClickCount++;
+                lastCountedTimestamp = timestamp;
+            }
+        });
+    }
+
+    return realClickCount;
+}
 
 export default function DashboardPage() {
   const [user, loading] = useAuthState(auth);
@@ -96,13 +129,20 @@ export default function DashboardPage() {
         const linksData: LinkItem[] = [];
         for (const docSnapshot of querySnapshot.docs) {
             const data = docSnapshot.data();
+            
+            // Fetch clicks for each link to calculate real clicks
+            const clicksQuery = query(collection(db, 'clicks'), where('linkId', '==', docSnapshot.id));
+            const clicksSnapshot = await getDocs(clicksQuery);
+            const clicks: Click[] = clicksSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Click));
+            const realClicks = calculateRealClicks(clicks);
 
             linksData.push({
                 id: docSnapshot.id,
                 original: data.original,
                 shortId: data.shortId,
-                short: `${window.location.origin}/${data.shortId}`,
+                short: `${window.location.origin}/link/${data.shortId}`,
                 clicks: data.clicks,
+                realClicks: realClicks,
                 date: new Date(data.createdAt.seconds * 1000).toISOString().split('T')[0],
                 userId: data.userId,
                 title: data.title,
@@ -165,7 +205,7 @@ export default function DashboardPage() {
                 title: editTitle,
                 description: editDescription,
                 rules: editRules,
-                monetizable: editRules.length >= 3,
+                monetizable: editRules.length >= 3
             });
             setIsEditDialogOpen(false);
             setEditingLink(null);
@@ -219,7 +259,7 @@ export default function DashboardPage() {
                             <TableHead className="w-full md:w-2/5">Link</TableHead>
                             <TableHead className="hidden md:table-cell">Short Link</TableHead>
                             <TableHead>Status</TableHead>
-                            <TableHead>Total Clicks</TableHead>
+                            <TableHead>Real Clicks</TableHead>
                             <TableHead className="hidden md:table-cell">Date</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
@@ -254,7 +294,7 @@ export default function DashboardPage() {
                                     </Tooltip>
                                 </Badge>
                             </TableCell>
-                            <TableCell>{link.clicks}</TableCell>
+                            <TableCell>{link.realClicks}</TableCell>
                             <TableCell className="hidden md:table-cell text-muted-foreground">{link.date}</TableCell>
                             <TableCell className="text-right">
                                 <DropdownMenu>
