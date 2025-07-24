@@ -19,7 +19,11 @@ service cloud.firestore {
 
     match /links/{linkId} {
       allow read;
-      allow create, update, delete: if request.auth != null && (isOwner(request.resource.data.userId) || isAdmin());
+      allow create, delete: if request.auth != null && (isOwner(request.resource.data.userId) || isAdmin());
+      // Allow owners/admins to update fully.
+      // Allow unauthenticated users to ONLY update the 'clicks' and 'generatedEarnings' fields.
+      allow update: if (request.auth != null && (isOwner(request.resource.data.userId) || isAdmin())) ||
+                       (request.auth == null && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks', 'generatedEarnings']));
     }
 
     match /clicks/{clickId} {
@@ -42,9 +46,8 @@ service cloud.firestore {
     
     match /notifications/{notificationId} {
         allow read: if request.auth != null && (isOwner(resource.data.userId) || isAdmin());
-        allow create: if isAdmin();
-        // Allow users to update their own notifications (e.g., mark as read), and admins to update any.
         allow update: if request.auth != null && (isOwner(resource.data.userId) || isAdmin());
+        allow create: if isAdmin();
     }
 
     // Chat-related rules
