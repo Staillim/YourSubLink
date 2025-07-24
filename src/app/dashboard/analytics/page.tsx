@@ -92,13 +92,15 @@ export default function AnalyticsPage() {
 
   const getChartData = () => {
     const monthlyEarnings: { [key: string]: number } = {};
+    const now = new Date();
+    const currentYear = getYear(now);
+    const currentMonth = getMonth(now);
 
     links.forEach(link => {
-        if (link.generatedEarnings > 0) {
-            const date = new Date(link.date);
-            const year = getYear(date);
-            const month = getMonth(date);
-            const monthKey = `${year}-${month}`;
+        const linkDate = new Date(link.date);
+        if (getYear(linkDate) === currentYear && link.generatedEarnings > 0) {
+            const month = getMonth(linkDate);
+            const monthKey = `${currentYear}-${month}`;
             
             if (monthlyEarnings[monthKey]) {
                 monthlyEarnings[monthKey] += link.generatedEarnings;
@@ -108,8 +110,7 @@ export default function AnalyticsPage() {
         }
     });
 
-    const currentYear = getYear(new Date());
-    const chartData = Array.from({ length: 12 }, (_, i) => {
+    const chartData = Array.from({ length: currentMonth + 1 }, (_, i) => {
         const monthName = format(new Date(currentYear, i), 'MMMM');
         const key = `${currentYear}-${i}`;
         return {
