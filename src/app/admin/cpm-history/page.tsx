@@ -51,9 +51,11 @@ export default function CpmHistoryPage() {
                     // attribute all its earnings to this period.
                     // A more accurate (but much more complex) calculation would require
                     // associating every single click with the CPM rate at the time of the click.
-                    const linkCreation = link.createdAt.toMillis();
-                    if(linkCreation >= periodStart && linkCreation <= periodEnd) {
-                        periodEarnings += link.generatedEarnings || 0;
+                    if (link.createdAt) {
+                        const linkCreation = link.createdAt.toMillis();
+                        if(linkCreation >= periodStart && linkCreation <= periodEnd) {
+                            periodEarnings += link.generatedEarnings || 0;
+                        }
                     }
                 }
 
@@ -75,7 +77,7 @@ export default function CpmHistoryPage() {
     if (loading) {
         return (
              <div className="flex flex-col gap-6">
-                <h1 className="text-2xl font-bold">CPM History</h1>
+                <h1 className="text-xl font-bold md:text-2xl">CPM History</h1>
                 <Card>
                     <CardHeader>
                         <Skeleton className="h-6 w-48" />
@@ -104,7 +106,7 @@ export default function CpmHistoryPage() {
 
     return (
         <div className="flex flex-col gap-6">
-            <h1 className="text-2xl font-bold">CPM History</h1>
+            <h1 className="text-xl font-bold md:text-2xl">CPM History</h1>
             
             <Card>
                 <CardHeader>
@@ -148,4 +150,3 @@ export default function CpmHistoryPage() {
         </div>
     );
 }
-
