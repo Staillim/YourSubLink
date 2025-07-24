@@ -29,11 +29,12 @@ export async function POST(req: NextRequest) {
         // This is a "real" visit, so increment the main counters.
         batch.update(linkRef, { clicks: increment(1) });
         
-        const clickLogRef = collection(db, 'clicks');
+        const clickLogRef = doc(collection(db, 'clicks'));
         const ip = req.headers.get('x-forwarded-for') ?? req.ip ?? 'unknown';
 
-        batch.set(doc(clickLogRef), {
+        batch.set(clickLogRef, {
             linkId: linkDoc.id,
+            userId: linkData.userId, // Keep track of who owns the link
             timestamp: serverTimestamp(),
             userAgent: req.headers.get('user-agent') || '',
             ip: ip,
@@ -53,13 +54,10 @@ export async function POST(req: NextRequest) {
 
             const earningsPerClick = activeCpm / 1000;
 
-            // Increment earnings on both the link and the user's profile
+            // Increment earnings ON THE LINK DOCUMENT.
+            // DO NOT update the user document from this public API, as it will fail due to security rules.
+            // The total user earnings can be aggregated from their links.
             batch.update(linkRef, { generatedEarnings: increment(earningsPerClick) });
-            
-            if (linkData.userId) {
-                const userRef = doc(db, 'users', linkData.userId);
-                batch.update(userRef, { generatedEarnings: increment(earningsPerClick) });
-            }
         }
         
         await batch.commit();
