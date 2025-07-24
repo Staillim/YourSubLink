@@ -13,12 +13,12 @@ import { z } from 'genkit';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 
-export const AnalyzeLinkSecurityInputSchema = z.object({
+const AnalyzeLinkSecurityInputSchema = z.object({
   linkId: z.string().describe("The ID of the link to analyze."),
 });
 export type AnalyzeLinkSecurityInput = z.infer<typeof AnalyzeLinkSecurityInputSchema>;
 
-export const AnalyzeLinkSecurityOutputSchema = z.object({
+const AnalyzeLinkSecurityOutputSchema = z.object({
   isSuspicious: z.boolean().describe("Whether the link's activity is deemed suspicious."),
   riskLevel: z.enum(['none', 'moderate', 'high']).describe("The assessed risk level."),
   reason: z.string().describe("The reason for the suspicion."),
