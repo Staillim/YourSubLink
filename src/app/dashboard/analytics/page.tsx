@@ -23,7 +23,7 @@ import {
     TableRow,
   } from '@/components/ui/table';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
-import { ExternalLink, DollarSign } from 'lucide-react';
+import { ExternalLink, DollarSign, Eye } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { LinkItem } from '../page';
 import { format, getMonth, getYear } from 'date-fns';
@@ -166,7 +166,7 @@ export default function AnalyticsPage() {
               <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                       <CardTitle className="text-sm font-medium">Total Clicks</CardTitle>
-                       <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                       <Eye className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
                       <div className="text-2xl font-bold">+{totalClicks.toLocaleString()}</div>
@@ -186,7 +186,7 @@ export default function AnalyticsPage() {
           </div>
           <Card>
           <CardHeader>
-            <CardTitle>Earnings Overview</CardTitle>
+            <CardTitle className="text-xl">Earnings Overview</CardTitle>
             <CardDescription>Earnings from monetized clicks this year.</CardDescription>
           </CardHeader>
           <CardContent>
@@ -209,7 +209,7 @@ export default function AnalyticsPage() {
         </Card>
         <Card>
             <CardHeader>
-                <CardTitle>Links Breakdown</CardTitle>
+                <CardTitle className="text-xl">Links Breakdown</CardTitle>
                 <CardDescription>Detailed statistics for each of your links.</CardDescription>
             </CardHeader>
             <CardContent>
@@ -217,21 +217,33 @@ export default function AnalyticsPage() {
                   <TableHeader>
                       <TableRow>
                           <TableHead>Link</TableHead>
-                          <TableHead className="text-right">Clicks</TableHead>
-                          <TableHead className="text-right">Generated Earnings</TableHead>
+                          <TableHead className="hidden text-right sm:table-cell">Clicks</TableHead>
+                          <TableHead className="hidden text-right sm:table-cell">Generated Earnings</TableHead>
                       </TableRow>
                   </TableHeader>
                   <TableBody>
                       {linksWithEarnings.map((link) => (
                            <TableRow key={link.id}>
-                              <TableCell className="font-medium">{link.title}</TableCell>
-                              <TableCell className="text-right">{link.clicks.toLocaleString()}</TableCell>
-                              <TableCell className="text-right font-semibold">${link.earnings.toFixed(4)}</TableCell>
+                              <TableCell className="font-medium">
+                                <span className="font-bold">{link.title}</span>
+                                <div className="sm:hidden mt-2 space-y-1 text-xs text-muted-foreground">
+                                    <div className="flex items-center justify-between">
+                                        <span>Clicks:</span>
+                                        <span className="font-mono text-foreground">{link.clicks.toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                        <span>Earnings:</span>
+                                        <span className="font-mono font-semibold text-green-500">${link.earnings.toFixed(4)}</span>
+                                    </div>
+                                </div>
+                              </TableCell>
+                              <TableCell className="hidden text-right sm:table-cell">{link.clicks.toLocaleString()}</TableCell>
+                              <TableCell className="hidden text-right font-semibold text-green-500 sm:table-cell">${link.earnings.toFixed(4)}</TableCell>
                            </TableRow>
                       ))}
                       {links.length === 0 && (
                         <TableRow>
-                            <TableCell colSpan={3} className="text-center text-muted-foreground">
+                            <TableCell colSpan={3} className="h-24 text-center text-muted-foreground">
                                 No links created yet.
                             </TableCell>
                         </TableRow>

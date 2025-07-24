@@ -137,7 +137,7 @@ export default function PayoutsPage() {
     return (
         <div className="flex flex-col gap-6">
             <div className="flex items-center justify-between">
-                <h1 className="text-xl sm:text-2xl font-semibold">Payouts</h1>
+                <h1 className="text-lg font-semibold md:text-2xl">Payouts</h1>
             </div>
 
              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -225,7 +225,7 @@ export default function PayoutsPage() {
 
              <Card>
                 <CardHeader>
-                    <CardTitle>Payout History</CardTitle>
+                    <CardTitle className="text-xl">Payout History</CardTitle>
                     <CardDescription>A record of all your payout requests.</CardDescription>
                 </CardHeader>
                 <CardContent>

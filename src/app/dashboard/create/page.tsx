@@ -88,7 +88,7 @@ export default function CreateLinkPage() {
   return (
     <>
         <div className="flex items-center">
-            <h1 className="text-xl sm:text-2xl font-semibold">Create Link</h1>
+            <h1 className="text-lg font-semibold md:text-2xl">Create Link</h1>
         </div>
         <div className="grid gap-6">
             <Card>

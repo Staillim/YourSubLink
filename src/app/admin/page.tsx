@@ -137,7 +137,7 @@ export default function AdminDashboardPage() {
 
              <Card>
                 <CardHeader>
-                    <CardTitle>Recent Payouts</CardTitle>
+                    <CardTitle className="text-xl">Recent Payouts</CardTitle>
                 </CardHeader>
                 <CardContent>
                     {loading ? (
