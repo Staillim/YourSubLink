@@ -171,7 +171,7 @@ export default function AdminUsersPage() {
         const querySnapshot = await getDocs(q);
         const historyData = querySnapshot.docs
             .map(doc => ({ id: doc.id, ...doc.data() } as PayoutRequest))
-            .filter(payout => payout.status === 'completed')
+            .filter(payout => payout.status === 'completed' || payout.status === 'rejected')
             .sort((a, b) => (b.processedAt?.seconds ?? 0) - (a.processedAt?.seconds ?? 0));
             
         setPayoutHistory(historyData);
@@ -348,7 +348,7 @@ export default function AdminUsersPage() {
                 <DialogHeader>
                     <DialogTitle>Payout History for {selectedUser?.displayName}</DialogTitle>
                     <DialogDescription>
-                        A log of all completed payments for this user.
+                        A log of all completed and rejected payments for this user.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="max-h-[60vh] overflow-y-auto">
@@ -363,6 +363,7 @@ export default function AdminUsersPage() {
                                     <TableHead>Processed Date</TableHead>
                                     <TableHead>Amount</TableHead>
                                     <TableHead>Method & Details</TableHead>
+                                    <TableHead className="text-right">Status</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -374,12 +375,17 @@ export default function AdminUsersPage() {
                                             <div className="capitalize font-medium">{payout.method}</div>
                                             <div className="text-xs text-muted-foreground">{payout.details}</div>
                                         </TableCell>
+                                        <TableCell className="text-right">
+                                             <Badge variant={payout.status === 'completed' ? 'default' : 'destructive'} className={payout.status === 'completed' ? 'bg-green-600' : ''}>
+                                                {payout.status}
+                                            </Badge>
+                                        </TableCell>
                                     </TableRow>
                                 ))}
                             </TableBody>
                         </Table>
                     ) : (
-                        <p className="text-center text-muted-foreground py-10">No completed payouts for this user.</p>
+                        <p className="text-center text-muted-foreground py-10">No completed or rejected payouts for this user.</p>
                     )}
                 </div>
                  <DialogFooter>
