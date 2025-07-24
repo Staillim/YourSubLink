@@ -11,7 +11,7 @@
 
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, doc, updateDoc, query, where, getDocs, serverTimestamp, increment } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, query, where, getDocs, serverTimestamp, increment, orderBy } from 'firebase/firestore';
 import { useUser } from '@/hooks/use-user';
 import {
   Table,
@@ -25,7 +25,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
-import { MoreVertical, UserX, UserCheck, Eye, Loader2, DollarSign, Link2, Wallet } from 'lucide-react';
+import { MoreVertical, UserX, UserCheck, Eye, Loader2, DollarSign, Link2, Wallet, History } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
     DropdownMenu,
@@ -44,6 +44,7 @@ import {
   } from "@/components/ui/dialog";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import type { PayoutRequest } from '@/hooks/use-user';
 
 type UserProfile = {
   uid: string;
@@ -67,6 +68,11 @@ export default function AdminUsersPage() {
   const [isAddBalanceDialogOpen, setIsAddBalanceDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [balanceAmount, setBalanceAmount] = useState('');
+
+  // Payout History Dialog State
+  const [isPayoutHistoryDialogOpen, setIsPayoutHistoryDialogOpen] = useState(false);
+  const [payoutHistory, setPayoutHistory] = useState<PayoutRequest[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
 
   useEffect(() => {
@@ -152,6 +158,28 @@ export default function AdminUsersPage() {
         setIsSubmitting(false);
     }
   }
+
+  const openPayoutHistoryDialog = async (user: UserProfile) => {
+    setSelectedUser(user);
+    setIsPayoutHistoryDialogOpen(true);
+    setHistoryLoading(true);
+    try {
+        const q = query(
+            collection(db, 'payoutRequests'),
+            where('userId', '==', user.uid),
+            where('status', '==', 'completed'),
+            orderBy('processedAt', 'desc')
+        );
+        const querySnapshot = await getDocs(q);
+        const historyData = querySnapshot.docs.map(doc => doc.data() as PayoutRequest);
+        setPayoutHistory(historyData);
+    } catch (error) {
+        console.error("Error fetching payout history: ", error);
+        toast({ title: 'Error', description: 'Could not fetch payout history.', variant: 'destructive' });
+    } finally {
+        setHistoryLoading(false);
+    }
+  };
 
 
   if (loading) {
@@ -255,9 +283,9 @@ export default function AdminUsersPage() {
                                             </Button>
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align="end">
-                                            <DropdownMenuItem disabled>
-                                                <Eye className="mr-2 h-4 w-4" />
-                                                <span>View Details</span>
+                                            <DropdownMenuItem onClick={() => openPayoutHistoryDialog(u)}>
+                                                <History className="mr-2 h-4 w-4" />
+                                                <span>View Payout History</span>
                                             </DropdownMenuItem>
                                             <DropdownMenuItem onClick={() => openAddBalanceDialog(u)}>
                                                 <DollarSign className="mr-2 h-4 w-4" />
@@ -308,6 +336,53 @@ export default function AdminUsersPage() {
                         {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         Add Balance
                     </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+
+        {/* Payout History Dialog */}
+        <Dialog open={isPayoutHistoryDialogOpen} onOpenChange={setIsPayoutHistoryDialogOpen}>
+            <DialogContent className="sm:max-w-2xl">
+                <DialogHeader>
+                    <DialogTitle>Payout History for {selectedUser?.displayName}</DialogTitle>
+                    <DialogDescription>
+                        A log of all completed payments for this user.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="max-h-[60vh] overflow-y-auto">
+                    {historyLoading ? (
+                        <div className="flex justify-center items-center h-40">
+                             <Loader2 className="h-8 w-8 animate-spin" />
+                        </div>
+                    ) : payoutHistory.length > 0 ? (
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Processed Date</TableHead>
+                                    <TableHead>Amount</TableHead>
+                                    <TableHead>Method</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {payoutHistory.map(payout => (
+                                    <TableRow key={payout.id}>
+                                        <TableCell>{payout.processedAt ? new Date(payout.processedAt.seconds * 1000).toLocaleString() : 'N/A'}</TableCell>
+                                        <TableCell className="font-semibold">${payout.amount.toFixed(4)}</TableCell>
+                                        <TableCell className="capitalize">{payout.method}</TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    ) : (
+                        <p className="text-center text-muted-foreground py-10">No completed payouts for this user.</p>
+                    )}
+                </div>
+                 <DialogFooter>
+                    <DialogClose asChild>
+                        <Button type="button" variant="secondary">
+                            Close
+                        </Button>
+                    </DialogClose>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
