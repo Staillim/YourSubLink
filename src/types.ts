@@ -1,5 +1,3 @@
-
-
 import type { Rule } from '@/components/rule-editor';
 
 export type LinkData = {
@@ -35,6 +33,7 @@ export type Chat = {
   lastMessage: string;
   lastMessageTimestamp: any;
   isReadByAdmin: boolean;
+  isReadByUser: boolean;
 }
 
 export type ChatMessage = {

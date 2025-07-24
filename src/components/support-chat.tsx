@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -19,7 +18,7 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { MessageSquare, Send, X, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { ChatMessage } from '@/types';
+import type { ChatMessage, Chat } from '@/types';
 
 const PREDEFINED_QUESTIONS = [
   'Why was my account suspended?',
@@ -32,16 +31,34 @@ export default function SupportChat() {
   const { user, profile } = useUser();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [chatData, setChatData] = useState<Chat | null>(null);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const isSuspended = profile?.accountStatus === 'suspended';
+  const hasUnreadMessages = chatData ? !chatData.isReadByUser : false;
+
+  // Effect to subscribe to the user's chat document for unread status
+  useEffect(() => {
+    if (!user) return;
+    const chatDocRef = doc(db, 'chats', user.uid);
+    const unsubscribe = onSnapshot(chatDocRef, (doc) => {
+      if (doc.exists()) {
+        setChatData(doc.data() as Chat);
+      }
+    });
+    return () => unsubscribe();
+  }, [user]);
 
   useEffect(() => {
     if (!isOpen || !user) return;
 
     setLoading(true);
+    // Mark chat as read by user when they open it
+    const chatDocRef = doc(db, 'chats', user.uid);
+    setDoc(chatDocRef, { isReadByUser: true }, { merge: true });
+
     const messagesQuery = query(
       collection(db, 'chats', user.uid, 'messages'),
       orderBy('timestamp', 'asc')
@@ -78,7 +95,6 @@ export default function SupportChat() {
       isPredefined,
     });
     
-    // Create or update the main chat document for admin view
     await setDoc(chatRef, {
         userId: user.uid,
         userName: profile.displayName,
@@ -86,6 +102,7 @@ export default function SupportChat() {
         lastMessage: text,
         lastMessageTimestamp: serverTimestamp(),
         isReadByAdmin: false,
+        isReadByUser: true, // User just sent a message, so it's "read" by them
     }, { merge: true });
 
     setNewMessage('');
@@ -185,6 +202,12 @@ export default function SupportChat() {
       className="fixed bottom-4 right-4 z-50 rounded-full h-14 w-14 shadow-lg"
     >
       <MessageSquare />
+      {hasUnreadMessages && (
+        <span className="absolute top-1 right-1 flex h-3 w-3">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+        </span>
+      )}
     </Button>
   );
 }

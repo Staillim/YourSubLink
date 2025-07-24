@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -97,6 +96,7 @@ export default function AdminSupportPage() {
     await setDoc(chatRef, {
         lastMessage: messageText,
         lastMessageTimestamp: serverTimestamp(),
+        isReadByUser: false, // Mark as unread for the user
     }, { merge: true });
   };
 
