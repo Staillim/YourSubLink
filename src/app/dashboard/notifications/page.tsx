@@ -23,6 +23,7 @@ type FormattedNotification = {
     timestamp: number;
     href: string;
     isUnread?: boolean;
+    type: Notification['type'];
 };
 
 const getNotificationDetails = (notification: Notification): FormattedNotification => {
@@ -40,7 +41,8 @@ const getNotificationDetails = (notification: Notification): FormattedNotificati
                 date,
                 timestamp,
                 href: '/dashboard/payouts',
-                isUnread: notification.isRead === false
+                isUnread: notification.isRead === false,
+                type: notification.type,
             };
         case 'payout_rejected':
             return {
@@ -52,7 +54,8 @@ const getNotificationDetails = (notification: Notification): FormattedNotificati
                 date,
                 timestamp,
                 href: '/dashboard/payouts',
-                isUnread: notification.isRead === false
+                isUnread: notification.isRead === false,
+                type: notification.type,
             };
         case 'payout_requested':
              return {
@@ -64,7 +67,8 @@ const getNotificationDetails = (notification: Notification): FormattedNotificati
                 date,
                 timestamp,
                 href: '/dashboard/payouts',
-                isUnread: notification.isRead === false
+                isUnread: notification.isRead === false,
+                type: notification.type,
             };
         case 'link_suspension':
             return {
@@ -76,7 +80,8 @@ const getNotificationDetails = (notification: Notification): FormattedNotificati
                 date,
                 timestamp,
                 href: `/dashboard/links/${notification.linkId}`,
-                isUnread: notification.isRead === false
+                isUnread: notification.isRead === false,
+                type: notification.type,
             };
         case 'link_deleted':
             return {
@@ -88,7 +93,8 @@ const getNotificationDetails = (notification: Notification): FormattedNotificati
                 date,
                 timestamp,
                 href: '/dashboard',
-                isUnread: notification.isRead === false
+                isUnread: notification.isRead === false,
+                type: notification.type,
             };
         case 'milestone':
         default:
@@ -101,7 +107,8 @@ const getNotificationDetails = (notification: Notification): FormattedNotificati
                 date,
                 timestamp,
                 href: notification.linkId ? `/dashboard/links/${notification.linkId}` : '/dashboard/analytics',
-                isUnread: notification.isRead === false
+                isUnread: notification.isRead === false,
+                type: 'milestone',
             };
     }
 };
@@ -135,14 +142,13 @@ export default function NotificationsPage() {
             
             const generalNotificationsQuery = query(
                 collection(db, "notifications"), 
-                where("userId", "==", user.uid),
-                orderBy('createdAt', 'desc')
+                where("userId", "==", user.uid)
+                // Removed orderBy to prevent composite index requirement
             );
             
             const payoutRequestsQuery = query(
                 collection(db, 'payoutRequests'), 
-                where('userId', '==', user.uid),
-                orderBy('requestedAt', 'desc')
+                where('userId', '==', user.uid)
             );
 
             const unsubGeneral = onSnapshot(generalNotificationsQuery, (generalSnapshot) => {
@@ -153,6 +159,7 @@ export default function NotificationsPage() {
                     const payoutNotifications = processPayouts(payoutData);
 
                     const allNotifications = [...generalData, ...payoutNotifications];
+                    // Sort on the client-side
                     allNotifications.sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
                     
                     const formatted = allNotifications.map(getNotificationDetails);
@@ -190,7 +197,7 @@ export default function NotificationsPage() {
                                 <div className="flex items-start gap-4 p-4 border rounded-lg">
                                     <div className="relative">
                                        <notification.icon className={cn('h-6 w-6 shrink-0', notification.color)} />
-                                       {notification.isUnread && notification.type === 'link_suspension' && (
+                                       {notification.type === 'link_suspension' && (
                                             <span className="absolute top-0 right-0 block h-2 w-2">
                                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
                                                 <span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-500"></span>
