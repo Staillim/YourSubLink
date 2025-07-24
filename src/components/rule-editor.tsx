@@ -13,14 +13,15 @@ import { Input } from '@/components/ui/input';
 import { Trash2, PlusCircle } from 'lucide-react';
 
 export type Rule = {
-  type: 'like' | 'subscribe' | 'follow' | 'visit';
+  type: 'like' | 'comment' | 'subscribe' | 'follow' | 'visit';
   url: string;
 };
 
 const RULE_TYPES = {
-  like: 'Like & Comment on Video',
+  like: 'Like a Video',
+  comment: 'Comment on a Video',
   subscribe: 'Subscribe to a channel',
-  follow: 'Follow on Instagram',
+  follow: 'Follow on Social Media',
   visit: 'Visit a website',
 };
 

@@ -5,8 +5,11 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import type { LinkData } from '@/types';
-import { Loader2, ArrowRight, CheckCircle, ExternalLink, Circle, MoreHorizontal } from 'lucide-react';
+import { Loader2, ArrowRight, CheckCircle, ExternalLink, Circle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Facebook, Instagram, Youtube,Globe, MessageCircle, ThumbsUp } from 'lucide-react';
+import { TikTokIcon } from '@/components/icons';
+
 
 function LoadingDots() {
     return (
@@ -17,6 +20,60 @@ function LoadingDots() {
         </div>
     )
 }
+
+const getPlatformStyle = (url: string) => {
+    if (url.includes('youtube.com') || url.includes('youtu.be')) {
+        return { 
+            icon: Youtube, 
+            className: 'bg-[#FF0000] hover:bg-[#FF0000]/90 text-white',
+            platformName: 'YouTube'
+        };
+    }
+    if (url.includes('facebook.com')) {
+        return { 
+            icon: Facebook, 
+            className: 'bg-[#1877F2] hover:bg-[#1877F2]/90 text-white',
+            platformName: 'Facebook'
+        };
+    }
+    if (url.includes('instagram.com')) {
+        return { 
+            icon: Instagram, 
+            className: 'bg-[#E4405F] hover:bg-[#E4405F]/90 text-white', // A single color from the gradient
+            platformName: 'Instagram'
+        };
+    }
+    if (url.includes('tiktok.com')) {
+        return { 
+            icon: TikTokIcon, 
+            className: 'bg-black hover:bg-black/90 text-white',
+            platformName: 'TikTok'
+        };
+    }
+    return { 
+        icon: Globe, 
+        className: 'bg-muted hover:bg-muted/80',
+        platformName: 'Website'
+    };
+};
+
+const getRuleDetails = (rule: LinkData['rules'][0]) => {
+    const platformStyle = getPlatformStyle(rule.url);
+    switch (rule.type) {
+        case 'like':
+            return { icon: ThumbsUp, text: `Like this ${platformStyle.platformName} content`, ...platformStyle };
+        case 'comment':
+            return { icon: MessageCircle, text: `Comment on this ${platformStyle.platformName} content`, ...platformStyle };
+        case 'subscribe':
+            return { icon: Youtube, text: `Subscribe on ${platformStyle.platformName}`, ...platformStyle };
+        case 'follow':
+            return { icon: platformStyle.icon, text: `Follow on ${platformStyle.platformName}`, ...platformStyle };
+        case 'visit':
+        default:
+            return { icon: Globe, text: 'Visit this Website', ...platformStyle };
+    }
+};
+
 
 export default function LinkGate({ linkData, onAllStepsCompleted }: { linkData: LinkData, onAllStepsCompleted: () => void }) {
   const [step, setStep] = useState<'rules' | 'countdown'>('rules');
@@ -69,16 +126,6 @@ export default function LinkGate({ linkData, onAllStepsCompleted }: { linkData: 
         });
     }, 10000); // 10 seconds
   };
-
-  const getRuleDescription = (type: string) => {
-    const descriptions: { [key: string]: string } = {
-        'like': 'Like & Comment on this Video:',
-        'subscribe': 'Subscribe to this Channel:',
-        'follow': 'Follow this Profile:',
-        'visit': 'Visit this Website:',
-    };
-    return descriptions[type] || 'Complete this action:';
-  }
   
   const allRulesCompleted = ruleStates.every(state => state === 'completed');
 
@@ -99,6 +146,8 @@ export default function LinkGate({ linkData, onAllStepsCompleted }: { linkData: 
                           const state = ruleStates[index];
                           const isCompleted = state === 'completed';
                           const isLoading = state === 'loading';
+                          const details = getRuleDetails(rule);
+                          const RuleIcon = details.icon;
                           
                           return (
                             <a 
@@ -108,26 +157,26 @@ export default function LinkGate({ linkData, onAllStepsCompleted }: { linkData: 
                                 key={index}
                                 onClick={() => handleRuleClick(index)}
                                 className={cn(
-                                  "flex items-center justify-between p-3 rounded-lg bg-muted hover:bg-muted/80 transition-all",
-                                  isCompleted && "bg-green-900/50 ring-1 ring-green-500",
-                                  isLoading && "cursor-not-allowed bg-yellow-900/50",
+                                  "flex items-center justify-between p-3 rounded-lg transition-all text-left",
+                                  details.className,
+                                  isCompleted && "bg-green-600 hover:bg-green-600/90 ring-1 ring-green-400",
+                                  isLoading && "cursor-wait bg-yellow-600 hover:bg-yellow-600/90",
                                   state !== 'pending' && "pointer-events-none"
                                 )}
                             >
                                 <div className="flex items-center gap-3">
                                    {isCompleted ? (
-                                     <CheckCircle className="h-5 w-5 text-green-500 shrink-0" />
+                                     <CheckCircle className="h-5 w-5 shrink-0" />
                                    ) : isLoading ? (
-                                     <div className="h-5 w-5 text-yellow-400 shrink-0 flex items-center justify-center"><LoadingDots/></div>
+                                     <div className="h-5 w-5 shrink-0 flex items-center justify-center"><LoadingDots/></div>
                                    ) : (
-                                     <Circle className="h-5 w-5 text-muted-foreground shrink-0" />
+                                     <RuleIcon className="h-5 w-5 shrink-0" />
                                    )}
                                    <div className="flex flex-col">
-                                      <span className="font-semibold">{getRuleDescription(rule.type)}</span>
-                                      <span className="text-xs text-muted-foreground truncate">{rule.url}</span>
+                                      <span className="font-semibold">{details.text}</span>
                                    </div>
                                 </div>
-                                {!isLoading && <ExternalLink className="h-5 w-5 text-primary shrink-0" />}
+                                {!isLoading && !isCompleted && <ExternalLink className="h-5 w-5 shrink-0" />}
                             </a>
                           )
                         })}
