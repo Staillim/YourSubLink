@@ -21,7 +21,7 @@ A continuación se detalla la estructura del proyecto, explicando el propósito 
 
 ### 2.1. Directorio Raíz
 
--   `AGENTS.md`: Documentación sobre la arquitectura de Inteligencia Artificial del proyecto utilizando Genkit.
+-   `AGENTS.md`: **Lectura obligatoria.** Documentación sobre la arquitectura de Inteligencia Artificial y las directrices críticas para la colaboración y los cambios en el proyecto.
 -   `README.md`: Este archivo, con la documentación principal del proyecto.
 -   `apphosting.yaml`: Configuración para el despliegue en Firebase App Hosting. Define parámetros como el número máximo de instancias.
 -   `components.json`: Archivo de configuración de ShadCN/UI, que define la ubicación de los componentes, el tema de estilos y los alias de importación.
@@ -74,7 +74,7 @@ Rutas y vistas para usuarios autenticados.
 Esta es la ruta pública que gestiona las visitas a los enlaces acortados.
 
 -   `page.tsx`: Componente de servidor que captura el `shortId` de la URL.
--   `ClientComponent.tsx`: Componente de cliente que contiene toda la lógica para procesar una visita a un enlace. Determina si el enlace tiene reglas, muestra la `LinkGate` (puerta de monetización) si es necesario, y registra la visita en la base de datos antes de redirigir al usuario al destino final.
+-   `ClientComponent.tsx`: **Componente Crítico**. Contiene toda la lógica para procesar una visita. Determina si el enlace tiene reglas, muestra la `LinkGate` (puerta de monetización) si es necesario, y **es responsable de registrar la visita en la base de datos** antes de redirigir al usuario al destino final.
 
 ---
 
@@ -100,7 +100,7 @@ Componentes reutilizables que construyen la interfaz de la aplicación.
 #### `src/hooks/` - Hooks de React Personalizados
 
 -   `use-toast.ts`: Hook para gestionar y mostrar notificaciones (toasts).
--   `use-user.ts`: Hook fundamental que gestiona el estado del usuario autenticado y su perfil de Firestore en toda la aplicación. Proporciona los datos del usuario y su estado de carga.
+-   `use-user.ts`: **Hook Fundamental**. Gestiona el estado del usuario autenticado y su perfil de Firestore. Centraliza toda la lógica de cálculo de balance (disponible, pendiente, pagado) para garantizar la consistencia en toda la aplicación.
 
 #### `src/lib/` - Utilidades y Librerías
 
@@ -124,9 +124,9 @@ El acortamiento se gestiona desde el cliente para una experiencia de usuario rá
     *   **Generación del `shortId`**: Al enviar, se genera un ID corto y aleatorio usando `Math.random().toString(36).substring(2, 8)`. Esta técnica es simple y suficientemente única para este caso de uso.
     *   **Escritura en Firestore**: Se crea un nuevo documento en la colección `links` con todos los datos, incluido el `userId` del usuario actual y un `createdAt` con `serverTimestamp()`.
 
-### 3.2. Flujo de Visita y Monetización
+### 3.2. Flujo de Visita y Monetización (**El Proceso Más Crítico**)
 
-Esta es la funcionalidad más crítica y se gestiona **enteramente en el cliente** para mayor simplicidad y rendimiento, habiendo descartado un enfoque de API de backend por su complejidad con los permisos de Firebase.
+Esta funcionalidad se gestiona **enteramente en el lado del cliente** para mayor simplicidad y fiabilidad, habiendo descartado un enfoque de API de backend por su complejidad con los permisos de Firebase.
 
 1.  **Acceso (`src/app/link/[shortId]/page.tsx`):** Un visitante accede a una URL como `https://yoursub.link/xyz123`.
 2.  **Lógica del Cliente (`ClientComponent.tsx`):**
@@ -149,10 +149,9 @@ Esta es la funcionalidad más crítica y se gestiona **enteramente en el cliente
         3.  Si el enlace es monetizable, consulta la tasa de CPM activa y actualiza el campo `generatedEarnings` en el documento del enlace.
     *   Una vez que el `batch.commit()` se resuelve, el usuario es redirigido a la URL original usando `window.location.href`.
 
-### 3.3. Gestión de Datos en Tiempo Real
+### 3.3. Gestión de Datos en Tiempo Real y Lógica Financiera
 
-La aplicación utiliza `onSnapshot` de Firestore extensivamente para una experiencia de usuario reactiva. Por ejemplo:
--   `src/app/dashboard/page.tsx`: La lista de enlaces del usuario se actualiza en tiempo real.
--   `src/app/admin/users/page.tsx`: La lista de usuarios y sus estadísticas se actualiza automáticamente.
--   `hooks/use-user.ts`: El perfil del usuario y su balance se mantienen sincronizados con la base de datos.
--   El cálculo del balance de un usuario (`generatedEarnings` - `paidEarnings`) se realiza dinámicamente tanto en el panel de usuario como en el de administrador para garantizar la consistencia.
+*   **Sincronización de Datos**: La aplicación utiliza `onSnapshot` de Firestore extensivamente para una experiencia de usuario reactiva en todos los paneles.
+*   **Cálculo de Balance**: El hook `useUser.ts` es la **única fuente de la verdad** para el balance del usuario. Calcula el balance disponible (`availableBalance`) restando los pagos completados (`paidEarnings`) y los pagos pendientes (`payoutsPending`) de las ganancias generadas totales (que se calculan sumando las ganancias de todos los enlaces del usuario). Esto asegura consistencia en toda la app.
+*   **Adición de Balance Manual**: Cuando un administrador añade balance manualmente, se trata como un "pago negativo". En lugar de modificar las ganancias generadas, se decrementa el campo `paidEarnings` del usuario. Esto aumenta correctamente el balance disponible (`Generated - Paid`).
+```

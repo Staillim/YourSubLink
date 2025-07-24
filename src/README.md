@@ -20,7 +20,7 @@ Cualquier cambio que afecte la lógica central (autenticación, base de datos, f
 *   **Reglas de Seguridad de Firestore (`firestore.rules`)**: **La principal fuente de errores en el pasado.** Una configuración incorrecta aquí puede denegar el acceso a toda la aplicación para ciertos roles. Un error común fue no diferenciar entre permisos `get` (un documento) y `list` (múltiples documentos), bloqueando los paneles de control. **Cualquier cambio aquí debe ser verificado contra cada consulta de la aplicación.**
 *   **Lógica del Lado del Cliente vs. Servidor**: Inicialmente, se intentó un enfoque de API de backend (`/api/click`) para contar las visitas, pero falló debido a la complejidad de los permisos. **La solución actual y más robusta es manejar el conteo de visitas directamente en el cliente (`src/app/link/[shortId]/ClientComponent.tsx`)**, lo cual es más simple y fiable para este caso de uso. **No reintroducir un endpoint de API para esto sin una razón de peso.**
 *   **Sincronización y Lógica Financiera**:
-    *   **Cálculo de Ganancias**: Las `generatedEarnings` de un usuario se calculan dinámicamente sumando las ganancias de todos sus enlaces individuales. Este enfoque se utiliza tanto en el dashboard del usuario (`use-user.ts`) como en el del administrador (`admin/users/page.tsx`) para garantizar consistencia y precisión.
+    *   **Cálculo de Ganancias y Balance**: El hook `useUser.ts` es la **única fuente de la verdad** para el estado financiero del usuario. Las `generatedEarnings` de un usuario se calculan dinámicamente sumando las ganancias de todos sus enlaces individuales, asegurando consistencia. El `availableBalance` final considera los pagos ya completados y los que están pendientes.
     *   **Lógica de Pagos**: Cuando un administrador aprueba un pago, el monto se suma al campo `paidEarnings` del usuario.
     *   **Añadir Saldo Manualmente**: Cuando un administrador añade saldo, se trata como un "pago negativo" y se resta del campo `paidEarnings`, lo que aumenta correctamente el balance disponible.
 
@@ -114,7 +114,7 @@ Panel para usuarios autenticados.
 #### `src/hooks/` - Hooks de React Personalizados
 
 -   `use-toast.ts`: Hook para mostrar notificaciones.
--   `use-user.ts`: **Hook Fundamental**. Gestiona el estado del usuario autenticado y su perfil de Firestore. **Importante:** Calcula dinámicamente las ganancias totales del usuario sumando las ganancias de todos sus enlaces, asegurando coherencia.
+-   `use-user.ts`: **Hook Fundamental**. Gestiona el estado del usuario autenticado y su perfil de Firestore. **Importante:** Centraliza toda la lógica de cálculo de balance (disponible, pendiente, pagado) para garantizar la consistencia en toda la aplicación.
 
 #### `src/lib/` - Utilidades y Librerías
 
@@ -159,3 +159,4 @@ Este flujo se gestiona **enteramente en el lado del cliente** para simplificar l
         2.  Crea un nuevo documento en la colección `clicks` con detalles de la visita.
         3.  Si el enlace es monetizable, consulta la tasa de CPM activa y actualiza el campo `generatedEarnings` en el documento del enlace.
     *   Una vez que `batch.commit()` se resuelve, y solo entonces, el usuario es redirigido a la URL original usando `window.location.href`. Esto garantiza que la visita se cuente antes de que el usuario abandone la página.
+```
