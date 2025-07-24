@@ -7,7 +7,7 @@ import { Loader2 } from 'lucide-react';
 import LinkGate from '@/components/link-gate'; 
 import type { LinkData } from '@/types'; 
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, writeBatch, increment, serverTimestamp, runTransaction } from 'firebase/firestore';
 
 export default function ClientComponent({ shortId }: { shortId: string }) {
   const [status, setStatus] = useState<'loading' | 'gate' | 'redirecting' | 'not-found'>('loading');
@@ -41,13 +41,8 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
             setStatus('gate');
         } else {
             // If no rules, count the click and redirect immediately.
-            await fetch('/api/click', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ shortId }),
-            });
             setStatus('redirecting');
-            window.location.href = link.original;
+            await handleAllStepsCompleted(link);
         }
 
     };
@@ -58,26 +53,49 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
     });
   }, [shortId]);
   
-  const handleAllStepsCompleted = async () => {
-    if (!shortId || !linkData) return;
-    
+  const handleAllStepsCompleted = async (finalLinkData?: LinkData) => {
+    const dataToUse = finalLinkData || linkData;
+    if (!shortId || !dataToUse) return;
+
     setStatus('redirecting');
 
-    // This is the REAL click after passing the gate. Record it in the database.
     try {
-        await fetch('/api/click', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ shortId }),
-        });
+        const linkRef = doc(db, 'links', dataToUse.id);
+        const batch = writeBatch(db);
+
+        // 1. Increment the main click counter on the link
+        batch.update(linkRef, { clicks: increment(1) });
         
-        // Redirect to the final destination
-        window.location.href = linkData.original;
+        // 2. Add a detailed record of this click
+        const clickLogRef = doc(collection(db, 'clicks'));
+        batch.set(clickLogRef, {
+            linkId: dataToUse.id,
+            userId: dataToUse.userId,
+            timestamp: serverTimestamp(),
+            userAgent: navigator.userAgent || '',
+            ip: 'client-side', // IP is not available on the client
+        });
+
+        // 3. If monetizable, calculate and update earnings
+        if (dataToUse.monetizable) {
+            let activeCpm = 3.00; // Default fallback CPM
+            const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
+            const cpmSnapshot = await getDocs(cpmQuery);
+            if (!cpmSnapshot.empty) {
+                activeCpm = cpmSnapshot.docs[0].data().rate;
+            }
+            const earningsPerClick = activeCpm / 1000;
+            batch.update(linkRef, { generatedEarnings: increment(earningsPerClick) });
+        }
+        
+        await batch.commit();
 
     } catch(error) {
-        console.error("Failed to count click or redirect", error);
-        // still redirect
-        window.location.href = linkData.original;
+        console.error("Failed to count click:", error);
+        // We still redirect the user even if counting fails
+    } finally {
+        // Redirect to the final destination
+        window.location.href = dataToUse.original;
     }
   }
 
@@ -97,7 +115,7 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
 
   // Render the gate, passing the handleAllStepsCompleted function to be called on button click.
   if (status === 'gate' && linkData) {
-    return <LinkGate linkData={linkData} onAllStepsCompleted={handleAllStepsCompleted} />;
+    return <LinkGate linkData={linkData} onAllStepsCompleted={() => handleAllStepsCompleted()} />;
   }
   
   // Fallback loading state
