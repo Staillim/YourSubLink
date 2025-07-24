@@ -43,7 +43,7 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
         
         setLinkData(link);
 
-        const hasRules = Array.isArray(link.rules) && link.rules.length > 0;
+        const hasRules = link.rules && link.rules.length > 0;
 
         if (hasRules) {
             setStatus('gate');
@@ -68,17 +68,39 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
     setStatus('redirecting');
 
     try {
-        // Instead of writing to DB directly, call the secure API endpoint
-        await fetch('/api/click', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ shortId: dataToUse.shortId }),
+        const linkRef = doc(db, 'links', dataToUse.id);
+        const batch = writeBatch(db);
+
+        // 1. Increment the main click counter on the link
+        batch.update(linkRef, { clicks: increment(1) });
+        
+        // 2. Add a detailed record of this click
+        const clickLogRef = doc(collection(db, 'clicks'));
+        batch.set(clickLogRef, {
+            linkId: dataToUse.id,
+            userId: dataToUse.userId,
+            timestamp: serverTimestamp(),
+            userAgent: navigator.userAgent || '',
+            ip: 'client-side', // IP is not available on the client
         });
+
+        // 3. If monetizable, calculate and update earnings
+        if (dataToUse.monetizable) {
+            let activeCpm = 3.00; // Default fallback CPM
+            const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
+            const cpmSnapshot = await getDocs(cpmQuery);
+            if (!cpmSnapshot.empty) {
+                activeCpm = cpmSnapshot.docs[0].data().rate;
+            }
+            const earningsPerClick = activeCpm / 1000;
+            batch.update(linkRef, { generatedEarnings: increment(earningsPerClick) });
+        }
+        
+        await batch.commit();
+
     } catch(error) {
-        console.error("Failed to count click via API:", error);
-        // We still redirect the user even if counting fails on the client-call side
+        console.error("Failed to count click:", error);
+        // We still redirect the user even if counting fails
     } finally {
         // Redirect to the final destination
         window.location.href = dataToUse.original;
