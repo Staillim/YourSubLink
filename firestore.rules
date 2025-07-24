@@ -4,9 +4,7 @@ service cloud.firestore {
   match /databases/{database}/documents {
     
     function isAdmin() {
-      // Check for the existence of the user document and their role.
-      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
     
     function isOwner(userId) {
@@ -35,8 +33,8 @@ service cloud.firestore {
     match /payoutRequests/{requestId} {
         allow create: if isOwner(request.resource.data.userId);
         allow read: if isOwner(resource.data.userId) || isAdmin();
-        allow list: if (request.query.where.path == 'userId' && request.query.where.value == request.auth.uid) || isAdmin();
         allow update: if isAdmin();
+        allow list: if (request.query.where.path == 'userId' && request.query.where.value == request.auth.uid) || isAdmin();
     }
 
     match /cpmHistory/{cpmId} {
@@ -51,18 +49,13 @@ service cloud.firestore {
     
     match /supportTickets/{ticketId} {
       allow create: if isOwner(request.resource.data.userId);
-      allow list: if (request.query.where.path == 'userId' && request.query.where.value == request.auth.uid) || isAdmin();
       allow read: if isOwner(resource.data.userId) || isAdmin();
-      // Admins can update any field. Users can ONLY update the 'isReadByUser' field.
       allow update: if isAdmin() || (isOwner(resource.data.userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isReadByUser']));
+      allow list: if (request.query.where.path == 'userId' && request.query.where.value == request.auth.uid) || isAdmin();
       
       match /messages/{messageId} {
-        // Anyone can read messages if they own the parent ticket or are an admin.
         allow read, list: if isAdmin() || get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId == request.auth.uid;
-        // Messages can only be created if the ticket is NOT completed.
-        // This is checked by reading the parent ticket's status.
-        allow create: if (isAdmin() || request.resource.data.senderId == request.auth.uid) &&
-                         get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.status != 'completed';
+        allow create: if (isAdmin() || request.resource.data.senderId == request.auth.uid) && get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.status != 'completed';
       }
     }
   }
