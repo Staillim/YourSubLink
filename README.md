@@ -99,8 +99,6 @@ Componentes reutilizables que construyen la interfaz de la aplicación.
 
 #### `src/hooks/` - Hooks de React Personalizados
 
-Lógica reutilizable y encapsulada.
-
 -   `use-toast.ts`: Hook para gestionar y mostrar notificaciones (toasts).
 -   `use-user.ts`: Hook fundamental que gestiona el estado del usuario autenticado y su perfil de Firestore en toda la aplicación. Proporciona los datos del usuario y su estado de carga.
 
