@@ -33,7 +33,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Copy, Link as LinkIcon, Loader2, MoreVertical, Trash2, ExternalLink, BadgeHelp, Edit, PlusCircle, BarChart3 } from 'lucide-react';
+import { Copy, Link as LinkIcon, Loader2, MoreVertical, Trash2, ExternalLink, BadgeHelp, Edit, PlusCircle, BarChart3, DollarSign } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
@@ -228,7 +228,8 @@ export default function DashboardPage() {
                             <TableHead className="w-full md:w-2/5">Link</TableHead>
                             <TableHead className="hidden md:table-cell">Short Link</TableHead>
                             <TableHead>Status</TableHead>
-                            <TableHead>Total Clicks</TableHead>
+                            <TableHead>Clicks</TableHead>
+                            <TableHead>Earnings</TableHead>
                             <TableHead className="hidden md:table-cell">Date</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
@@ -264,6 +265,7 @@ export default function DashboardPage() {
                                 </Badge>
                             </TableCell>
                             <TableCell>{link.clicks}</TableCell>
+                            <TableCell className="font-semibold text-green-500">${link.generatedEarnings.toFixed(4)}</TableCell>
                             <TableCell className="hidden md:table-cell text-muted-foreground">{link.date}</TableCell>
                             <TableCell className="text-right">
                                 <DropdownMenu>
@@ -296,7 +298,7 @@ export default function DashboardPage() {
                         ))}
                          {links.length === 0 && (
                             <TableRow>
-                                <TableCell colSpan={6} className="text-center h-24">
+                                <TableCell colSpan={7} className="text-center h-24">
                                 No links created yet.
                                 </TableCell>
                             </TableRow>
