@@ -46,7 +46,6 @@ const createUserProfile = async (user: User) => {
                 generatedEarnings: 0,
                 paidEarnings: 0,
                 accountStatus: 'active',
-                supportTicketIds: [], // Initialize with an empty array
             });
         } catch (error) {
             console.error("Error creating user profile:", error);
