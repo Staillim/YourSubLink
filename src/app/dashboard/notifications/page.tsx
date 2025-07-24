@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useUser } from '@/hooks/use-user';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Bell, CheckCircle2, XCircle, Clock, Trophy, ShieldAlert, Trash2 } from 'lucide-react';
 import type { PayoutRequest } from '@/hooks/use-user';
@@ -13,7 +13,7 @@ import type { Notification } from '@/types';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 
-type FormattedNotification = {
+export type FormattedNotification = {
     id: string;
     icon: React.ElementType;
     color: string;
@@ -26,7 +26,7 @@ type FormattedNotification = {
     type: Notification['type'];
 };
 
-const getNotificationDetails = (notification: Notification): FormattedNotification => {
+export const getNotificationDetails = (notification: Notification): FormattedNotification => {
     const date = notification.createdAt ? new Date(notification.createdAt.seconds * 1000).toLocaleString() : 'N/A';
     const timestamp = notification.createdAt?.seconds || 0;
 

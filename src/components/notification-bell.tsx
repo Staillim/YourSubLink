@@ -8,65 +8,43 @@ import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, getDocs, writeBatch, doc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Bell, CheckCircle2, XCircle, Clock, Trophy } from 'lucide-react';
-import type { PayoutRequest } from '@/hooks/use-user';
+import { Bell } from 'lucide-react';
 import type { Notification } from '@/types';
-
-const getPayoutNotificationDetails = (payout: PayoutRequest) => {
-    const date = payout.requestedAt ? new Date(payout.requestedAt.seconds * 1000).toLocaleDateString() : 'N/A';
-     const amount = payout.amount.toFixed(2);
-
-    switch (payout.status) {
-        case 'completed':
-            return { icon: CheckCircle2, color: 'text-green-500', title: `Approved: $${amount}`, date };
-        case 'rejected':
-            return { icon: XCircle, color: 'text-red-500', title: `Rejected: $${amount}`, date };
-        case 'pending':
-        default:
-            return { icon: Clock, color: 'text-yellow-500', title: `Pending: $${amount}`, date };
-    }
-}
+import { getNotificationDetails, FormattedNotification } from '@/app/dashboard/notifications/page';
 
 export function NotificationBell() {
     const { user } = useUser();
-    const [payouts, setPayouts] = useState<PayoutRequest[]>([]);
-    const [milestones, setMilestones] = useState<Notification[]>([]);
+    const [notifications, setNotifications] = useState<FormattedNotification[]>([]);
     const [hasUnread, setHasUnread] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
 
     useEffect(() => {
         if (user) {
-            // Check for unread general notifications
-            const generalQuery = query(collection(db, "notifications"), where("userId", "==", user.uid), where("isRead", "==", false));
-            const unsubGeneral = onSnapshot(generalQuery, (snapshot) => {
+            const unreadQuery = query(collection(db, "notifications"), where("userId", "==", user.uid), where("isRead", "==", false));
+            const unsubUnread = onSnapshot(unreadQuery, (snapshot) => {
                 setHasUnread(!snapshot.empty);
             });
             
-            // Fetch all notifications for display
-            const allPayoutsQuery = query(collection(db, "payoutRequests"), where("userId", "==", user.uid));
-            const unsubPayouts = onSnapshot(allPayoutsQuery, (snapshot) => {
-                const payoutData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PayoutRequest));
-                payoutData.sort((a, b) => (b.requestedAt?.seconds ?? 0) - (a.requestedAt?.seconds ?? 0));
-                setPayouts(payoutData);
-            });
-
-            const milestoneQuery = query(collection(db, "notifications"), where("userId", "==", user.uid));
-             const unsubMilestones = onSnapshot(milestoneQuery, (snapshot) => {
-                const milestoneData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
-                milestoneData.sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
-                setMilestones(milestoneData);
+            const allNotifsQuery = query(collection(db, "notifications"), where("userId", "==", user.uid));
+             const unsubAll = onSnapshot(allNotifsQuery, (snapshot) => {
+                const notifData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
+                notifData.sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
+                
+                const formatted = notifData.slice(0, 5).map(getNotificationDetails);
+                setNotifications(formatted);
             });
 
             return () => {
-                unsubGeneral();
-                unsubPayouts();
-                unsubMilestones();
+                unsubUnread();
+                unsubAll();
             }
         }
     }, [user]);
 
     const handleMarkAsRead = async () => {
-        if (!user) return;
+        setIsOpen(false); // Close popover immediately
+        if (!user || !hasUnread) return;
+
         const q = query(collection(db, 'notifications'), where('userId', '==', user.uid), where('isRead', '==', false));
         const unreadSnapshot = await getDocs(q);
         
@@ -77,7 +55,6 @@ export function NotificationBell() {
             batch.update(d.ref, { isRead: true });
         });
         await batch.commit();
-        setIsOpen(false); // Close popover after click
     }
 
     return (
@@ -98,35 +75,34 @@ export function NotificationBell() {
                     <h4 className="font-medium text-sm">Notifications</h4>
                 </div>
                 <div className="space-y-2 p-4 pt-0 max-h-80 overflow-y-auto">
-                    {payouts.length === 0 && milestones.length === 0 ? (
+                    {notifications.length === 0 ? (
                         <div className="text-center text-muted-foreground py-8">
                              <Bell className="mx-auto h-8 w-8 mb-2" />
                              <p className="text-sm">No notifications yet.</p>
                         </div>
                     ) : (
-                        <>
-                            {milestones.map(milestone => (
-                                <div key={milestone.id} className="flex items-start gap-3">
-                                    <Trophy className="h-5 w-5 mt-1 shrink-0 text-blue-500" />
-                                    <div className="flex-1 text-sm">
-                                        <p className="font-medium">Milestone Reached!</p>
-                                        <p className="text-xs text-muted-foreground">{milestone.message}</p>
-                                    </div>
-                                </div>
-                            ))}
-                            {payouts.map(payout => {
-                                const { icon: Icon, color, title, date } = getPayoutNotificationDetails(payout);
-                                return (
-                                    <div key={payout.id} className="flex items-start gap-3">
-                                        <Icon className={`h-5 w-5 mt-1 shrink-0 ${color}`} />
+                        notifications.map(notification => {
+                            const { icon: Icon, color, title, description, href, id, type } = notification;
+                            return (
+                                <Link href={href} key={id} onClick={() => setIsOpen(false)} className="block p-2 rounded-md hover:bg-muted">
+                                    <div className="flex items-start gap-3">
+                                        <div className="relative">
+                                            <Icon className={`h-5 w-5 mt-1 shrink-0 ${color}`} />
+                                            {type === 'link_suspension' && (
+                                                <span className="absolute top-0 right-0 block h-2 w-2">
+                                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
+                                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-500"></span>
+                                                </span>
+                                            )}
+                                        </div>
                                         <div className="flex-1 text-sm">
                                             <p className="font-medium">{title}</p>
-                                            <p className="text-xs text-muted-foreground">{date}</p>
+                                            <p className="text-xs text-muted-foreground">{description}</p>
                                         </div>
                                     </div>
-                                )
-                            })}
-                        </>
+                                </Link>
+                            )
+                        })
                     )}
                 </div>
                 <div className="p-2 border-t">

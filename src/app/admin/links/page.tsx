@@ -5,7 +5,7 @@
 import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, doc, deleteDoc, getDoc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, onSnapshot, doc, deleteDoc, getDoc, updateDoc, addDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import {
   Table,
   TableBody,
@@ -91,8 +91,11 @@ export default function AdminLinksPage() {
   const handleDelete = async (id: string, userId: string, title: string) => {
     if(!confirm('Are you sure you want to delete this link permanently? This will notify the user.')) return;
     try {
+        const batch = writeBatch(db);
+
         // First, create a notification for the user
-        await addDoc(collection(db, 'notifications'), {
+        const notificationRef = doc(collection(db, 'notifications'));
+        batch.set(notificationRef, {
             userId: userId,
             type: 'link_deleted',
             message: `Your link "${title}" was deleted by an administrator.`,
@@ -101,8 +104,11 @@ export default function AdminLinksPage() {
         });
 
         // Then, delete the link
-        await deleteDoc(doc(db, "links", id));
+        const linkRef = doc(db, "links", id);
+        batch.delete(linkRef);
         
+        await batch.commit();
+
         toast({
             title: "Link deleted",
             description: "The link has been permanently removed and the user has been notified.",
@@ -117,24 +123,28 @@ export default function AdminLinksPage() {
     }
   };
   
- const handleToggleMonetization = async (link: Link) => {
+  const handleToggleMonetization = async (link: Link) => {
     const newStatus = link.monetizationStatus === 'active' ? 'suspended' : 'active';
-    const linkRef = doc(db, 'links', link.id);
 
     try {
-        await updateDoc(linkRef, { monetizationStatus: newStatus });
+        const batch = writeBatch(db);
+        const linkRef = doc(db, 'links', link.id);
+        batch.update(linkRef, { monetizationStatus: newStatus });
 
         // Create a notification only when suspending
         if (newStatus === 'suspended') {
-            await addDoc(collection(db, 'notifications'), {
+            const notificationRef = doc(collection(db, 'notifications'));
+            batch.set(notificationRef, {
                 userId: link.userId,
                 type: 'link_suspension',
-                message: `Monetization for your link "${link.title}" has been suspended.`,
+                message: `Monetization for your link "${link.title}" has been suspended due to suspicious activity.`,
                 linkId: link.id,
                 createdAt: serverTimestamp(),
                 isRead: false,
             });
         }
+        
+        await batch.commit();
         
         // This toast is shown to the admin after the action is successful
         toast({
@@ -160,7 +170,8 @@ export default function AdminLinksPage() {
             const result = await analyzeLinkSecurity({ linkId: link.id });
             if (result.isSuspicious) {
                 if (result.riskLevel === 'high') {
-                    await handleToggleMonetization(link); // This will suspend and notify
+                    // Suspend and notify in one go
+                    await handleToggleMonetization(link);
                     toast({
                         title: 'Analysis Complete: High Risk',
                         description: `Monetization for "${link.title}" has been automatically suspended. Reason: ${result.reason}`,
