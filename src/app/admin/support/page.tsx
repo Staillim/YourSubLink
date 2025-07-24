@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -47,7 +48,7 @@ const getStatusBadgeVariant = (status: SupportTicket['status']) => {
 }
 
 export default function AdminSupportPage() {
-  const { user, role } = useUser();
+  const { user, role, loading: userLoading } = useUser();
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -57,6 +58,15 @@ export default function AdminSupportPage() {
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // Wait until user role is confirmed before fetching data
+    if (userLoading || role !== 'admin') {
+      if (!userLoading) {
+        setLoadingTickets(false);
+      }
+      return;
+    }
+    
+    setLoadingTickets(true);
     const q = query(collection(db, 'supportTickets'), orderBy('lastMessageTimestamp', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const ticketsData = snapshot.docs.map((doc) => ({
@@ -65,10 +75,13 @@ export default function AdminSupportPage() {
       })) as SupportTicket[];
       setTickets(ticketsData);
       setLoadingTickets(false);
+    }, (error) => {
+        console.error("Error fetching tickets: ", error);
+        setLoadingTickets(false);
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [user, role, userLoading]);
 
   useEffect(() => {
     if (selectedTicket) {
@@ -178,7 +191,7 @@ export default function AdminSupportPage() {
 
 
   const renderTicketList = (list: SupportTicket[]) => {
-    if (loadingTickets) {
+    if (loadingTickets || userLoading) {
       return (
         <div className="p-2 space-y-2">
             {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}
@@ -330,3 +343,4 @@ export default function AdminSupportPage() {
     </div>
   );
 }
+

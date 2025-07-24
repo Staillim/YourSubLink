@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -13,7 +14,7 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if request.auth != null;
-      allow create: if request.auth.uid == userId;
+      allow create: if isOwner(userId);
       allow update: if isOwner(userId) || isAdmin();
     }
     
@@ -33,7 +34,8 @@ service cloud.firestore {
     match /payoutRequests/{requestId} {
         allow create: if isOwner(request.resource.data.userId);
         allow read: if isOwner(resource.data.userId) || isAdmin();
-        allow list: if (request.query.where.path == 'userId' && request.query.where.value == request.auth.uid) || isAdmin();
+        // A user can list their own requests, an admin can list all.
+        allow list: if (request.auth != null && request.query.where.path == 'userId' && request.query.where.value == request.auth.uid) || isAdmin();
         allow update: if isAdmin();
     }
 
@@ -44,14 +46,16 @@ service cloud.firestore {
     
     match /notifications/{notificationId} {
         allow read, list, update: if isOwner(resource.data.userId) || isAdmin();
-        allow create: if isAdmin() || isOwner(request.resource.data.userId);
+        allow create: if isAdmin() || isOwner(request.resource.data.userId); // Allow users to create 'payout_requested' notifications
     }
     
     match /supportTickets/{ticketId} {
       allow create: if isOwner(request.resource.data.userId);
       allow read: if isOwner(resource.data.userId) || isAdmin();
+      // Only admins should be able to change the status of a ticket
       allow update: if isAdmin();
-      allow list: if (request.query.where.path == 'userId' && request.query.where.value == request.auth.uid) || isAdmin();
+      // A user can list their own tickets; an admin can list all.
+      allow list: if (request.auth != null && request.query.where.path == 'userId' && request.query.where.value == request.auth.uid) || isAdmin();
       
       match /messages/{messageId} {
         allow read, list, create: if isAdmin() || get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId == request.auth.uid;
