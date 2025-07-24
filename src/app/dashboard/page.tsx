@@ -373,8 +373,11 @@ export default function DashboardPage() {
           </Button>
       </div>
       <div className="grid gap-6">
-            <Tabs defaultValue="monetizable" className="w-full">
-                <TabsList className="grid w-full grid-cols-3">
+            <Tabs defaultValue="all" className="w-full">
+                <TabsList className="grid w-full grid-cols-4">
+                    <TabsTrigger value="all">
+                        <LinkIcon className="mr-2"/> Todos
+                    </TabsTrigger>
                     <TabsTrigger value="monetizable">
                         <ShieldCheck className="mr-2"/> Monetizable
                     </TabsTrigger>
@@ -385,6 +388,19 @@ export default function DashboardPage() {
                         <ShieldQuestion className="mr-2"/> Suspended
                     </TabsTrigger>
                 </TabsList>
+                <TabsContent value="all">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>All Links</CardTitle>
+                            <CardDescription>
+                                A complete list of all your created links.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                           {renderLinksTable(links, "All")}
+                        </CardContent>
+                    </Card>
+                </TabsContent>
                 <TabsContent value="monetizable">
                     <Card>
                         <CardHeader>
