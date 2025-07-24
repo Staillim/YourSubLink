@@ -17,7 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
-import { MoreVertical, Trash2, ExternalLink, BarChart3, Eye, Calendar, ShieldCheck, Loader2, DollarSign, DollarSignOff } from 'lucide-react';
+import { MoreVertical, Trash2, ExternalLink, BarChart3, Eye, Calendar, ShieldCheck, Loader2, DollarSign, ShieldBan } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
     DropdownMenu,
@@ -292,7 +292,7 @@ export default function AdminLinksPage() {
                                         <DropdownMenuSeparator />
                                         {link.monetizationStatus === 'active' ? (
                                             <DropdownMenuItem onClick={() => handleToggleMonetization(link)}>
-                                                <DollarSignOff className="mr-2 h-4 w-4 text-destructive" />
+                                                <ShieldBan className="mr-2 h-4 w-4 text-destructive" />
                                                 <span className="text-destructive">Suspend Monetization</span>
                                             </DropdownMenuItem>
                                         ) : (
@@ -327,3 +327,4 @@ export default function AdminLinksPage() {
     </TooltipProvider>
   );
 }
+
