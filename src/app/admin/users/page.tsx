@@ -43,6 +43,17 @@ import {
     DialogFooter,
     DialogClose
   } from "@/components/ui/dialog";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { PayoutRequest } from '@/hooks/use-user';
@@ -65,12 +76,10 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Add Balance Dialog State
+  // Dialog States
   const [isAddBalanceDialogOpen, setIsAddBalanceDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [balanceAmount, setBalanceAmount] = useState('');
-
-  // Payout History Dialog State
   const [isPayoutHistoryDialogOpen, setIsPayoutHistoryDialogOpen] = useState(false);
   const [payoutHistory, setPayoutHistory] = useState<PayoutRequest[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -171,16 +180,24 @@ export default function AdminUsersPage() {
   };
 
   const handleToggleAccountStatus = async (userToUpdate: UserProfile) => {
+    // Safety check: Don't allow an admin to suspend themselves or another admin.
+    if (!user || user.uid === userToUpdate.uid || userToUpdate.role === 'admin') {
+         toast({
+            title: 'Action Not Allowed',
+            description: 'Administrators cannot be suspended.',
+            variant: 'destructive',
+        });
+        return;
+    }
+
     const newStatus = userToUpdate.accountStatus === 'active' ? 'suspended' : 'active';
     const actionText = newStatus === 'suspended' ? 'suspend' : 'reactivate';
-
-    if (!confirm(`Are you sure you want to ${actionText} this user account?`)) return;
 
     try {
         const userDocRef = doc(db, 'users', userToUpdate.uid);
         await updateDoc(userDocRef, { accountStatus: newStatus });
         toast({
-            title: `User ${actionText}ed`,
+            title: `User ${actionText}d`,
             description: `${userToUpdate.displayName}'s account has been ${actionText}d.`,
         });
     } catch (error) {
@@ -307,10 +324,31 @@ export default function AdminUsersPage() {
                                                 <DollarSign className="mr-2 h-4 w-4" />
                                                 <span>Add Balance</span>
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem onClick={() => handleToggleAccountStatus(u)} className={u.accountStatus === 'suspended' ? 'text-green-500' : 'text-destructive'}>
-                                                {u.accountStatus === 'suspended' ? <UserCheck className="mr-2 h-4 w-4" /> : <UserX className="mr-2 h-4 w-4" />}
-                                                <span>{u.accountStatus === 'suspended' ? 'Reactivate' : 'Suspend'} User</span>
-                                            </DropdownMenuItem>
+                                             {u.role !== 'admin' && user?.uid !== u.uid && (
+                                                <AlertDialog>
+                                                    <AlertDialogTrigger asChild>
+                                                        <div className={cn("relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50", u.accountStatus === 'suspended' ? 'text-green-500' : 'text-destructive')}>
+                                                          {u.accountStatus === 'suspended' ? <UserCheck className="mr-2 h-4 w-4" /> : <UserX className="mr-2 h-4 w-4" />}
+                                                          <span>{u.accountStatus === 'suspended' ? 'Reactivate' : 'Suspend'} User</span>
+                                                        </div>
+                                                    </AlertDialogTrigger>
+                                                    <AlertDialogContent>
+                                                        <AlertDialogHeader>
+                                                            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                                            <AlertDialogDescription>
+                                                                This action will {u.accountStatus === 'active' ? 'suspend' : 'reactivate'} the user account for <span className="font-bold">{u.displayName}</span>. 
+                                                                {u.accountStatus === 'active' ? ' They will not be able to log in.' : ' They will regain access to their account.'}
+                                                            </AlertDialogDescription>
+                                                        </AlertDialogHeader>
+                                                        <AlertDialogFooter>
+                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                            <AlertDialogAction onClick={() => handleToggleAccountStatus(u)}>
+                                                                Continue
+                                                            </AlertDialogAction>
+                                                        </AlertDialogFooter>
+                                                    </AlertDialogContent>
+                                                </AlertDialog>
+                                            )}
                                         </DropdownMenuContent>
                                 </DropdownMenu>
                                 </TableCell>
@@ -328,7 +366,7 @@ export default function AdminUsersPage() {
                 <DialogHeader>
                     <DialogTitle>Add Balance to {selectedUser?.displayName}</DialogTitle>
                     <DialogDescription>
-                        Enter the amount you want to add to the user's generated earnings. This will be added to their current balance.
+                        This amount will be SUBTRACTED from the user's "Paid Earnings", effectively increasing their available balance. Use this to add bonuses or correct balances.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
@@ -343,7 +381,7 @@ export default function AdminUsersPage() {
                         />
                     </div>
                      <div className="text-sm text-muted-foreground">
-                        Current Balance: ${selectedUser ? (selectedUser.generatedEarnings - selectedUser.paidEarnings).toFixed(4) : '0.0000'}
+                        Current Available Balance: ${selectedUser ? (selectedUser.generatedEarnings - selectedUser.paidEarnings).toFixed(4) : '0.0000'}
                     </div>
                 </div>
                 <DialogFooter>
@@ -418,3 +456,5 @@ export default function AdminUsersPage() {
     </>
   );
 }
+
+    
