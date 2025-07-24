@@ -31,9 +31,13 @@ export async function analyzeLinkSecurity(input: AnalyzeLinkSecurityInput): Prom
   return analyzeLinkSecurityFlow(input);
 }
 
+const PromptInputSchema = AnalyzeLinkSecurityInputSchema.extend({
+    clickTimestamps: z.array(z.string()).describe("A list of click timestamps in ISO 8601 format."),
+});
+
 const prompt = ai.definePrompt({
   name: 'analyzeLinkSecurityPrompt',
-  input: { schema: z.object({ clickTimestamps: z.array(z.string()) }) },
+  input: { schema: PromptInputSchema },
   output: { schema: AnalyzeLinkSecurityOutputSchema },
   prompt: `You are an expert fraud detection analyst for a link shortening service. Your task is to analyze a series of click timestamps for a specific link and determine if the activity seems robotic, fraudulent, or otherwise non-human.
 
@@ -50,7 +54,7 @@ const prompt = ai.definePrompt({
   
   Provide a brief 'reason' for your conclusion.
   
-  Click Timestamps (ISO 8601 format):
+  Click Timestamps:
   {{#each clickTimestamps}}
   - {{this}}
   {{/each}}
@@ -85,7 +89,10 @@ const analyzeLinkSecurityFlow = ai.defineFlow(
     const sortedDocs = clicksSnapshot.docs.sort((a, b) => {
         const timestampA = a.data().timestamp as Timestamp;
         const timestampB = b.data().timestamp as Timestamp;
-        return (timestampB?.seconds ?? 0) - (timestampA?.seconds ?? 0);
+        // Handle cases where timestamp might be null or undefined
+        if (!timestampA) return 1;
+        if (!timestampB) return -1;
+        return timestampB.seconds - timestampA.seconds;
     });
 
     const clickTimestamps = sortedDocs.map(doc => {
@@ -93,10 +100,16 @@ const analyzeLinkSecurityFlow = ai.defineFlow(
         return timestamp ? new Date(timestamp.seconds * 1000).toISOString() : '';
     }).filter(Boolean);
 
-    // 3. Call the AI prompt with the timestamps
-    const { output } = await prompt({ clickTimestamps });
+    // 3. Call the AI prompt with the correct data structure
+    const { output } = await prompt({ 
+        ...input, 
+        clickTimestamps 
+    });
 
-    // 4. Return the AI's analysis
-    return { ...output!, analyzedClicks: clickTimestamps.length };
+    // 4. Return the AI's analysis, ensuring output is not null
+    if (!output) {
+      throw new Error("AI analysis did not return a valid output.");
+    }
+    return { ...output, analyzedClicks: clickTimestamps.length };
   }
 );
