@@ -157,7 +157,7 @@ const processPayouts = (payouts: PayoutRequest[]): Notification[] => {
 }
 
 export default function NotificationsPage() {
-    const { user } = useUser();
+    const { user, payouts } = useUser();
     const [notifications, setNotifications] = useState<FormattedNotification[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -170,35 +170,24 @@ export default function NotificationsPage() {
                 where("userId", "==", user.uid)
             );
             
-            const payoutRequestsQuery = query(
-                collection(db, 'payoutRequests'), 
-                where('userId', '==', user.uid)
-            );
-
             const unsubGeneral = onSnapshot(generalNotificationsQuery, (generalSnapshot) => {
                 const generalData = generalSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
+                const payoutNotifications = processPayouts(payouts);
 
-                const unsubPayouts = onSnapshot(payoutRequestsQuery, (payoutSnapshot) => {
-                    const payoutData = payoutSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data()} as PayoutRequest));
-                    const payoutNotifications = processPayouts(payoutData);
-
-                    const allNotificationsData = [...generalData, ...payoutNotifications];
-                    
-                    const sortedNotifications = allNotificationsData.sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
-                    
-                    const formatted = sortedNotifications.map(getNotificationDetails);
-                    setNotifications(formatted);
-                    setLoading(false);
-                });
-
-                return () => unsubPayouts();
+                const allNotificationsData = [...generalData, ...payoutNotifications];
+                
+                const sortedNotifications = allNotificationsData.sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
+                
+                const formatted = sortedNotifications.map(getNotificationDetails);
+                setNotifications(formatted);
+                setLoading(false);
             });
 
             return () => unsubGeneral();
         } else if (!user) {
             setLoading(false);
         }
-    }, [user]);
+    }, [user, payouts]);
 
   return (
     <div className="flex flex-col gap-6">
