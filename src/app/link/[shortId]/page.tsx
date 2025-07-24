@@ -1,6 +1,4 @@
 
-import { getDoc, doc, collection, getDocs } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import ClientComponent from './ClientComponent';
 
 /**

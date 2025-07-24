@@ -9,7 +9,7 @@ import type { Rule } from '@/components/rule-editor';
 import type { LinkData } from '@/types';
 import { Loader2, ExternalLink, CheckCircle2, Lock, Link as LinkIcon } from 'lucide-react';
 
-export default function LinkGate({ linkData }: { linkData: LinkData }) {
+export default function LinkGate({ linkData, onAllStepsCompleted }: { linkData: LinkData, onAllStepsCompleted: () => void }) {
   const [completedSteps, setCompletedSteps] = useState<boolean[]>(Array(linkData.rules.length).fill(false));
   const [isVerifying, setIsVerifying] = useState(false);
   
@@ -27,13 +27,13 @@ export default function LinkGate({ linkData }: { linkData: LinkData }) {
 
   const handleVerify = () => {
     setIsVerifying(true);
-    // Simulate verification delay
+    // Simulate verification delay then call the parent function
     setTimeout(() => {
         setIsVerifying(false);
         if (allStepsCompleted) {
-             window.location.href = linkData.original;
+             onAllStepsCompleted();
         }
-    }, 2000);
+    }, 1500);
   }
 
   return (
