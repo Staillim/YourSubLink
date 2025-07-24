@@ -119,16 +119,16 @@ export default function AdminLinksPage() {
   
   const handleToggleMonetization = async (link: Link) => {
     const newStatus = link.monetizationStatus === 'active' ? 'suspended' : 'active';
+    
     try {
         const linkRef = doc(db, 'links', link.id);
         await updateDoc(linkRef, { monetizationStatus: newStatus });
 
-        // If suspending, create a notification for the user
         if (newStatus === 'suspended') {
             await addDoc(collection(db, 'notifications'), {
                 userId: link.userId,
-                type: 'milestone', // Re-using type for simplicity
-                message: `Monetization for your link "${link.title}" has been suspended. Please contact support if you believe this is an error.`,
+                type: 'milestone',
+                message: `Monetization for your link "${link.title}" has been suspended due to suspicious activity. Please contact support if you believe this is an error.`,
                 createdAt: serverTimestamp(),
                 isRead: false,
             });
@@ -143,14 +143,16 @@ export default function AdminLinksPage() {
 
         toast({
             title: 'Monetization Updated',
-            description: `Monetization for "${link.title}" has been ${newStatus}.`,
+            description: `Monetization for "${link.title}" has been set to ${newStatus}.`,
         });
+
     } catch (error) {
         toast({
             title: 'Error',
             description: 'Could not update monetization status.',
             variant: 'destructive',
         });
+        console.error("Error toggling monetization: ", error);
     }
   };
 
@@ -161,13 +163,10 @@ export default function AdminLinksPage() {
             const result = await analyzeLinkSecurity({ linkId: link.id });
             if (result.isSuspicious) {
                 if (result.riskLevel === 'high') {
-                    const linkRef = doc(db, 'links', link.id);
-                    await updateDoc(linkRef, { monetizationStatus: 'suspended' });
-                     // Update local state
-                     setLinks(prevLinks => prevLinks.map(l => l.id === link.id ? { ...l, monetizationStatus: 'suspended' } : l));
+                    await handleToggleMonetization(link); // This will suspend and notify
                     toast({
                         title: 'Analysis Complete: High Risk',
-                        description: `Monetization for "${link.title}" has been suspended. Reason: ${result.reason}`,
+                        description: `Monetization for "${link.title}" has been automatically suspended. Reason: ${result.reason}`,
                         variant: 'destructive',
                         duration: 8000
                     });
