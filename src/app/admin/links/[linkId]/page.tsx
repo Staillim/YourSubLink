@@ -154,7 +154,7 @@ export default function LinkStatsPage() {
                         <ArrowLeft />
                     </Link>
                 </Button>
-                <h1 className="text-2xl font-bold truncate">Stats for "{linkData.title}"</h1>
+                <h1 className="text-xl sm:text-2xl font-bold truncate">Stats for "{linkData.title}"</h1>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

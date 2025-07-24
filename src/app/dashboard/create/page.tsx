@@ -88,15 +88,15 @@ export default function CreateLinkPage() {
   return (
     <>
         <div className="flex items-center">
-            <h1 className="text-lg font-semibold md:text-2xl">Create Link</h1>
+            <h1 className="text-xl sm:text-2xl font-semibold">Create Link</h1>
         </div>
         <div className="grid gap-6">
             <Card>
                 <form onSubmit={handleShorten}>
                     <CardHeader>
-                    <CardTitle>Create a new link</CardTitle>
+                    <CardTitle className="text-xl">Create a new link</CardTitle>
                     <CardDescription>
-                        Provide the details for your new link below. Once created, you can view it in the 'My Links' section.
+                        Provide the details for your new link below.
                     </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">

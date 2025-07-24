@@ -143,7 +143,7 @@ export default function AdminUsersPage() {
   if (loading) {
     return (
       <div className="flex flex-col gap-4">
-        <h1 className="text-2xl font-bold">User Management</h1>
+        <h1 className="text-xl sm:text-2xl font-bold">User Management</h1>
         <Card>
           <CardHeader>
              <Skeleton className="h-6 w-48" />
@@ -174,10 +174,10 @@ export default function AdminUsersPage() {
   return (
     <>
         <div className="flex flex-col gap-4">
-        <h1 className="text-2xl font-bold">User Management</h1>
+        <h1 className="text-xl sm:text-2xl font-bold">User Management</h1>
         <Card>
             <CardHeader>
-                <CardTitle>Registered Users</CardTitle>
+                <CardTitle className="text-xl">Registered Users</CardTitle>
                 <CardDescription>View and manage all users in the system.</CardDescription>
             </CardHeader>
             <CardContent>

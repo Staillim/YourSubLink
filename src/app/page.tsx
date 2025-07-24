@@ -187,7 +187,7 @@ export default function AuthenticationPage() {
             <CardTitle className="text-xl sm:text-2xl font-bold tracking-tight text-primary">
               {showResetForm ? 'Reset Password' : 'Welcome to YourSubLink'}
             </CardTitle>
-            <CardDescription className="text-sm sm:text-base">
+            <CardDescription className="text-sm">
               {showResetForm ? 'Enter your email to receive a reset link.' : 'Enter your credentials to access your account'}
             </CardDescription>
           </CardHeader>

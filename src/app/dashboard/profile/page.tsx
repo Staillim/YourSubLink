@@ -92,7 +92,7 @@ export default function ProfilePage() {
   return (
     <>
       <div className="flex items-center">
-        <h1 className="text-lg font-semibold md:text-2xl">Profile</h1>
+        <h1 className="text-xl sm:text-2xl font-semibold">Profile</h1>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
         <div className="md:col-span-2 space-y-8">

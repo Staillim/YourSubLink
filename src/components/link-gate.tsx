@@ -135,13 +135,13 @@ export default function LinkGate({ linkData, onAllStepsCompleted }: { linkData: 
       <Card className="w-full max-w-md shadow-2xl bg-card border-gray-800">
          {step === 'rules' && (
             <>
-                <CardHeader className="text-center">
-                    <CardTitle className="text-2xl sm:text-3xl font-bold tracking-tight">Complete the steps</CardTitle>
-                    <CardDescription className="text-muted-foreground text-sm sm:text-base pt-1">
+                <CardHeader className="text-center p-4 sm:p-6">
+                    <CardTitle className="text-xl sm:text-2xl font-bold tracking-tight">Complete the steps</CardTitle>
+                    <CardDescription className="text-muted-foreground text-sm pt-1">
                         To unlock the link, please complete the following steps.
                     </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-4 p-4 sm:p-6">
                     <div className="space-y-3">
                         {linkData.rules.map((rule, index) => {
                           const state = ruleStates[index];
@@ -174,7 +174,7 @@ export default function LinkGate({ linkData, onAllStepsCompleted }: { linkData: 
                                      <RuleIcon className="h-5 w-5 shrink-0" />
                                    )}
                                    <div className="flex flex-col">
-                                      <span className="font-semibold text-sm sm:text-base">{details.text}</span>
+                                      <span className="font-semibold text-sm">{details.text}</span>
                                    </div>
                                 </div>
                                 {!isLoading && !isCompleted && <ExternalLink className="h-5 w-5 shrink-0" />}
@@ -186,7 +186,7 @@ export default function LinkGate({ linkData, onAllStepsCompleted }: { linkData: 
                     <Button
                         onClick={handleUnlock}
                         disabled={!allRulesCompleted}
-                        className="w-full font-bold text-base sm:text-lg py-6 sm:py-7 mt-4 bg-primary hover:bg-primary/90 disabled:bg-gray-800 disabled:text-muted-foreground disabled:cursor-not-allowed"
+                        className="w-full font-bold text-base py-5 sm:py-6 mt-4 bg-primary hover:bg-primary/90 disabled:bg-gray-800 disabled:text-muted-foreground disabled:cursor-not-allowed"
                         size="lg"
                     >
                         <CheckCircle className="mr-2 h-5 w-5"/>
@@ -198,13 +198,13 @@ export default function LinkGate({ linkData, onAllStepsCompleted }: { linkData: 
 
         {step === 'countdown' && (
             <>
-                <CardHeader className="text-center">
-                    <CardTitle className="text-2xl sm:text-3xl font-bold tracking-tight">Almost there!</CardTitle>
-                    <CardDescription className="text-muted-foreground text-sm sm:text-base pt-1">
+                <CardHeader className="text-center p-4 sm:p-6">
+                    <CardTitle className="text-xl sm:text-2xl font-bold tracking-tight">Almost there!</CardTitle>
+                    <CardDescription className="text-muted-foreground text-sm pt-1">
                         You are about to be redirected.
                     </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4 text-center">
+                <CardContent className="space-y-4 text-center p-4 sm:p-6">
                     {isReady ? (
                         <p className="text-lg font-semibold text-green-500">You can now proceed to your link.</p>
                     ) : (
@@ -218,7 +218,7 @@ export default function LinkGate({ linkData, onAllStepsCompleted }: { linkData: 
                     <Button
                         onClick={handleContinue}
                         disabled={!isReady || isRedirecting}
-                        className="w-full font-bold text-base sm:text-lg py-6 sm:py-7 mt-4 bg-primary hover:bg-primary/90 disabled:bg-gray-800 disabled:text-muted-foreground"
+                        className="w-full font-bold text-base py-5 sm:py-6 mt-4 bg-primary hover:bg-primary/90 disabled:bg-gray-800 disabled:text-muted-foreground"
                         size="lg"
                     >
                         {isRedirecting ? (
