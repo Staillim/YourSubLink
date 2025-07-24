@@ -28,6 +28,7 @@ export type UserProfile = {
 export type PayoutRequest = {
     id: string;
     userId: string;
+    userName?: string;
     amount: number;
     method: string;
     details: string;
@@ -40,6 +41,7 @@ export type PayoutRequest = {
 export function useUser() {
   const [authUser, authLoading] = useAuthState(auth);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [payouts, setPayouts] = useState<PayoutRequest[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -50,18 +52,21 @@ export function useUser() {
 
     if (!authUser) {
       setUserProfile(null);
+      setPayouts([]);
       setLoading(false);
       return;
     }
 
-    // This is the ideal place to ensure the user profile exists.
+    let isSubscribed = true;
+
     const userDocRef = doc(db, 'users', authUser.uid);
-    
-    const unsubscribe = onSnapshot(userDocRef, async (userDoc) => {
+    const payoutsQuery = query(collection(db, "payoutRequests"), where("userId", "==", authUser.uid));
+
+    const unsubProfile = onSnapshot(userDocRef, async (userDoc) => {
+      if (!isSubscribed) return;
+
       if (userDoc.exists()) {
         const userData = userDoc.data();
-        
-        // Fetch all links for this user to calculate total earnings dynamically
         const linksQuery = query(collection(db, 'links'), where('userId', '==', authUser.uid));
         const linksSnapshot = await getDocs(linksQuery);
         const totalGeneratedEarnings = linksSnapshot.docs.reduce((acc, doc) => {
@@ -74,25 +79,48 @@ export function useUser() {
             email: userData.email || '',
             photoURL: userData.photoURL || '',
             role: userData.role || 'user',
-            generatedEarnings: totalGeneratedEarnings, // Use calculated value
+            generatedEarnings: totalGeneratedEarnings,
             paidEarnings: userData.paidEarnings || 0,
         });
       } else {
-        // User is authenticated, but no profile exists. Create it now.
         await createUserProfile(authUser);
-        // The onSnapshot listener will automatically pick up the new profile
-        // and update the state, so we don't need to set it here.
       }
+    });
+
+    const unsubPayouts = onSnapshot(payoutsQuery, (snapshot) => {
+      if (!isSubscribed) return;
+      const requests: PayoutRequest[] = [];
+      snapshot.forEach(doc => {
+          requests.push({ id: doc.id, ...doc.data() } as PayoutRequest);
+      });
+      setPayouts(requests.sort((a,b) => (b.requestedAt?.seconds ?? 0) - (a.requestedAt?.seconds ?? 0)));
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      isSubscribed = false;
+      unsubProfile();
+      unsubPayouts();
+    };
   }, [authUser, authLoading]);
+  
+  // Derived state for balance calculation
+  const generatedEarnings = userProfile?.generatedEarnings ?? 0;
+  const paidEarnings = userProfile?.paidEarnings ?? 0;
+  const payoutsPending = payouts
+        .filter(p => p.status === 'pending')
+        .reduce((acc, p) => acc + p.amount, 0);
+
+  const availableBalance = generatedEarnings - paidEarnings - payoutsPending;
 
   return {
     user: authUser as FirebaseUser | null,
     profile: userProfile,
     role: userProfile?.role,
     loading: loading,
+    payouts,
+    payoutsPending,
+    paidEarnings,
+    availableBalance
   };
 }

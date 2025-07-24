@@ -3,7 +3,7 @@
 
 import { useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
-import { auth, db } from '@/lib/firebase';
+import { auth } from '@/lib/firebase';
 import { useUser } from '@/hooks/use-user';
 import {
   Avatar,
@@ -22,32 +22,10 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { LogOut, User as UserIcon, Wallet } from 'lucide-react';
 import { Skeleton } from './ui/skeleton';
-import { useEffect, useState } from 'react';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
-
-type PayoutRequest = {
-    amount: number;
-    status: 'pending' | 'completed' | 'rejected';
-}
 
 export function UserNav() {
-  const { user, profile, loading } = useUser();
+  const { user, profile, loading, availableBalance } = useUser();
   const router = useRouter();
-  const [payouts, setPayouts] = useState<PayoutRequest[]>([]);
-
-  useEffect(() => {
-    if (user) {
-        const q = query(collection(db, "payoutRequests"), where("userId", "==", user.uid), where("status", "==", "pending"));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const requests: PayoutRequest[] = [];
-            snapshot.forEach(doc => {
-                requests.push(doc.data() as PayoutRequest);
-            });
-            setPayouts(requests);
-        });
-        return () => unsubscribe();
-    }
-  }, [user]);
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -62,8 +40,6 @@ export function UserNav() {
     return <Skeleton className="h-9 w-9 rounded-full" />;
   }
   
-  const payoutsPending = payouts.reduce((acc, p) => acc + p.amount, 0);
-  const availableBalance = profile ? profile.generatedEarnings - profile.paidEarnings - payoutsPending : 0;
   const userName = profile?.displayName || user?.displayName || 'User';
 
   return (

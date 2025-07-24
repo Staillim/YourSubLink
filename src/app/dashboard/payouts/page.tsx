@@ -4,9 +4,9 @@
 import { useState, useEffect } from 'react';
 import { useUser } from '@/hooks/use-user';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -19,17 +19,8 @@ import { Badge } from '@/components/ui/badge';
 
 const MIN_PAYOUT_AMOUNT = 10;
 
-type PayoutRequest = {
-    id: string;
-    amount: number;
-    method: string;
-    details: string;
-    status: 'pending' | 'completed' | 'rejected';
-    requestedAt: any;
-}
-
 export default function PayoutsPage() {
-    const { user, profile, loading } = useUser();
+    const { user, profile, loading, payouts, payoutsPending, paidEarnings, availableBalance } = useUser();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
 
@@ -37,36 +28,6 @@ export default function PayoutsPage() {
     const [amount, setAmount] = useState('');
     const [method, setMethod] = useState('');
     const [details, setDetails] = useState('');
-    
-    // Payout history
-    const [payouts, setPayouts] = useState<PayoutRequest[]>([]);
-    const [payoutsLoading, setPayoutsLoading] = useState(true);
-    
-    useEffect(() => {
-        if (user) {
-            setPayoutsLoading(true);
-            const q = query(collection(db, "payoutRequests"), where("userId", "==", user.uid));
-            const unsubscribe = onSnapshot(q, (snapshot) => {
-                const requests: PayoutRequest[] = [];
-                snapshot.forEach(doc => {
-                    requests.push({ id: doc.id, ...doc.data() } as PayoutRequest);
-                });
-                setPayouts(requests.sort((a,b) => (b.requestedAt?.seconds ?? 0) - (a.requestedAt?.seconds ?? 0)));
-                setPayoutsLoading(false);
-            });
-            return () => unsubscribe();
-        }
-    }, [user]);
-    
-    const generatedEarnings = profile?.generatedEarnings ?? 0;
-    const paidEarnings = profile?.paidEarnings ?? 0;
-    
-    // Calculate pending payouts dynamically from the payouts list
-    const payoutsPending = payouts
-        .filter(p => p.status === 'pending')
-        .reduce((acc, p) => acc + p.amount, 0);
-
-    const availableBalance = generatedEarnings - paidEarnings - payoutsPending;
 
     const resetForm = () => {
         setAmount('');
@@ -95,7 +56,6 @@ export default function PayoutsPage() {
 
         setIsSubmitting(true);
         try {
-            // Only create the payout request document. Do not update the user's profile.
             await addDoc(collection(db, 'payoutRequests'), {
                 userId: user.uid,
                 userEmail: user.email,
@@ -119,7 +79,7 @@ export default function PayoutsPage() {
     };
 
 
-    if (loading || payoutsLoading) {
+    if (loading) {
         return (
             <div className="flex flex-col gap-6">
                 <Skeleton className="h-8 w-32" />
@@ -238,7 +198,7 @@ export default function PayoutsPage() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {payoutsLoading ? (
+                            {loading ? (
                                 <TableRow><TableCell colSpan={4} className="text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
                             ) : payouts.length > 0 ? (
                                 payouts.map(p => (
