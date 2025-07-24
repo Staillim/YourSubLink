@@ -110,6 +110,14 @@ export default function AdminLinksPage() {
     try {
         const linkRef = doc(db, 'links', link.id);
         await updateDoc(linkRef, { monetizationStatus: newStatus });
+
+        // Update local state to reflect the change immediately
+        setLinks(prevLinks => 
+            prevLinks.map(l => 
+                l.id === link.id ? { ...l, monetizationStatus: newStatus } : l
+            )
+        );
+
         toast({
             title: 'Monetization Updated',
             description: `Monetization for "${link.title}" has been ${newStatus}.`,
@@ -132,6 +140,8 @@ export default function AdminLinksPage() {
                 if (result.riskLevel === 'high') {
                     const linkRef = doc(db, 'links', link.id);
                     await updateDoc(linkRef, { monetizationStatus: 'suspended' });
+                     // Update local state
+                     setLinks(prevLinks => prevLinks.map(l => l.id === link.id ? { ...l, monetizationStatus: 'suspended' } : l));
                     toast({
                         title: 'Analysis Complete: High Risk',
                         description: `Monetization for "${link.title}" has been suspended. Reason: ${result.reason}`,
@@ -327,4 +337,3 @@ export default function AdminLinksPage() {
     </TooltipProvider>
   );
 }
-
