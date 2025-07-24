@@ -95,7 +95,7 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
     );
   }
 
-  // Render the gate, passing the handleUnlock function to be called on button click.
+  // Render the gate, passing the handleAllStepsCompleted function to be called on button click.
   if (status === 'gate' && linkData) {
     return <LinkGate linkData={linkData} onAllStepsCompleted={handleAllStepsCompleted} />;
   }
