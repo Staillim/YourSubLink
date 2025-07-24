@@ -26,18 +26,7 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/
 import { ExternalLink, DollarSign, Eye } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { LinkItem } from '../page';
-import { format, getMonth, getYear, startOfWeek, endOfWeek, eachDayOfInterval, isWithinInterval, formatISO } from 'date-fns';
-
-type CpmHistory = {
-    rate: number;
-    startDate: { seconds: number };
-    endDate?: { seconds: number };
-};
-
-type Click = {
-    linkId: string;
-    timestamp: { seconds: number };
-};
+import { format, getMonth, getYear } from 'date-fns';
 
 const chartConfig = {
   earnings: {
@@ -46,11 +35,16 @@ const chartConfig = {
   },
 };
 
+type CpmHistory = {
+    rate: number;
+    startDate: { seconds: number };
+    endDate?: { seconds: number };
+};
+
 
 export default function AnalyticsPage() {
   const [user, loading] = useAuthState(auth);
   const [links, setLinks] = useState<LinkItem[]>([]);
-  const [clicks, setClicks] = useState<Click[]>([]);
   const [cpmHistory, setCpmHistory] = useState<CpmHistory[]>([]);
 
   const [linksLoading, setLinksLoading] = useState(true);
@@ -59,7 +53,6 @@ export default function AnalyticsPage() {
     if (user) {
       setLinksLoading(true);
       const linksQuery = query(collection(db, "links"), where("userId", "==", user.uid));
-      const clicksQuery = query(collection(db, "clicks"), where("userId", "==", user.uid));
       const cpmQuery = query(collection(db, 'cpmHistory'), orderBy('startDate', 'desc'));
 
       const unsubLinks = onSnapshot(linksQuery, (querySnapshot) => {
@@ -83,24 +76,18 @@ export default function AnalyticsPage() {
         });
         setLinks(linksData);
       });
-
-      const unsubClicks = onSnapshot(clicksQuery, (querySnapshot) => {
-        const clicksData: Click[] = querySnapshot.docs.map(doc => doc.data() as Click);
-        setClicks(clicksData);
-      });
       
       const unsubCpm = onSnapshot(cpmQuery, (snapshot) => {
           const historyData: CpmHistory[] = snapshot.docs.map(doc => doc.data() as CpmHistory);
           setCpmHistory(historyData);
       });
 
-      Promise.all([new Promise(res => unsubLinks.then(res)), new Promise(res => unsubClicks.then(res)), new Promise(res => unsubCpm.then(res))]).then(() => {
+      Promise.all([new Promise(res => unsubLinks.then(res)), new Promise(res => unsubCpm.then(res))]).then(() => {
           setLinksLoading(false);
       })
 
       return () => {
         unsubLinks();
-        unsubClicks();
         unsubCpm();
       }
     } else if (!loading) {
@@ -143,42 +130,6 @@ export default function AnalyticsPage() {
     
     return chartData;
   }
-
-  const getDailyChartData = () => {
-    const now = new Date();
-    const weekStart = startOfWeek(now);
-    const weekEnd = endOfWeek(now);
-    const daysInWeek = eachDayOfInterval({ start: weekStart, end: weekEnd });
-
-    const dailyEarnings = daysInWeek.map(day => ({
-        day: format(day, 'EEE'), // e.g., Mon, Tue
-        earnings: 0
-    }));
-
-    const monetizableLinks = new Set(links.filter(l => l.monetizable).map(l => l.id));
-
-    clicks.forEach(click => {
-        if (!monetizableLinks.has(click.linkId)) return;
-        
-        const clickDate = new Date(click.timestamp.seconds * 1000);
-        
-        if (isWithinInterval(clickDate, { start: weekStart, end: weekEnd })) {
-            const cpmRate = cpmHistory.find(c => {
-                const start = c.startDate.seconds * 1000;
-                const end = c.endDate ? c.endDate.seconds * 1000 : Date.now();
-                return click.timestamp.seconds * 1000 >= start && click.timestamp.seconds * 1000 <= end;
-            })?.rate || 0;
-
-            const earningsPerClick = cpmRate / 1000;
-            const dayIndex = dailyEarnings.findIndex(d => d.day === format(clickDate, 'EEE'));
-            if (dayIndex !== -1) {
-                dailyEarnings[dayIndex].earnings += earningsPerClick;
-            }
-        }
-    });
-    
-    return dailyEarnings;
-  };
   
   const linksWithEarnings = links.map(link => ({
       ...link,
@@ -198,10 +149,7 @@ export default function AnalyticsPage() {
                     <Skeleton className="h-28" />
                     <Skeleton className="h-28" />
                 </div>
-                <div className="grid gap-4 md:grid-cols-2">
-                    <Skeleton className="h-80" />
-                    <Skeleton className="h-80" />
-                </div>
+                <Skeleton className="h-80" />
                 <Skeleton className="h-80" />
             </div>
         </>
@@ -246,53 +194,36 @@ export default function AnalyticsPage() {
                   </CardContent>
               </Card>
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-                <CardHeader>
-                    <CardTitle>Daily Earnings Overview</CardTitle>
-                    <CardDescription>Earnings from monetized clicks this week.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <ChartContainer config={chartConfig} className="min-h-[200px] w-full">
-                    <BarChart accessibilityLayer data={getDailyChartData()}>
-                        <CartesianGrid vertical={false} />
-                        <XAxis
-                        dataKey="day"
-                        tickLine={false}
-                        tickMargin={10}
-                        axisLine={false}
-                        />
-                        <YAxis tickFormatter={(value) => `$${Number(value).toFixed(4)}`} />
-                        <ChartTooltip content={<ChartTooltipContent formatter={(value) => `$${Number(value).toFixed(4)}`} />} />
-                        <Bar dataKey="earnings" fill="var(--color-earnings)" radius={4} />
-                    </BarChart>
-                    </ChartContainer>
-                </CardContent>
-            </Card>
-            <Card>
-                <CardHeader>
-                    <CardTitle>Monthly Earnings Overview</CardTitle>
-                    <CardDescription>Earnings from monetized clicks this year.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <ChartContainer config={chartConfig} className="min-h-[200px] w-full">
-                    <BarChart accessibilityLayer data={getMonthlyChartData()}>
-                        <CartesianGrid vertical={false} />
-                        <XAxis
-                        dataKey="month"
-                        tickLine={false}
-                        tickMargin={10}
-                        axisLine={false}
-                        tickFormatter={(value) => value.slice(0, 3)}
-                        />
-                        <YAxis tickFormatter={(value) => `$${Number(value).toFixed(4)}`} />
-                        <ChartTooltip content={<ChartTooltipContent formatter={(value) => `$${Number(value).toFixed(4)}`} />} />
-                        <Bar dataKey="earnings" fill="var(--color-earnings)" radius={4} />
-                    </BarChart>
-                    </ChartContainer>
-                </CardContent>
-            </Card>
-          </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Monthly Earnings Overview</CardTitle>
+            <CardDescription>
+              Earnings from monetized clicks this year.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer config={chartConfig} className="min-h-[200px] w-full">
+              <BarChart
+                accessibilityLayer
+                data={getMonthlyChartData()}
+              >
+                <CartesianGrid vertical={false} />
+                <XAxis
+                  dataKey="month"
+                  tickLine={false}
+                  tickMargin={10}
+                  axisLine={false}
+                  tickFormatter={(value) => value.slice(0, 3)}
+                />
+                <YAxis tickFormatter={(value) => `$${Number(value).toFixed(4)}`} />
+                <ChartTooltip
+                  content={<ChartTooltipContent formatter={(value) => `$${Number(value).toFixed(4)}`} />}
+                />
+                <Bar dataKey="earnings" fill="var(--color-earnings)" radius={4} />
+              </BarChart>
+            </ChartContainer>
+          </CardContent>
+        </Card>
         <Card>
             <CardHeader>
                 <CardTitle>Links Breakdown</CardTitle>
@@ -343,3 +274,4 @@ export default function AnalyticsPage() {
   );
 }
 
+    
