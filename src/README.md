@@ -18,8 +18,11 @@ Cualquier cambio que afecte la lógica central (autenticación, base de datos, f
 ### Zonas de Alto Riesgo y Errores Históricos
 
 *   **Reglas de Seguridad de Firestore (`firestore.rules`)**: **La principal fuente de errores en el pasado.** Una configuración incorrecta aquí puede denegar el acceso a toda la aplicación para ciertos roles. Un error común fue no diferenciar entre permisos `get` (un documento) y `list` (múltiples documentos), bloqueando los paneles de control. **Cualquier cambio aquí debe ser verificado contra cada consulta de la aplicación.**
-*   **Lógica del Lado del Cliente vs. Servidor**: Inicialmente, se intentó un enfoque de API de backend (`/api/click`) para contar las visitas, pero falló debido a la complejidad de los permisos. La solución actual y más robusta es manejar el conteo de visitas directamente en el cliente (`src/app/link/[shortId]/ClientComponent.tsx`), lo cual es más simple y fiable para este caso de uso. **No reintroducir un endpoint de API para esto sin una razón de peso.**
-*   **Sincronización de Ganancias**: Asegurar que las `generatedEarnings` de los enlaces se reflejen correctamente en el balance del usuario (`useUser.ts`) es vital. La lógica actual calcula este total dinámicamente en el lado del cliente para asegurar la coherencia.
+*   **Lógica del Lado del Cliente vs. Servidor**: Inicialmente, se intentó un enfoque de API de backend (`/api/click`) para contar las visitas, pero falló debido a la complejidad de los permisos. **La solución actual y más robusta es manejar el conteo de visitas directamente en el cliente (`src/app/link/[shortId]/ClientComponent.tsx`)**, lo cual es más simple y fiable para este caso de uso. **No reintroducir un endpoint de API para esto sin una razón de peso.**
+*   **Sincronización y Lógica Financiera**:
+    *   **Cálculo de Ganancias**: Las `generatedEarnings` de un usuario se calculan dinámicamente sumando las ganancias de todos sus enlaces individuales. Este enfoque se utiliza tanto en el dashboard del usuario (`use-user.ts`) como en el del administrador (`admin/users/page.tsx`) para garantizar consistencia y precisión.
+    *   **Lógica de Pagos**: Cuando un administrador aprueba un pago, el monto se suma al campo `paidEarnings` del usuario.
+    *   **Añadir Saldo Manualmente**: Cuando un administrador añade saldo, se trata como un "pago negativo" y se resta del campo `paidEarnings`, lo que aumenta correctamente el balance disponible.
 
 ---
 

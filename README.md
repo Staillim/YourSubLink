@@ -126,7 +126,7 @@ El acortamiento se gestiona desde el cliente para una experiencia de usuario rá
 
 ### 3.2. Flujo de Visita y Monetización
 
-Esta es la funcionalidad más crítica y se gestiona enteramente en el cliente para mayor simplicidad y rendimiento.
+Esta es la funcionalidad más crítica y se gestiona **enteramente en el cliente** para mayor simplicidad y rendimiento, habiendo descartado un enfoque de API de backend por su complejidad con los permisos de Firebase.
 
 1.  **Acceso (`src/app/link/[shortId]/page.tsx`):** Un visitante accede a una URL como `https://yoursub.link/xyz123`.
 2.  **Lógica del Cliente (`ClientComponent.tsx`):**
@@ -155,3 +155,4 @@ La aplicación utiliza `onSnapshot` de Firestore extensivamente para una experie
 -   `src/app/dashboard/page.tsx`: La lista de enlaces del usuario se actualiza en tiempo real.
 -   `src/app/admin/users/page.tsx`: La lista de usuarios y sus estadísticas se actualiza automáticamente.
 -   `hooks/use-user.ts`: El perfil del usuario y su balance se mantienen sincronizados con la base de datos.
+-   El cálculo del balance de un usuario (`generatedEarnings` - `paidEarnings`) se realiza dinámicamente tanto en el panel de usuario como en el de administrador para garantizar la consistencia.

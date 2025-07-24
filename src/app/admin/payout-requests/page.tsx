@@ -1,4 +1,3 @@
-
 /**
  * !! ANTES DE EDITAR ESTE ARCHIVO, REVISA LAS DIRECTRICES EN LOS SIGUIENTES DOCUMENTOS: !!
  * - /README.md
@@ -77,9 +76,12 @@ export default function AdminPayoutRequestsPage() {
             processedAt: serverTimestamp(),
         });
 
+        // DOCUMENTACIÓN DE LÓGICA CRÍTICA (2024-05-22):
+        // Al completar un pago, registramos el monto en 'paidEarnings' del usuario.
+        // Esto disminuye el balance disponible (Generated - Paid).
+        // Usamos increment() para una operación atómica segura.
         if (newStatus === 'completed' && userId && amount) {
             const userRef = doc(db, 'users', userId);
-            // Use Firestore's atomic increment to update paidEarnings
             batch.update(userRef, {
                 paidEarnings: increment(amount),
             });

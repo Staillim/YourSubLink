@@ -1,4 +1,3 @@
-
 /**
  * !! ANTES DE EDITAR ESTE ARCHIVO, REVISA LAS DIRECTRICES EN LOS SIGUIENTES DOCUMENTOS: !!
  * - /README.md
@@ -126,10 +125,13 @@ export default function AdminUsersPage() {
     try {
         const userDocRef = doc(db, 'users', selectedUser.uid);
 
-        // DOCUMENTACIÓN: Corrección de lógica de balance.
-        // Para añadir saldo a un usuario (por ej. un bono), debemos tratarlo como una "ganancia pagada negativa".
-        // Decrementar 'paidEarnings' aumenta el balance disponible (Generated - Paid).
-        // Esto es contablemente correcto y evita alterar la suma de 'generatedEarnings' de los enlaces.
+        // DOCUMENTACIÓN DE LÓGICA CRÍTICA (2024-05-22):
+        // Para añadir saldo a un usuario (ej. un bono o corrección manual), no debemos tocar
+        // 'generatedEarnings', ya que ese dato se calcula dinámicamente desde los enlaces.
+        // La forma contablemente correcta es tratarlo como un "pago negativo".
+        // Al decrementar 'paidEarnings', el balance disponible (Generated - Paid) aumenta correctamente.
+        // Ejemplo: Balance = 10 (gen) - 5 (paid) = 5. Si añadimos 2, el nuevo balance debe ser 7.
+        // Lógica: 10 (gen) - (5 - 2) (paid) = 7.
         await updateDoc(userDocRef, { paidEarnings: increment(-amountToAdd) });
         
         toast({
