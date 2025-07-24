@@ -1,3 +1,4 @@
+
 /**
  * !! ANTES DE EDITAR ESTE ARCHIVO, REVISA LAS DIRECTRICES EN LOS SIGUIENTES DOCUMENTOS: !!
  * - /README.md
@@ -149,9 +150,9 @@ export default function AdminPayoutRequestsPage() {
               <TableRow>
                 <TableHead>User</TableHead>
                 <TableHead>Amount</TableHead>
-                <TableHead>Method</TableHead>
-                <TableHead>Details</TableHead>
-                <TableHead>Date</TableHead>
+                <TableHead className="hidden md:table-cell">Method</TableHead>
+                <TableHead className="hidden lg:table-cell">Details</TableHead>
+                <TableHead className="hidden sm:table-cell">Date</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -164,9 +165,9 @@ export default function AdminPayoutRequestsPage() {
                     <div className="text-xs text-muted-foreground">{req.userEmail}</div>
                   </TableCell>
                   <TableCell className="font-semibold">${req.amount.toFixed(4)}</TableCell>
-                  <TableCell className="capitalize">{req.method}</TableCell>
-                  <TableCell>{req.details}</TableCell>
-                  <TableCell>{req.requestedAt ? new Date(req.requestedAt.seconds * 1000).toLocaleDateString() : 'N/A'}</TableCell>
+                  <TableCell className="capitalize hidden md:table-cell">{req.method}</TableCell>
+                  <TableCell className="hidden lg:table-cell">{req.details}</TableCell>
+                  <TableCell className="hidden sm:table-cell">{req.requestedAt ? new Date(req.requestedAt.seconds * 1000).toLocaleDateString() : 'N/A'}</TableCell>
                   <TableCell>
                     <Badge variant={req.status === 'pending' ? 'secondary' : req.status === 'completed' ? 'default' : 'destructive'}
                         className={req.status === 'completed' ? 'bg-green-600' : ''}>

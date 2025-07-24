@@ -143,10 +143,10 @@ export default function AdminLinksPage() {
                 <TableHeader>
                 <TableRow>
                     <TableHead>Link</TableHead>
-                    <TableHead>User</TableHead>
-                    <TableHead>Clicks</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Date</TableHead>
+                    <TableHead className="hidden md:table-cell">User</TableHead>
+                    <TableHead className="hidden sm:table-cell">Clicks</TableHead>
+                    <TableHead className="hidden md:table-cell">Status</TableHead>
+                    <TableHead className="hidden lg:table-cell">Date</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
                 </TableHeader>
@@ -154,20 +154,21 @@ export default function AdminLinksPage() {
                 {links.map((link) => (
                     <TableRow key={link.id}>
                         <TableCell>
-                            <div className="font-semibold">{link.title}</div>
+                            <div className="font-semibold truncate max-w-xs">{link.title}</div>
+                            <div className="text-xs text-muted-foreground md:hidden">{link.userName}</div>
                             <a href={link.short} target='_blank' rel='noopener noreferrer' className="text-xs text-muted-foreground hover:underline">{link.short}</a>
                         </TableCell>
-                         <TableCell>
+                         <TableCell className="hidden md:table-cell">
                             <div className="font-medium">{link.userName}</div>
                             <div className="text-xs text-muted-foreground">{link.userEmail}</div>
                         </TableCell>
-                        <TableCell>{link.clicks}</TableCell>
-                        <TableCell>
+                        <TableCell className="hidden sm:table-cell">{link.clicks}</TableCell>
+                        <TableCell className="hidden md:table-cell">
                             <Badge variant={link.monetizable ? 'default' : 'secondary'} className={link.monetizable ? 'bg-green-600' : ''}>
                                 {link.monetizable ? 'Monetizable' : 'Not Monetizable'}
                             </Badge>
                         </TableCell>
-                        <TableCell>{link.createdAt ? new Date(link.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}</TableCell>
+                        <TableCell className="hidden lg:table-cell">{link.createdAt ? new Date(link.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}</TableCell>
                         <TableCell className="text-right">
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>

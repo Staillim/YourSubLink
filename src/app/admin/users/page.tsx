@@ -1,3 +1,4 @@
+
 /**
  * !! ANTES DE EDITAR ESTE ARCHIVO, REVISA LAS DIRECTRICES EN LOS SIGUIENTES DOCUMENTOS: !!
  * - /README.md
@@ -184,11 +185,11 @@ export default function AdminUsersPage() {
                     <TableHeader>
                         <TableRow>
                             <TableHead>User</TableHead>
-                            <TableHead>Links Created</TableHead>
-                            <TableHead>Generated Earnings</TableHead>
-                            <TableHead>Paid Earnings</TableHead>
-                            <TableHead>Current Balance</TableHead>
-                            <TableHead>Role</TableHead>
+                            <TableHead className="hidden sm:table-cell">Links</TableHead>
+                            <TableHead className="hidden md:table-cell">Generated</TableHead>
+                            <TableHead className="hidden md:table-cell">Paid</TableHead>
+                            <TableHead>Balance</TableHead>
+                            <TableHead className="hidden sm:table-cell">Role</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -199,11 +200,11 @@ export default function AdminUsersPage() {
                                     <div className="font-semibold">{u.displayName}</div>
                                     <div className="text-sm text-muted-foreground">{u.email}</div>
                                 </TableCell>
-                                <TableCell>{u.linksCount}</TableCell>
-                                <TableCell>${u.generatedEarnings.toFixed(4)}</TableCell>
-                                <TableCell className="text-green-500 font-semibold">${u.paidEarnings.toFixed(4)}</TableCell>
+                                <TableCell className="hidden sm:table-cell">{u.linksCount}</TableCell>
+                                <TableCell className="hidden md:table-cell">${u.generatedEarnings.toFixed(4)}</TableCell>
+                                <TableCell className="hidden md:table-cell text-green-500 font-semibold">${u.paidEarnings.toFixed(4)}</TableCell>
                                 <TableCell className="font-bold">${(u.generatedEarnings - u.paidEarnings).toFixed(4)}</TableCell>
-                                <TableCell>
+                                <TableCell className="hidden sm:table-cell">
                                     <Badge variant={u.role === 'admin' ? 'default' : 'secondary'} className={u.role === 'admin' ? 'bg-primary' : ''}>
                                         {u.role}
                                     </Badge>

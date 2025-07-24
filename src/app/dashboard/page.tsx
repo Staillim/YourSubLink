@@ -226,11 +226,10 @@ export default function DashboardPage() {
                         <TableHeader>
                         <TableRow>
                             <TableHead className="w-full md:w-2/5">Link</TableHead>
-                            <TableHead className="hidden md:table-cell">Short Link</TableHead>
-                            <TableHead>Status</TableHead>
+                            <TableHead className="hidden md:table-cell">Status</TableHead>
                             <TableHead>Clicks</TableHead>
                             <TableHead>Earnings</TableHead>
-                            <TableHead className="hidden md:table-cell">Date</TableHead>
+                            <TableHead className="hidden lg:table-cell">Date</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                         </TableHeader>
@@ -239,19 +238,13 @@ export default function DashboardPage() {
                             <TableRow key={link.id} className="hover:bg-muted/50">
                             <TableCell className="font-medium">
                                 <div className="flex flex-col gap-1">
-                                    <span className="truncate font-bold">{link.title}</span>
-                                    <a href={link.original} target="_blank" rel="noopener noreferrer" className="hidden md:flex hover:underline text-muted-foreground text-xs items-center gap-1">
-                                        <span className="truncate">{link.original}</span>
-                                        <ExternalLink className="h-3 w-3 shrink-0"/>
-                                    </a>
+                                    <span className="font-bold truncate max-w-xs">{link.title}</span>
+                                    <div className="flex items-center gap-2">
+                                        <a href={link.short} target="_blank" rel="noopener noreferrer" className="font-mono text-sm text-primary hover:underline">{link.short.replace('https://','')}</a>
+                                    </div>
                                 </div>
                             </TableCell>
                             <TableCell className="hidden md:table-cell">
-                                <div className="flex items-center gap-2">
-                                <a href={link.short} target="_blank" rel="noopener noreferrer" className="font-mono text-sm text-primary hover:underline">{link.short.replace('https://','')}</a>
-                                </div>
-                            </TableCell>
-                            <TableCell>
                                 <Badge variant={link.monetizable ? 'default' : 'secondary'} className={link.monetizable ? 'bg-green-600' : ''}>
                                     <Tooltip>
                                         <TooltipTrigger className="flex items-center gap-1">
@@ -266,7 +259,7 @@ export default function DashboardPage() {
                             </TableCell>
                             <TableCell>{link.clicks}</TableCell>
                             <TableCell className="font-semibold text-green-500">${link.generatedEarnings.toFixed(4)}</TableCell>
-                            <TableCell className="hidden md:table-cell text-muted-foreground">{link.date}</TableCell>
+                            <TableCell className="hidden lg:table-cell text-muted-foreground">{link.date}</TableCell>
                             <TableCell className="text-right">
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
