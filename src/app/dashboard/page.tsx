@@ -1,4 +1,3 @@
-
 /**
  * !! ANTES DE EDITAR ESTE ARCHIVO, REVISA LAS DIRECTRICES EN LOS SIGUIENTES DOCUMENTOS: !!
  * - /README.md
@@ -195,7 +194,10 @@ export default function DashboardPage() {
   if (loading || linksLoading) {
     return (
       <div className="flex flex-col gap-4">
-        <Skeleton className="h-8 w-48" />
+        <div className="flex items-center justify-between">
+            <Skeleton className="h-8 w-36" />
+            <Skeleton className="h-10 w-10 sm:w-36" />
+        </div>
         <div className="grid gap-6">
             <Skeleton className="h-72 w-full" />
         </div>
@@ -207,9 +209,9 @@ export default function DashboardPage() {
     <TooltipProvider>
         <div className="flex items-center justify-between">
             <h1 className="text-lg font-semibold md:text-2xl">My Links</h1>
-            <Button onClick={() => router.push('/dashboard/create')}>
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Create New Link
+            <Button onClick={() => router.push('/dashboard/create')} size="default">
+                <PlusCircle className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Create New Link</span>
             </Button>
         </div>
         <div className="grid gap-6">
@@ -376,4 +378,3 @@ export default function DashboardPage() {
     </TooltipProvider>
   );
 }
-
