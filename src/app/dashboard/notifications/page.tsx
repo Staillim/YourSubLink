@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -7,7 +6,7 @@ import { useUser } from '@/hooks/use-user';
 import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Bell, CheckCircle2, XCircle, Clock, Trophy, ShieldAlert, Trash2 } from 'lucide-react';
+import { Bell, CheckCircle2, XCircle, Clock, Trophy, ShieldAlert, Trash2, MessageSquare } from 'lucide-react';
 import type { PayoutRequest } from '@/hooks/use-user';
 import type { Notification } from '@/types';
 import { cn } from '@/lib/utils';
@@ -93,6 +92,32 @@ export const getNotificationDetails = (notification: Notification): FormattedNot
                 date,
                 timestamp,
                 href: '/dashboard',
+                isUnread: notification.isRead === false,
+                type: notification.type,
+            };
+         case 'ticket_answered':
+            return {
+                id: notification.id,
+                icon: MessageSquare,
+                color: 'text-blue-500',
+                title: 'Support Replied',
+                description: notification.message,
+                date,
+                timestamp,
+                href: '/dashboard', // The chat widget will handle it
+                isUnread: notification.isRead === false,
+                type: notification.type,
+            };
+        case 'ticket_completed':
+            return {
+                id: notification.id,
+                icon: CheckCircle2,
+                color: 'text-green-500',
+                title: 'Ticket Closed',
+                description: notification.message,
+                date,
+                timestamp,
+                href: '/dashboard', // The chat widget will handle it
                 isUnread: notification.isRead === false,
                 type: notification.type,
             };

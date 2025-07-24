@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -14,6 +13,8 @@ import {
   addDoc,
   serverTimestamp,
   updateDoc,
+  writeBatch,
+  getDoc,
 } from 'firebase/firestore';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -33,6 +34,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import type { SupportTicket, ChatMessage } from '@/types';
 import { useUser } from '@/hooks/use-user';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { toast } from '@/hooks/use-toast';
 
 
 const getStatusBadgeVariant = (status: SupportTicket['status']) => {
@@ -105,26 +107,67 @@ export default function AdminSupportPage() {
     const messageText = newMessage;
     setNewMessage('');
 
+    const batch = writeBatch(db);
     const ticketRef = doc(db, 'supportTickets', selectedTicket.id);
-    const messagesRef = collection(ticketRef, 'messages');
 
-    await addDoc(messagesRef, {
+    // 1. Add new message to subcollection
+    const messagesRef = doc(collection(ticketRef, 'messages'));
+    batch.set(messagesRef, {
       text: messageText,
       senderId: 'support',
       timestamp: serverTimestamp(),
     });
 
-    await updateDoc(ticketRef, {
+    // 2. Update parent ticket document
+    batch.update(ticketRef, {
         lastMessage: messageText,
         lastMessageTimestamp: serverTimestamp(),
         isReadByUser: false,
         status: 'answered',
     });
+    
+    // 3. Create notification for the user
+    const notificationRef = doc(collection(db, 'notifications'));
+    batch.set(notificationRef, {
+        userId: selectedTicket.userId,
+        type: 'ticket_answered',
+        message: `Support has replied to your ticket: "${selectedTicket.subject}"`,
+        createdAt: serverTimestamp(),
+        isRead: false,
+    });
+    
+    await batch.commit();
   };
 
   const handleChangeStatus = async (ticketId: string, status: SupportTicket['status']) => {
+    const batch = writeBatch(db);
     const ticketRef = doc(db, 'supportTickets', ticketId);
-    await updateDoc(ticketRef, { status });
+    
+    batch.update(ticketRef, { status });
+
+    // Also send a notification if marking as completed
+    if(status === 'completed') {
+        const ticketDoc = await getDoc(ticketRef);
+        if(ticketDoc.exists()){
+            const ticketData = ticketDoc.data() as SupportTicket;
+            const notificationRef = doc(collection(db, 'notifications'));
+            batch.set(notificationRef, {
+                userId: ticketData.userId,
+                type: 'ticket_completed',
+                message: `Your support ticket "${ticketData.subject}" has been closed.`,
+                createdAt: serverTimestamp(),
+                isRead: false,
+            });
+        }
+    }
+    
+    await batch.commit();
+
+    toast({
+        title: 'Ticket Status Updated',
+        description: `The ticket has been marked as ${status}.`
+    })
+
   };
   
   const { activeTickets, completedTickets } = useMemo(() => {
@@ -170,7 +213,7 @@ export default function AdminSupportPage() {
         <div className="flex-1 truncate">
             <div className="flex items-center justify-between">
                 <p className={cn("truncate font-semibold", !ticket.isReadByAdmin && "font-bold")}>{ticket.userName}</p>
-                <Badge className={cn("capitalize", getStatusBadgeVariant(ticket.status))}>{ticket.status}</Badge>
+                <Badge className={cn("capitalize text-white", getStatusBadgeVariant(ticket.status))}>{ticket.status}</Badge>
             </div>
             <p className="truncate text-sm font-medium text-foreground">{ticket.subject}</p>
             <p className="truncate text-sm text-muted-foreground">{ticket.lastMessage}</p>
