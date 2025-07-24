@@ -80,6 +80,10 @@ export default function AdminUsersPage() {
         const linksQuery = query(collection(db, 'links'), where('userId', '==', userDoc.id));
         const linksSnapshot = await getDocs(linksQuery);
 
+        const totalGeneratedEarnings = linksSnapshot.docs.reduce((acc, doc) => {
+            return acc + (doc.data().generatedEarnings || 0);
+        }, 0);
+
         usersData.push({
           uid: userDoc.id,
           displayName: userData.displayName,
@@ -87,7 +91,7 @@ export default function AdminUsersPage() {
           photoURL: userData.photoURL,
           role: userData.role,
           linksCount: linksSnapshot.size,
-          generatedEarnings: userData.generatedEarnings || 0,
+          generatedEarnings: totalGeneratedEarnings,
           paidEarnings: userData.paidEarnings || 0,
           monetizationStatus: 'active', // Placeholder
         });
