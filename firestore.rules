@@ -3,73 +3,67 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Helper Functions
+    function isAdmin() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
     function isOwner(userId) {
       return request.auth != null && request.auth.uid == userId;
     }
-    
-    function isAdmin() {
-      return request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
 
-    // User profiles can be read by anyone, but only the owner or an admin can write.
     match /users/{userId} {
-      allow read, update, delete: if isOwner(userId) || isAdmin();
-      allow create: if request.auth != null;
+      allow read: if request.auth != null;
+      allow create: if request.auth.uid == userId;
+      allow update: if isOwner(userId) || isAdmin();
     }
-
-    // Links can be created by any authenticated user.
-    // They can be updated/deleted only by their owner or an admin.
-    // The clicks and generatedEarnings fields can be updated by anyone (for anonymous visitors).
+    
     match /links/{linkId} {
-      allow read;
-      allow create: if request.auth != null;
-      // Critical Rule: Allows visitors to increment clicks, but owners/admins to edit everything.
-      allow update: if (isOwner(request.resource.data.userId) || isAdmin()) || 
-                    (request.auth == null && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks', 'generatedEarnings']));
+      // 1. Authenticated users can create, update, or delete their own links.
+      // 2. Admins can create, update, or delete any link.
+      // 3. Unauthenticated visitors can ONLY update the 'clicks' and 'generatedEarnings' fields.
+      allow create: if isOwner(request.resource.data.userId) || isAdmin();
+      allow read: if true;
+      allow update: if (isOwner(resource.data.userId) || isAdmin()) ||
+                      (request.auth == null && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks', 'generatedEarnings']));
       allow delete: if isOwner(resource.data.userId) || isAdmin();
     }
     
-    // Click logs can be created by anyone, but not read directly.
     match /clicks/{clickId} {
-        allow read: if isAdmin(); // Only admins can read individual click logs.
-        allow create;
+      // Anyone can create a click log (this happens server-side via ClientComponent).
+      // Reading click logs should be restricted.
+      allow create: if true;
+      allow read, list: if isAdmin(); // Only admins can analyze click patterns
     }
 
-    // Payout requests can be created by the owner, but only read/updated by an admin.
     match /payoutRequests/{requestId} {
         allow create: if isOwner(request.resource.data.userId);
-        allow read, list, update: if isAdmin();
+        allow read, update: if isOwner(resource.data.userId) || isAdmin();
+        // Users can only list their own requests. Admins can list all.
+        allow list: if (isOwner(request.query.resource.data.userId) && request.query.resource.data.userId == request.auth.uid) || isAdmin();
     }
 
-    // Notifications can only be read/written by the assigned user or an admin.
-    match /notifications/{notificationId} {
-      allow read, create, update, list: if isOwner(request.resource.data.userId) || isAdmin();
-    }
-
-    // CPM history can only be managed by admins.
-    match /cpmHistory/{historyId} {
-        allow read, list, create, update: if isAdmin();
+    match /cpmHistory/{cpmId} {
+        allow read, list: if request.auth != null;
+        allow create, update: if isAdmin();
     }
     
-    // Support Tickets Main Collection
+    match /notifications/{notificationId} {
+        allow read, update: if isOwner(resource.data.userId) || isAdmin();
+        allow create: if isAdmin(); // Notifications are created by the system (admin)
+        // Users can only list their own notifications. Admins can list all.
+        allow list: if (isOwner(request.query.resource.data.userId) && request.query.resource.data.userId == request.auth.uid) || isAdmin();
+    }
+    
     match /supportTickets/{ticketId} {
-        // Users can read tickets they own. Admins can read any ticket.
-        allow read: if isOwner(get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId) || isAdmin();
-        // Admins can list all tickets. Users cannot list the whole collection.
-        allow list: if isAdmin();
-        // Users can create tickets for themselves.
-        allow create: if isOwner(request.resource.data.userId);
-        // Admins can update any ticket. Users can only update their own if it's not completed.
-        allow update: if isAdmin() || (isOwner(resource.data.userId) && resource.data.status != 'completed');
-
-        // Messages Sub-collection
-        match /messages/{messageId} {
-            // Admins can read/list any message. Users can only if they own the parent ticket.
-            allow read, list: if isAdmin() || get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId == request.auth.uid;
-            // Users can create messages in their own tickets if not completed. Admins can always create.
-            allow create: if (isOwner(get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId) && get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.status != 'completed') || isAdmin();
-        }
+      allow create: if isOwner(request.resource.data.userId);
+      allow read, update: if isOwner(resource.data.userId) || isAdmin();
+      // Users can only list their own tickets. Admins can list all.
+      allow list: if (isOwner(request.query.resource.data.userId) && request.query.resource.data.userId == request.auth.uid) || isAdmin();
+      
+      match /messages/{messageId} {
+        // An admin can do anything. A user can read/create/list if they own the parent ticket.
+        allow read, list, create: if isAdmin() || get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId == request.auth.uid;
+      }
     }
   }
 }
