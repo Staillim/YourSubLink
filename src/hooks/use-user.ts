@@ -66,6 +66,16 @@ export function useUser() {
     const userDocRef = doc(db, 'users', authUser.uid);
     const payoutsQuery = query(collection(db, "payoutRequests"), where("userId", "==", authUser.uid));
 
+    // Variable para controlar si ambas subscripciones han cargado sus datos iniciales
+    let profileLoaded = false;
+    let payoutsLoaded = false;
+
+    const checkLoadingComplete = () => {
+        if(profileLoaded && payoutsLoaded) {
+            setLoading(false);
+        }
+    }
+
     const unsubProfile = onSnapshot(userDocRef, async (userDoc) => {
       if (!isSubscribed) return;
 
@@ -87,10 +97,10 @@ export function useUser() {
             paidEarnings: userData.paidEarnings || 0,
         });
       } else {
-        // Si el perfil no existe, lo creamos.
-        // La propia función createUserProfile establecerá los datos, lo que activará este listener de nuevo.
         await createUserProfile(authUser);
       }
+      profileLoaded = true;
+      checkLoadingComplete();
     });
 
     const unsubPayouts = onSnapshot(payoutsQuery, (snapshot) => {
@@ -100,9 +110,9 @@ export function useUser() {
           requests.push({ id: doc.id, ...doc.data() } as PayoutRequest);
       });
       setPayouts(requests.sort((a,b) => (b.requestedAt?.seconds ?? 0) - (a.requestedAt?.seconds ?? 0)));
-      // CORRECCIÓN: La carga solo finaliza DESPUÉS de haber obtenido el perfil y los pagos.
-      // Se combina la lógica de ambos listeners para asegurar que todo esté listo.
-      setLoading(false);
+      
+      payoutsLoaded = true;
+      checkLoadingComplete();
     });
 
     return () => {
