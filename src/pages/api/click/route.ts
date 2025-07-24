@@ -1,9 +1,9 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, updateDoc, increment, addDoc, serverTimestamp, writeBatch, runTransaction } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc, increment, addDoc, serverTimestamp, writeBatch, Timestamp } from 'firebase/firestore';
 
-// Main logic to process a link click
+// Main logic to process a link click securely on the server-side
 export async function POST(req: NextRequest) {
     try {
         const { shortId } = await req.json();
@@ -12,6 +12,8 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'shortId is required' }, { status: 400 });
         }
         
+        const ip = req.headers.get('x-forwarded-for') ?? req.ip ?? 'unknown';
+
         const linksRef = collection(db, 'links');
         const q = query(linksRef, where('shortId', '==', shortId));
         const querySnapshot = await getDocs(q);
@@ -22,42 +24,69 @@ export async function POST(req: NextRequest) {
 
         const linkDoc = querySnapshot.docs[0];
         const linkData = linkDoc.data();
-        const linkRef = doc(db, 'links', linkDoc.id);
+        const linkId = linkDoc.id;
 
+        // Anti-spam check: Look for a recent click from the same IP for the same link
+        const oneHourAgo = Timestamp.fromMillis(Date.now() - 60 * 60 * 1000);
+        const clicksRef = collection(db, 'clicks');
+        const recentClickQuery = query(
+            clicksRef,
+            where('linkId', '==', linkId),
+            where('ip', '==', ip),
+            where('timestamp', '>=', oneHourAgo)
+        );
+
+        const recentClickSnapshot = await getDocs(recentClickQuery);
+
+        if (!recentClickSnapshot.empty) {
+            // A recent click from this IP already exists, so we don't count it again.
+            // We still redirect the user, just without incrementing the count.
+            return NextResponse.json({ success: true, message: 'Already counted', originalUrl: linkData.original });
+        }
+
+        // If no recent click is found, proceed to count it.
+        const linkRef = doc(db, 'links', linkId);
         const batch = writeBatch(db);
 
-        // This is a "real" visit, so increment the main counters.
+        // 1. This is a "real" visit, so increment the main counters.
         batch.update(linkRef, { clicks: increment(1) });
         
+        // 2. Add a detailed record of this click.
         const clickLogRef = doc(collection(db, 'clicks'));
-        const ip = req.headers.get('x-forwarded-for') ?? req.ip ?? 'unknown';
-
-        batch.set(clickLogRef, {
-            linkId: linkDoc.id,
-            userId: linkData.userId, // Keep track of who owns the link
+        const clickLogData: any = {
+            linkId: linkId,
+            userId: linkData.userId,
             timestamp: serverTimestamp(),
             userAgent: req.headers.get('user-agent') || '',
             ip: ip,
-        });
+        };
 
-        // If the link is monetizable, calculate and update earnings
+        // 3. If the link is monetizable, calculate and update earnings.
         if (linkData.monetizable) {
             let activeCpm = 3.00; // Default fallback CPM
+            let activeCpmId = null;
             
             // Get the active global CPM rate
             const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
             const cpmSnapshot = await getDocs(cpmQuery);
 
             if (!cpmSnapshot.empty) {
-                activeCpm = cpmSnapshot.docs[0].data().rate;
+                const cpmDoc = cpmSnapshot.docs[0];
+                activeCpmId = cpmDoc.id;
+                activeCpm = cpmDoc.data().rate;
             }
 
             const earningsPerClick = activeCpm / 1000;
 
             // Increment earnings ON THE LINK DOCUMENT.
             batch.update(linkRef, { generatedEarnings: increment(earningsPerClick) });
+
+            // Add earnings info to the click log
+            clickLogData.earnings = earningsPerClick;
+            clickLogData.cpmHistoryId = activeCpmId;
         }
         
+        batch.set(clickLogRef, clickLogData);
         await batch.commit();
 
         return NextResponse.json({ success: true, originalUrl: linkData.original });

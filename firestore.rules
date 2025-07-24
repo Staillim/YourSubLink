@@ -1,77 +1,77 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // --- Helper Functions ---
+    function isUser(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
     function isAdmin() {
-      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+      return request.auth != null && exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-    
-    function isUserAuthenticated() {
-      return request.auth != null;
-    }
-
-    // --- Collection Rules ---
-
-    // USERS: Only admins or the user themselves can access user profiles.
     match /users/{userId} {
-      allow read, update: if isOwner(userId) || isAdmin();
+      allow create: if isUser(userId);
+      allow read, update: if isUser(userId) || isAdmin();
       allow list: if isAdmin();
-      // Users are created via a Firebase function or on first login, not directly.
-      allow create: if isOwner(userId);
     }
 
-    // LINKS: Public read, but restricted write/update for users and admins.
     match /links/{linkId} {
-      // ANYONE can read link data. This is CRITICAL for public access.
+      // Authenticated users can create links for themselves.
+      allow create: if isUser(request.resource.data.userId);
+      
+      // Public read access for anyone to query and view links.
       allow get, list: if true;
-
-      // AUTHENTICATED USERS can create links.
-      allow create: if isUserAuthenticated();
       
-      // USERS can only update/delete their own links.
-      allow update, delete: if isOwner(resource.data.userId);
+      // Users can update/delete their own links.
+      allow update, delete: if isUser(resource.data.userId);
 
-      // ANYONE can update ONLY the 'clicks' and 'generatedEarnings' fields.
-      // This is essential for the public click counting mechanism.
-      allow update: if request.resource.data.keys().hasOnly(['clicks', 'generatedEarnings']);
-      
-      // ADMINS have full read/write access to all links.
-      allow write: if isAdmin(); // `write` covers create, update, delete
-      allow read: if isAdmin();
+      // Admins have full read/write access to all links.
+      allow write: if isAdmin();
     }
     
-    // CLICKS: Anyone can create a click record.
     match /clicks/{clickId} {
+        // The backend API route is the only one creating clicks.
         allow create: if true;
+
+        // User can read their own clicks, admins can read all.
+        allow list: if isUser(resource.data.userId) || isAdmin();
         
-        // Users can read their own clicks' data (for detailed stats), Admins can read all.
-        allow read, list: if isAdmin() || (isUserAuthenticated() && get(/databases/$(database)/documents/links/$(request.resource.data.linkId)).data.userId == request.auth.uid);
+        // Admins can get any specific click document.
+        allow get: if isAdmin();
     }
 
-    // PAYOUT REQUESTS: Only users can create for themselves, only admins can manage.
     match /payoutRequests/{requestId} {
-        allow create: if isOwner(request.resource.data.userId);
-        allow read: if isOwner(resource.data.userId) || isAdmin();
-        allow write: if isAdmin();
+        // A user can create a request for themselves.
+        allow create: if isUser(request.resource.data.userId);
+        
+        // A user can read their own requests. Admins can read all.
+        allow read: if isUser(resource.data.userId) || isAdmin();
+        
+        // Only admins can update (approve/reject) requests.
+        allow update: if isAdmin();
     }
 
-    // CPM HISTORY: Anyone can read it (needed for client-side earnings calculation), only admins can change it.
     match /cpmHistory/{cpmId} {
-        allow read, list: if true;
+        // Anyone can read the CPM history to calculate earnings.
+        allow get, list: if true;
+        
+        // Only admins can create/update CPM history.
         allow write: if isAdmin();
     }
 
-    // NOTIFICATIONS: Users can read their own, admins can read all. System creates them.
     match /notifications/{notificationId} {
-        allow read: if isOwner(resource.data.userId) || isAdmin();
-        allow create: if true; // Allows system-generated notifications
+        // Users can read their own notifications.
+        allow read: if isUser(resource.data.userId);
+        
+        // Admins can list all notifications for the admin bell.
+        allow list: if isAdmin();
+        
+        // Anyone (the backend) can create notifications.
+        allow create: if true; 
     }
   }
 }
