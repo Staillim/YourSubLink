@@ -1,4 +1,5 @@
 
+
 import type { Rule } from '@/components/rule-editor';
 
 export type LinkData = {

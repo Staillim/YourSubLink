@@ -1,3 +1,4 @@
+
 /**
  * !! ANTES DE EDITAR ESTE ARCHIVO, REVISA LAS DIRECTRICES EN LOS SIGUIENTES DOCUMENTOS: !!
  * - /README.md
@@ -69,6 +70,7 @@ export type LinkItem = {
   monetizable: boolean;
   rules: Rule[];
   generatedEarnings: number;
+  monetizationStatus: 'active' | 'suspended';
 };
 
 
@@ -118,6 +120,7 @@ export default function DashboardPage() {
                 monetizable: data.monetizable || false,
                 rules: data.rules || [],
                 generatedEarnings: data.generatedEarnings || 0,
+                monetizationStatus: data.monetizationStatus || 'active',
             });
         }
         setLinks(linksData.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
@@ -249,9 +252,13 @@ export default function DashboardPage() {
                                 <div className="md:hidden mt-2 space-y-2 text-xs">
                                     <div className="flex items-center gap-2">
                                         <span className="font-medium">Status:</span>
-                                        <Badge variant={link.monetizable ? 'default' : 'secondary'} className={`h-5 ${link.monetizable ? 'bg-green-600' : ''}`}>
-                                            {link.monetizable ? 'Monetizable' : 'Not Monetizable'}
-                                        </Badge>
+                                        {link.monetizationStatus === 'suspended' ? (
+                                            <Badge variant="secondary" className="h-5 bg-yellow-500 text-black">Suspended</Badge>
+                                        ) : (
+                                            <Badge variant={link.monetizable ? 'default' : 'secondary'} className={`h-5 ${link.monetizable ? 'bg-green-600' : ''}`}>
+                                                {link.monetizable ? 'Monetizable' : 'Not Monetizable'}
+                                            </Badge>
+                                        )}
                                     </div>
                                     <div className="flex items-center gap-4">
                                         <div className="flex items-center gap-1 text-muted-foreground">
@@ -270,17 +277,21 @@ export default function DashboardPage() {
                                 </div>
                             </TableCell>
                             <TableCell className="hidden md:table-cell">
-                                <Badge variant={link.monetizable ? 'default' : 'secondary'} className={link.monetizable ? 'bg-green-600' : ''}>
-                                    <Tooltip>
-                                        <TooltipTrigger className="flex items-center gap-1">
-                                            {link.monetizable ? 'Monetizable' : 'Not Monetizable'}
-                                            <BadgeHelp className="h-3 w-3"/>
-                                        </TooltipTrigger>
-                                        <TooltipContent>
-                                            <p>{link.monetizable ? 'This link is eligible for monetization.' : `This link needs at least ${3 - link.rules.length} more rule(s) to be monetizable.`}</p>
-                                        </TooltipContent>
-                                    </Tooltip>
-                                </Badge>
+                                {link.monetizationStatus === 'suspended' ? (
+                                    <Badge variant="secondary" className="bg-yellow-500 text-black">Suspended</Badge>
+                                ) : (
+                                    <Badge variant={link.monetizable ? 'default' : 'secondary'} className={link.monetizable ? 'bg-green-600' : ''}>
+                                        <Tooltip>
+                                            <TooltipTrigger className="flex items-center gap-1">
+                                                {link.monetizable ? 'Monetizable' : 'Not Monetizable'}
+                                                <BadgeHelp className="h-3 w-3"/>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p>{link.monetizable ? 'This link is eligible for monetization.' : `This link needs at least ${3 - link.rules.length} more rule(s) to be monetizable.`}</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </Badge>
+                                )}
                             </TableCell>
                             <TableCell className="hidden sm:table-cell">{link.clicks}</TableCell>
                             <TableCell className="font-semibold text-green-500 hidden sm:table-cell">${link.generatedEarnings.toFixed(4)}</TableCell>

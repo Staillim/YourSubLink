@@ -227,19 +227,7 @@ export default function AdminLinksPage() {
                 {links.map((link) => (
                     <TableRow key={link.id}>
                         <TableCell>
-                            <div className="flex items-center gap-2">
-                               {link.monetizationStatus === 'suspended' && (
-                                   <Tooltip>
-                                        <TooltipTrigger>
-                                             <div className="w-2 h-2 rounded-full bg-red-500" />
-                                        </TooltipTrigger>
-                                        <TooltipContent>
-                                            <p>Monetization suspended</p>
-                                        </TooltipContent>
-                                    </Tooltip>
-                               )}
-                                <div className="font-semibold truncate max-w-[200px] sm:max-w-xs">{link.title}</div>
-                            </div>
+                            <div className="font-semibold truncate max-w-[200px] sm:max-w-xs">{link.title}</div>
                             <a href={link.short} target='_blank' rel='noopener noreferrer' className="text-xs text-muted-foreground hover:underline block truncate max-w-[200px] sm:max-w-xs">{link.short}</a>
                             {/* Mobile-only details */}
                             <div className="md:hidden mt-2 space-y-2 text-xs">
@@ -249,9 +237,13 @@ export default function AdminLinksPage() {
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <span className="font-medium">Status:</span>
-                                    <Badge variant={link.monetizable ? 'default' : 'secondary'} className={`h-5 ${link.monetizable ? 'bg-green-600' : ''}`}>
-                                        {link.monetizable ? 'Monetizable' : 'Not Monetizable'}
-                                    </Badge>
+                                    {link.monetizationStatus === 'suspended' ? (
+                                        <Badge variant="secondary" className="bg-yellow-500 text-black">Suspended</Badge>
+                                    ) : (
+                                        <Badge variant={link.monetizable ? 'default' : 'secondary'} className={`h-5 ${link.monetizable ? 'bg-green-600' : ''}`}>
+                                            {link.monetizable ? 'Monetizable' : 'Not Monetizable'}
+                                        </Badge>
+                                    )}
                                 </div>
                                 <div className="flex items-center gap-4 text-xs">
                                     <div className="flex items-center gap-1 text-muted-foreground">
@@ -271,9 +263,13 @@ export default function AdminLinksPage() {
                         </TableCell>
                         <TableCell className="hidden sm:table-cell">{link.clicks}</TableCell>
                         <TableCell className="hidden md:table-cell">
-                            <Badge variant={link.monetizable ? 'default' : 'secondary'} className={link.monetizable ? 'bg-green-600' : ''}>
-                                {link.monetizable ? 'Monetizable' : 'Not Monetizable'}
-                            </Badge>
+                            {link.monetizationStatus === 'suspended' ? (
+                                <Badge variant="secondary" className="bg-yellow-500 text-black">Suspended</Badge>
+                            ) : (
+                                <Badge variant={link.monetizable ? 'default' : 'secondary'} className={link.monetizable ? 'bg-green-600' : ''}>
+                                    {link.monetizable ? 'Monetizable' : 'Not Monetizable'}
+                                </Badge>
+                            )}
                         </TableCell>
                         <TableCell className="hidden lg:table-cell">{link.createdAt ? new Date(link.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}</TableCell>
                         <TableCell className="text-right">
