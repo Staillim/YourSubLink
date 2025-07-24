@@ -33,7 +33,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
-import type { SupportTicket, ChatMessage } from '@/types';
+import type { SupportTicket, ChatMessage, Notification } from '@/types';
 import { useUser } from '@/hooks/use-user';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
@@ -59,11 +59,9 @@ export default function AdminSupportPage() {
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Wait until user role is confirmed before fetching data
-    if (userLoading || role !== 'admin') {
-      if (!userLoading) {
-        setLoadingTickets(false);
-      }
+    if (userLoading) return;
+    if (role !== 'admin') {
+      if (!userLoading) setLoadingTickets(false);
       return;
     }
     
@@ -82,7 +80,7 @@ export default function AdminSupportPage() {
     });
 
     return () => unsubscribe();
-  }, [user, role, userLoading]);
+  }, [role, userLoading]);
 
   useEffect(() => {
     if (selectedTicket) {
@@ -120,41 +118,47 @@ export default function AdminSupportPage() {
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || !selectedTicket || !user) return;
-    if (selectedTicket.status === 'completed') return; // Prevent sending on completed tickets
-
+    
     const messageText = newMessage;
     setNewMessage('');
 
-    const batch = writeBatch(db);
-    const ticketRef = doc(db, 'supportTickets', selectedTicket.id);
-
-    // 1. Add new message to subcollection
-    const messagesRef = doc(collection(ticketRef, 'messages'));
-    batch.set(messagesRef, {
-      text: messageText,
-      senderId: 'support',
-      timestamp: serverTimestamp(),
-    });
-
-    // 2. Update parent ticket document
-    batch.update(ticketRef, {
-        lastMessage: messageText,
-        lastMessageTimestamp: serverTimestamp(),
-        isReadByUser: false,
-        status: 'answered',
-    });
-    
-    // 3. Create notification for the user
-    const notificationRef = doc(collection(db, 'notifications'));
-    batch.set(notificationRef, {
+    try {
+      const batch = writeBatch(db);
+      const ticketRef = doc(db, 'supportTickets', selectedTicket.id);
+      
+      const messagesRef = doc(collection(ticketRef, 'messages'));
+      batch.set(messagesRef, {
+        text: messageText,
+        senderId: 'support',
+        timestamp: serverTimestamp(),
+      });
+      
+      batch.update(ticketRef, {
+          lastMessage: messageText,
+          lastMessageTimestamp: serverTimestamp(),
+          isReadByUser: false,
+          status: 'answered',
+      });
+      
+      const notificationRef = doc(collection(db, 'notifications'));
+      const notif: Omit<Notification, 'id'> = {
         userId: selectedTicket.userId,
         type: 'ticket_answered',
         message: `Support has replied to your ticket: "${selectedTicket.subject}"`,
         createdAt: serverTimestamp(),
         isRead: false,
-    });
-    
-    await batch.commit();
+      }
+      batch.set(notificationRef, notif);
+      
+      await batch.commit();
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: 'Error Sending Message',
+        description: 'The message could not be sent. The ticket may be closed.',
+        variant: 'destructive',
+      })
+    }
   };
 
   const handleChangeStatus = async (ticketId: string, status: SupportTicket['status']) => {
@@ -163,19 +167,19 @@ export default function AdminSupportPage() {
     
     batch.update(ticketRef, { status });
 
-    // Also send a notification if marking as completed
     if(status === 'completed') {
         const ticketDoc = await getDoc(ticketRef);
         if(ticketDoc.exists()){
             const ticketData = ticketDoc.data() as SupportTicket;
             const notificationRef = doc(collection(db, 'notifications'));
-            batch.set(notificationRef, {
+             const notif: Omit<Notification, 'id'> = {
                 userId: ticketData.userId,
                 type: 'ticket_completed',
                 message: `Your support ticket "${ticketData.subject}" has been closed.`,
                 createdAt: serverTimestamp(),
                 isRead: false,
-            });
+            };
+            batch.set(notificationRef, notif);
         }
     }
     
@@ -185,7 +189,6 @@ export default function AdminSupportPage() {
         title: 'Ticket Status Updated',
         description: `The ticket has been marked as ${status}.`
     })
-
   };
   
   const { activeTickets, completedTickets } = useMemo(() => {
@@ -347,7 +350,3 @@ export default function AdminSupportPage() {
     </div>
   );
 }
-
-
-
-    

@@ -1,0 +1,70 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    function isAdmin() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth.uid == userId;
+      allow update: if isOwner(userId) || isAdmin();
+    }
+    
+    match /links/{linkId} {
+      allow create: if isOwner(request.resource.data.userId) || isAdmin();
+      allow read: if true;
+      allow update: if (isOwner(resource.data.userId) || isAdmin()) ||
+                      (request.auth == null && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks', 'generatedEarnings']));
+      allow delete: if isOwner(resource.data.userId) || isAdmin();
+    }
+    
+    match /clicks/{clickId} {
+      allow create: if true;
+      allow read, list: if isAdmin();
+    }
+
+    match /payoutRequests/{requestId} {
+        allow create: if isOwner(request.resource.data.userId);
+        allow read: if isOwner(resource.data.userId) || isAdmin();
+        allow list: if (request.auth != null && request.query.where.userId == request.auth.uid) || isAdmin();
+        allow update: if isAdmin();
+    }
+
+    match /cpmHistory/{cpmId} {
+        allow read, list: if request.auth != null;
+        allow create, update: if isAdmin();
+    }
+    
+    match /notifications/{notificationId} {
+        allow read, list: if isOwner(resource.data.userId) || isAdmin();
+        allow create: if isAdmin() || isOwner(request.resource.data.userId);
+        allow update(diff) {
+          let allowedKeys = ['isRead'];
+          return isOwner(resource.data.userId) && diff.affectedKeys().hasOnly(allowedKeys);
+        }
+    }
+    
+    match /supportTickets/{ticketId} {
+      allow create: if isOwner(request.resource.data.userId);
+      allow read: if isOwner(resource.data.userId) || isAdmin();
+      allow update: if isAdmin() || (isOwner(resource.data.userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isReadByUser']));
+      allow list: if (request.auth != null && request.query.where.userId == request.auth.uid) || isAdmin();
+      
+      match /messages/{messageId} {
+        // Read access is independent of ticket status.
+        allow read, list: if isOwner(get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId) || isAdmin();
+        
+        // Write access is blocked if the ticket is completed.
+        allow create: if (isOwner(request.resource.data.senderId) || isAdmin()) &&
+                        get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.status != 'completed';
+      }
+    }
+  }
+}
