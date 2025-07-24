@@ -46,12 +46,19 @@ export default function AnalyticsPage() {
   const [user, loading] = useAuthState(auth);
   const [links, setLinks] = useState<LinkItem[]>([]);
   const [cpmHistory, setCpmHistory] = useState<CpmHistory[]>([]);
-
   const [linksLoading, setLinksLoading] = useState(true);
+
+  // States to track individual data loads
+  const [linksDataLoaded, setLinksDataLoaded] = useState(false);
+  const [cpmDataLoaded, setCpmDataLoaded] = useState(false);
+
 
   useEffect(() => {
     if (user) {
       setLinksLoading(true);
+      setLinksDataLoaded(false);
+      setCpmDataLoaded(false);
+
       const linksQuery = query(collection(db, "links"), where("userId", "==", user.uid));
       const cpmQuery = query(collection(db, 'cpmHistory'), orderBy('startDate', 'desc'));
 
@@ -75,17 +82,15 @@ export default function AnalyticsPage() {
           });
         });
         setLinks(linksData);
+        setLinksDataLoaded(true);
       });
       
       const unsubCpm = onSnapshot(cpmQuery, (snapshot) => {
           const historyData: CpmHistory[] = snapshot.docs.map(doc => doc.data() as CpmHistory);
           setCpmHistory(historyData);
+          setCpmDataLoaded(true);
       });
-
-      Promise.all([new Promise(res => unsubLinks.then(res)), new Promise(res => unsubCpm.then(res))]).then(() => {
-          setLinksLoading(false);
-      })
-
+      
       return () => {
         unsubLinks();
         unsubCpm();
@@ -94,6 +99,12 @@ export default function AnalyticsPage() {
         setLinksLoading(false);
     }
   }, [user, loading]);
+  
+  useEffect(() => {
+    if (linksDataLoaded && cpmDataLoaded) {
+      setLinksLoading(false);
+    }
+  }, [linksDataLoaded, cpmDataLoaded]);
 
   const totalClicks = links.reduce((acc, link) => acc + link.clicks, 0);
   const totalEarnings = links.reduce((acc, link) => acc + (link.generatedEarnings || 0), 0);
@@ -106,9 +117,8 @@ export default function AnalyticsPage() {
     const currentMonth = getMonth(now);
 
     links.forEach(link => {
-        const linkDate = new Date(link.date);
-        if (getYear(linkDate) === currentYear && link.generatedEarnings > 0) {
-            const month = getMonth(linkDate);
+        if (getYear(new Date(link.date)) === currentYear && link.generatedEarnings > 0) {
+            const month = getMonth(new Date(link.date));
             const monthKey = `${currentYear}-${month}`;
             
             if (monthlyEarnings[monthKey]) {
@@ -119,7 +129,7 @@ export default function AnalyticsPage() {
         }
     });
 
-    const chartData = Array.from({ length: currentMonth + 1 }, (_, i) => {
+    return Array.from({ length: currentMonth + 1 }, (_, i) => {
         const monthName = format(new Date(currentYear, i), 'MMMM');
         const key = `${currentYear}-${i}`;
         return {
@@ -127,8 +137,6 @@ export default function AnalyticsPage() {
             earnings: monthlyEarnings[key] || 0
         };
     });
-    
-    return chartData;
   }
   
   const linksWithEarnings = links.map(link => ({
@@ -273,5 +281,3 @@ export default function AnalyticsPage() {
     </>
   );
 }
-
-    
