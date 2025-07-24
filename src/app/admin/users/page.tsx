@@ -1,3 +1,11 @@
+/**
+ * !! ANTES DE EDITAR ESTE ARCHIVO, REVISA LAS DIRECTRICES EN LOS SIGUIENTES DOCUMENTOS: !!
+ * - /README.md
+ * - /src/AGENTS.md
+ * 
+ * Este componente es una parte crítica del panel de administración para gestionar usuarios.
+ * Un cambio incorrecto aquí puede afectar la capacidad de los administradores para ver o gestionar usuarios.
+ */
 
 'use client';
 

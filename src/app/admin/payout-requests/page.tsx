@@ -1,3 +1,11 @@
+/**
+ * !! ANTES DE EDITAR ESTE ARCHIVO, REVISA LAS DIRECTRICES EN LOS SIGUIENTES DOCUMENTOS: !!
+ * - /README.md
+ * - /src/AGENTS.md
+ * 
+ * Este componente maneja la aprobación y rechazo de pagos, una función financiera crítica.
+ * Un cambio incorrecto aquí puede resultar en pagos incorrectos o pérdida de fondos.
+ */
 
 'use client';
 

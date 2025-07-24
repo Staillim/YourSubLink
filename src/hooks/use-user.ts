@@ -1,3 +1,11 @@
+/**
+ * !! ANTES DE EDITAR ESTE ARCHIVO, REVISA LAS DIRECTRICES EN LOS SIGUIENTES DOCUMENTOS: !!
+ * - /README.md
+ * - /src/AGENTS.md
+ * 
+ * Este hook es fundamental para la gestión del estado del usuario y sus datos de perfil.
+ * Un cambio incorrecto aquí puede afectar la autenticación y la visualización de datos en toda la aplicación.
+ */
 
 'use client';
 

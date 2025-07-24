@@ -1,3 +1,11 @@
+/**
+ * !! ANTES DE EDITAR ESTE ARCHIVO, REVISA LAS DIRECTRICES EN LOS SIGUIENTES DOCUMENTOS: !!
+ * - /README.md
+ * - /src/AGENTS.md
+ * 
+ * Este archivo es el punto central de configuración de Firebase.
+ * Un cambio incorrecto aquí puede desconectar la aplicación de la base de datos y la autenticación.
+ */
 
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
 import { getAuth, User } from "firebase/auth";

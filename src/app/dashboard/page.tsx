@@ -1,3 +1,11 @@
+/**
+ * !! ANTES DE EDITAR ESTE ARCHIVO, REVISA LAS DIRECTRICES EN LOS SIGUIENTES DOCUMENTOS: !!
+ * - /README.md
+ * - /src/AGENTS.md
+ * 
+ * Este es el dashboard principal del usuario, donde gestiona sus enlaces.
+ * Un cambio incorrecto aquí puede afectar la capacidad del usuario para ver o interactuar con sus datos.
+ */
 
 'use client';
 

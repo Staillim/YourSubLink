@@ -1,3 +1,11 @@
+/**
+ * !! ANTES DE EDITAR ESTE ARCHIVO, REVISA LAS DIRECTRICES EN LOS SIGUIENTES DOCUMENTOS: !!
+ * - /README.md
+ * - /src/AGENTS.md
+ * 
+ * Este componente maneja la lógica más crítica de la aplicación: el conteo de visitas y la redirección.
+ * Un cambio incorrecto aquí puede romper la monetización y el registro de clics.
+ */
 
 'use client';
 

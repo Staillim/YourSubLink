@@ -1,3 +1,11 @@
+/**
+ * !! ANTES DE EDITAR ESTE ARCHIVO, REVISA LAS DIRECTRICES EN LOS SIGUIENTES DOCUMENTOS: !!
+ * - /README.md
+ * - /src/AGENTS.md
+ * 
+ * Este componente maneja la autenticación (inicio de sesión, registro, etc.).
+ * Un cambio incorrecto aquí puede impedir que los usuarios accedan a la aplicación.
+ */
 
 'use client';
 
