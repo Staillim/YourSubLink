@@ -71,6 +71,8 @@ Rutas y vistas para usuarios autenticados.
 
 ##### `src/app/link/[shortId]/` - Redirección de Enlaces
 
+Esta es la ruta pública que gestiona las visitas a los enlaces acortados.
+
 -   `page.tsx`: Componente de servidor que captura el `shortId` de la URL.
 -   `ClientComponent.tsx`: Componente de cliente que contiene toda la lógica para procesar una visita a un enlace. Determina si el enlace tiene reglas, muestra la `LinkGate` (puerta de monetización) si es necesario, y registra la visita en la base de datos antes de redirigir al usuario al destino final.
 
@@ -107,10 +109,51 @@ Lógica reutilizable y encapsulada.
 -   `firebase.ts`: Archivo central para la configuración e inicialización de Firebase. Exporta las instancias de `auth`, `db` (Firestore) y `storage`, así como funciones de utilidad como `createUserProfile`.
 -   `utils.ts`: Contiene la función de utilidad `cn` de ShadCN, que fusiona clases de Tailwind CSS de manera inteligente.
 
-#### `src/pages/api/`
-
-Este directorio está vacío intencionadamente, ya que la lógica de conteo de clics se ha movido al frontend (`ClientComponent.tsx`) para simplificar el proceso y evitar problemas de permisos.
-
 #### `src/types.ts`
 
 Define las interfaces de TypeScript personalizadas utilizadas en la aplicación, como `LinkData`.
+
+---
+
+## 3. Funcionalidades Clave y Técnicas
+
+### 3.1. Proceso de Acortamiento de Enlaces
+
+El acortamiento se gestiona desde el cliente para una experiencia de usuario rápida.
+
+1.  **Creación (`src/app/dashboard/create/page.tsx`):**
+    *   El usuario rellena un formulario con el título, la URL de destino y las reglas de monetización.
+    *   **Generación del `shortId`**: Al enviar, se genera un ID corto y aleatorio usando `Math.random().toString(36).substring(2, 8)`. Esta técnica es simple y suficientemente única para este caso de uso.
+    *   **Escritura en Firestore**: Se crea un nuevo documento en la colección `links` con todos los datos, incluido el `userId` del usuario actual y un `createdAt` con `serverTimestamp()`.
+
+### 3.2. Flujo de Visita y Monetización
+
+Esta es la funcionalidad más crítica y se gestiona enteramente en el cliente para mayor simplicidad y rendimiento.
+
+1.  **Acceso (`src/app/link/[shortId]/page.tsx`):** Un visitante accede a una URL como `https://yoursub.link/xyz123`.
+2.  **Lógica del Cliente (`ClientComponent.tsx`):**
+    *   El componente extrae el `shortId` ("xyz123") de la URL.
+    *   Consulta Firestore para encontrar el documento del enlace correspondiente.
+    *   **Decisión**:
+        *   **Si no hay reglas de monetización**: Llama directamente a `handleAllStepsCompleted`.
+        *   **Si hay reglas**: Muestra el componente `LinkGate`, pasándole los datos del enlace y la función `handleAllStepsCompleted` como un callback.
+3.  **Puerta de Monetización (`LinkGate.tsx`):**
+    *   El usuario ve una lista de tareas (visitar, seguir, etc.).
+    *   Al hacer clic en cada tarea, se abre la URL en una nueva pestaña y un temporizador de 10 segundos se activa para esa tarea.
+    *   Una vez que todas las tareas se completan, el botón "Unlock Link" se activa.
+    *   Al hacer clic, se inicia un contador de 5 segundos.
+    *   Al finalizar el contador, el botón "Continue" se activa.
+4.  **Registro y Redirección (en `handleAllStepsCompleted`):**
+    *   **Este es el momento crítico**. Cuando el usuario hace clic en "Continue", se ejecuta el callback.
+    *   Se utiliza un `writeBatch` de Firestore para realizar varias operaciones de forma atómica:
+        1.  Incrementa el campo `clicks` en el documento del enlace.
+        2.  Crea un nuevo documento en la colección `clicks` con detalles de la visita (sin IP por ser desde cliente).
+        3.  Si el enlace es monetizable, consulta la tasa de CPM activa y actualiza el campo `generatedEarnings` en el documento del enlace.
+    *   Una vez que el `batch.commit()` se resuelve, el usuario es redirigido a la URL original usando `window.location.href`.
+
+### 3.3. Gestión de Datos en Tiempo Real
+
+La aplicación utiliza `onSnapshot` de Firestore extensivamente para una experiencia de usuario reactiva. Por ejemplo:
+-   `src/app/dashboard/page.tsx`: La lista de enlaces del usuario se actualiza en tiempo real.
+-   `src/app/admin/users/page.tsx`: La lista de usuarios y sus estadísticas se actualiza automáticamente.
+-   `hooks/use-user.ts`: El perfil del usuario y su balance se mantienen sincronizados con la base de datos.
