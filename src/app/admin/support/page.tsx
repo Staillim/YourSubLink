@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { db } from '@/lib/firebase';
 import {
   collection,
@@ -11,47 +11,66 @@ import {
   setDoc,
   addDoc,
   serverTimestamp,
+  updateDoc,
 } from 'firebase/firestore';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card } from '@/components/ui/card';
-import { Send, MessageSquare, CornerDownLeft } from 'lucide-react';
+import { Send, MessageSquare, MoreVertical } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
-import type { Chat, ChatMessage } from '@/types';
+import type { SupportTicket, ChatMessage } from '@/types';
 import { useUser } from '@/hooks/use-user';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
+
+const getStatusBadgeVariant = (status: SupportTicket['status']) => {
+    switch (status) {
+        case 'pending': return 'bg-yellow-500 hover:bg-yellow-500/80';
+        case 'answered': return 'bg-blue-500 hover:bg-blue-500/80';
+        case 'completed': return 'bg-green-600 hover:bg-green-600/80';
+        default: return 'secondary';
+    }
+}
 
 export default function AdminSupportPage() {
   const { user, role } = useUser();
-  const [chats, setChats] = useState<Chat[]>([]);
-  const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
+  const [tickets, setTickets] = useState<SupportTicket[]>([]);
+  const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
-  const [loadingChats, setLoadingChats] = useState(true);
+  const [loadingTickets, setLoadingTickets] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const q = query(collection(db, 'chats'), orderBy('lastMessageTimestamp', 'desc'));
+    const q = query(collection(db, 'supportTickets'), orderBy('lastMessageTimestamp', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const chatsData = snapshot.docs.map((doc) => ({
+      const ticketsData = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
-      })) as Chat[];
-      setChats(chatsData);
-      setLoadingChats(false);
+      })) as SupportTicket[];
+      setTickets(ticketsData);
+      setLoadingTickets(false);
     });
 
     return () => unsubscribe();
   }, []);
 
   useEffect(() => {
-    if (selectedChat) {
+    if (selectedTicket) {
       setLoadingMessages(true);
       const messagesQuery = query(
-        collection(db, 'chats', selectedChat.id, 'messages'),
+        collection(db, 'supportTickets', selectedTicket.id, 'messages'),
         orderBy('timestamp', 'asc')
       );
       const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
@@ -64,28 +83,28 @@ export default function AdminSupportPage() {
       });
       return () => unsubscribe();
     }
-  }, [selectedChat]);
+  }, [selectedTicket]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSelectChat = async (chat: Chat) => {
-    setSelectedChat(chat);
-    if (!chat.isReadByAdmin) {
-      await setDoc(doc(db, 'chats', chat.id), { isReadByAdmin: true }, { merge: true });
+  const handleSelectTicket = async (ticket: SupportTicket) => {
+    setSelectedTicket(ticket);
+    if (!ticket.isReadByAdmin) {
+      await updateDoc(doc(db, 'supportTickets', ticket.id), { isReadByAdmin: true });
     }
   };
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim() || !selectedChat || !user) return;
+    if (!newMessage.trim() || !selectedTicket || !user) return;
 
     const messageText = newMessage;
     setNewMessage('');
 
-    const chatRef = doc(db, 'chats', selectedChat.id);
-    const messagesRef = collection(chatRef, 'messages');
+    const ticketRef = doc(db, 'supportTickets', selectedTicket.id);
+    const messagesRef = collection(ticketRef, 'messages');
 
     await addDoc(messagesRef, {
       text: messageText,
@@ -93,74 +112,121 @@ export default function AdminSupportPage() {
       timestamp: serverTimestamp(),
     });
 
-    await setDoc(chatRef, {
+    await updateDoc(ticketRef, {
         lastMessage: messageText,
         lastMessageTimestamp: serverTimestamp(),
-        isReadByUser: false, // Mark as unread for the user
-    }, { merge: true });
+        isReadByUser: false,
+        status: 'answered',
+    });
   };
+
+  const handleChangeStatus = async (ticketId: string, status: SupportTicket['status']) => {
+    const ticketRef = doc(db, 'supportTickets', ticketId);
+    await updateDoc(ticketRef, { status });
+  };
+  
+  const { activeTickets, completedTickets } = useMemo(() => {
+    const active = tickets.filter(t => t.status !== 'completed');
+    const completed = tickets.filter(t => t.status === 'completed');
+    return { activeTickets: active, completedTickets: completed };
+  }, [tickets]);
+
+
+  const renderTicketList = (list: SupportTicket[]) => {
+    if (loadingTickets) {
+      return (
+        <div className="p-2 space-y-2">
+            {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}
+        </div>
+      );
+    }
+    if (list.length === 0) {
+       return (
+        <div className="text-center p-8 text-muted-foreground">
+            <MessageSquare className="mx-auto h-12 w-12 mb-4" />
+            <p>No tickets in this category.</p>
+        </div>
+       );
+    }
+    return list.map((ticket) => (
+        <button
+        key={ticket.id}
+        onClick={() => handleSelectTicket(ticket)}
+        className={cn(
+            'flex w-full items-center gap-3 p-3 text-left hover:bg-muted/50 transition-colors border-b',
+            selectedTicket?.id === ticket.id && 'bg-muted'
+        )}
+        >
+        <div className="relative">
+            <Avatar>
+                <AvatarFallback>{ticket.userName?.[0]?.toUpperCase() || 'U'}</AvatarFallback>
+            </Avatar>
+            {!ticket.isReadByAdmin && (
+                <span className="absolute top-0 right-0 block h-2.5 w-2.5 rounded-full bg-blue-500 ring-2 ring-background" />
+            )}
+        </div>
+        <div className="flex-1 truncate">
+            <div className="flex items-center justify-between">
+                <p className={cn("truncate font-semibold", !ticket.isReadByAdmin && "font-bold")}>{ticket.userName}</p>
+                <Badge className={cn("capitalize", getStatusBadgeVariant(ticket.status))}>{ticket.status}</Badge>
+            </div>
+            <p className="truncate text-sm font-medium text-foreground">{ticket.subject}</p>
+            <p className="truncate text-sm text-muted-foreground">{ticket.lastMessage}</p>
+        </div>
+        </button>
+    ));
+  }
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] lg:grid-cols-[350px_1fr] h-[calc(100vh-8rem)] gap-4">
-      {/* Chat List */}
       <Card className="flex flex-col">
         <div className="p-4 border-b">
-          <h2 className="text-lg font-semibold">Conversations</h2>
+          <h2 className="text-lg font-semibold">Support Tickets</h2>
         </div>
-        <ScrollArea className="flex-1">
-          {loadingChats ? (
-            <div className="p-4 space-y-4">
-              {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}
-            </div>
-          ) : (
-            chats.map((chat) => (
-              <button
-                key={chat.id}
-                onClick={() => handleSelectChat(chat)}
-                className={cn(
-                  'flex w-full items-center gap-3 p-4 text-left hover:bg-muted/50 transition-colors border-b',
-                  selectedChat?.id === chat.id && 'bg-muted',
-                  !chat.isReadByAdmin && 'font-bold'
-                )}
-              >
-                <div className="relative">
-                    <Avatar>
-                        <AvatarFallback>{chat.userName?.[0]?.toUpperCase() || 'U'}</AvatarFallback>
-                    </Avatar>
-                    {!chat.isReadByAdmin && (
-                        <span className="absolute top-0 right-0 block h-2.5 w-2.5 rounded-full bg-blue-500 ring-2 ring-background" />
-                    )}
-                </div>
-                <div className="flex-1 truncate">
-                  <p className="truncate">{chat.userName}</p>
-                  <p className={cn('truncate text-sm', !chat.isReadByAdmin ? 'text-foreground' : 'text-muted-foreground')}>
-                    {chat.lastMessage}
-                  </p>
-                </div>
-              </button>
-            ))
-          )}
-           {!loadingChats && chats.length === 0 && (
-                <div className="text-center p-8 text-muted-foreground">
-                    <MessageSquare className="mx-auto h-12 w-12 mb-4" />
-                    <p>No active conversations.</p>
-                </div>
-            )}
-        </ScrollArea>
+        <Tabs defaultValue="active" className="flex-1 flex flex-col">
+            <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="active">Active</TabsTrigger>
+                <TabsTrigger value="completed">Completed</TabsTrigger>
+            </TabsList>
+            <TabsContent value="active" className="flex-1">
+                <ScrollArea className="h-[calc(100vh-18rem)]">
+                    {renderTicketList(activeTickets)}
+                </ScrollArea>
+            </TabsContent>
+            <TabsContent value="completed" className="flex-1">
+                <ScrollArea className="h-[calc(100vh-18rem)]">
+                    {renderTicketList(completedTickets)}
+                </ScrollArea>
+            </TabsContent>
+        </Tabs>
       </Card>
 
       {/* Message View */}
       <Card className="flex flex-col h-full">
-        {selectedChat ? (
+        {selectedTicket ? (
           <>
-            <div className="p-4 border-b flex items-center gap-3">
-              <Avatar>
-                <AvatarFallback>{selectedChat.userName?.[0]?.toUpperCase() || 'U'}</AvatarFallback>
-              </Avatar>
-              <div>
-                <h3 className="font-semibold">{selectedChat.userName}</h3>
-                <p className="text-sm text-muted-foreground">{selectedChat.userEmail}</p>
+            <div className="p-3 border-b flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <Avatar>
+                    <AvatarFallback>{selectedTicket.userName?.[0]?.toUpperCase() || 'U'}</AvatarFallback>
+                </Avatar>
+                <div>
+                    <h3 className="font-semibold">{selectedTicket.userName}</h3>
+                    <p className="text-sm text-muted-foreground">{selectedTicket.userEmail}</p>
+                </div>
               </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => handleChangeStatus(selectedTicket.id, 'pending')}>Mark as Pending</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleChangeStatus(selectedTicket.id, 'answered')}>Mark as Answered</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleChangeStatus(selectedTicket.id, 'completed')}>Mark as Completed</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
             <ScrollArea className="flex-1 p-4">
                 {loadingMessages ? (
@@ -201,8 +267,9 @@ export default function AdminSupportPage() {
                   onChange={(e) => setNewMessage(e.target.value)}
                   placeholder="Type your message..."
                   autoComplete="off"
+                  disabled={selectedTicket.status === 'completed'}
                 />
-                <Button type="submit" size="icon" disabled={!newMessage.trim()}>
+                <Button type="submit" size="icon" disabled={!newMessage.trim() || selectedTicket.status === 'completed'}>
                   <Send className="h-4 w-4" />
                 </Button>
               </form>
@@ -211,7 +278,7 @@ export default function AdminSupportPage() {
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
             <MessageSquare className="h-16 w-16 mb-4" />
-            <p>Select a conversation to start chatting</p>
+            <p>Select a ticket to view the conversation</p>
           </div>
         )}
       </Card>

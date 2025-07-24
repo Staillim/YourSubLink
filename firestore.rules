@@ -7,7 +7,6 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      // Check if the user is authenticated and if their user document shows they are an admin.
       return request.auth != null && 
              exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
@@ -20,10 +19,10 @@ service cloud.firestore {
     match /links/{linkId} {
       allow read;
       allow create, delete: if request.auth != null && (isOwner(request.resource.data.userId) || isAdmin());
-      // Allow owners/admins to update fully.
-      // Allow unauthenticated users to ONLY update the 'clicks' and 'generatedEarnings' fields.
+      // Allow owners/admins to update.
+      // Allow non-authenticated users to update ONLY the 'clicks' and 'generatedEarnings' fields.
       allow update: if (request.auth != null && (isOwner(request.resource.data.userId) || isAdmin())) ||
-                       (request.auth == null && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks', 'generatedEarnings']));
+                     (request.auth == null && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks', 'generatedEarnings']));
     }
 
     match /clicks/{clickId} {
@@ -36,39 +35,26 @@ service cloud.firestore {
     }
 
     match /payoutRequests/{payoutId} {
-      // Users can create their own requests
       allow create: if request.auth != null && isOwner(request.resource.data.userId);
-      // Users can read their own requests, Admins can read any
       allow read: if request.auth != null && (isOwner(resource.data.userId) || isAdmin());
-      // Only Admins can update (approve/reject)
       allow update: if isAdmin();
     }
     
     match /notifications/{notificationId} {
-        allow read: if request.auth != null && (isOwner(resource.data.userId) || isAdmin());
-        allow update: if request.auth != null && (isOwner(resource.data.userId) || isAdmin());
+        allow read, update: if request.auth != null && (isOwner(resource.data.userId) || isAdmin());
         allow create: if isAdmin();
     }
 
-    // Chat-related rules
-    match /chats/{userId} {
-      // An admin can list all chats to display them in the support panel.
+    match /supportTickets/{ticketId} {
       allow list: if isAdmin();
-      
-      // A user can read their own chat. An admin can read any chat.
-      allow read: if isOwner(userId) || isAdmin();
+      allow read: if isOwner(resource.data.userId) || isAdmin();
+      allow create: if isOwner(request.resource.data.userId);
+      allow update: if isOwner(resource.data.userId) || isAdmin();
 
-      // A user can create/update their own chat document (e.g., update lastMessage).
-      // An admin can update any chat document (e.g., to mark as read).
-      allow write: if isOwner(userId) || isAdmin();
-      
-      // Messages subcollection
       match /messages/{messageId} {
-        // A user can read messages in their own chat. An admin can read any.
-        allow read: if isOwner(userId) || isAdmin();
-
-        // A user can write (create) messages in their own chat. An admin can write to any.
-        allow write: if isOwner(userId) || isAdmin();
+        allow read: if isOwner(get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId) || isAdmin();
+        // Allow write only if ticket is not completed, OR if the writer is an admin.
+        allow create: if (get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.status != 'completed' && isOwner(get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId)) || isAdmin();
       }
     }
   }

@@ -25,15 +25,17 @@ export type Notification = {
 };
 
 
-export type Chat = {
-  id: string; // Same as userId
+export type SupportTicket = {
+  id: string; // The document ID from Firestore
   userId: string;
   userName: string;
   userEmail: string;
+  subject: string;
   lastMessage: string;
-  lastMessageTimestamp: any;
+  lastMessageTimestamp: any; // Firestore Timestamp
   isReadByAdmin: boolean;
   isReadByUser: boolean;
+  status: 'pending' | 'answered' | 'completed';
 }
 
 export type ChatMessage = {
