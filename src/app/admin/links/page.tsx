@@ -154,7 +154,7 @@ export default function AdminLinksPage() {
                 {links.map((link) => (
                     <TableRow key={link.id}>
                         <TableCell>
-                            <div className="font-semibold truncate max-w-xs">{link.title}</div>
+                            <div className="font-semibold truncate max-w-[200px] sm:max-w-xs">{link.title}</div>
                             <div className="text-xs text-muted-foreground md:hidden">{link.userName}</div>
                             <a href={link.short} target='_blank' rel='noopener noreferrer' className="text-xs text-muted-foreground hover:underline">{link.short}</a>
                         </TableCell>
