@@ -7,11 +7,13 @@ import { useUser } from '@/hooks/use-user';
 import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Bell, CheckCircle2, XCircle, Clock, Trophy } from 'lucide-react';
+import { Bell, CheckCircle2, XCircle, Clock, Trophy, ShieldAlert, Trash2 } from 'lucide-react';
 import type { PayoutRequest } from '@/hooks/use-user';
+import type { Notification } from '@/types';
+import { cn } from '@/lib/utils';
+import { Skeleton } from '@/components/ui/skeleton';
 
-type GenericNotification = {
+type FormattedNotification = {
     id: string;
     icon: React.ElementType;
     color: string;
@@ -19,82 +21,151 @@ type GenericNotification = {
     description: string;
     date: string;
     timestamp: number;
+    href: string;
+    isUnread?: boolean;
 };
 
-const getPayoutNotificationDetails = (payout: PayoutRequest) => {
-    const date = payout.processedAt ? new Date(payout.processedAt.seconds * 1000).toLocaleString() : (payout.requestedAt ? new Date(payout.requestedAt.seconds * 1000).toLocaleString() : 'N/A');
-    const amount = payout.amount.toFixed(2);
-    const timestamp = payout.processedAt?.seconds || payout.requestedAt?.seconds || 0;
+const getNotificationDetails = (notification: Notification): FormattedNotification => {
+    const date = notification.createdAt ? new Date(notification.createdAt.seconds * 1000).toLocaleString() : 'N/A';
+    const timestamp = notification.createdAt?.seconds || 0;
 
-    switch (payout.status) {
-        case 'completed':
+    switch (notification.type) {
+        case 'payout_completed':
             return {
+                id: notification.id,
                 icon: CheckCircle2,
                 color: 'text-green-500',
                 title: 'Payout Approved',
-                description: `Your request for $${amount} has been approved.`,
+                description: notification.message,
                 date,
                 timestamp,
+                href: '/dashboard/payouts',
+                isUnread: notification.isRead === false
             };
-        case 'rejected':
+        case 'payout_rejected':
             return {
+                id: notification.id,
                 icon: XCircle,
                 color: 'text-red-500',
                 title: 'Payout Rejected',
-                description: `Your request for $${amount} has been rejected.`,
+                description: notification.message,
                 date,
                 timestamp,
+                href: '/dashboard/payouts',
+                isUnread: notification.isRead === false
             };
-        case 'pending':
-        default:
-            return {
+        case 'payout_requested':
+             return {
+                id: notification.id,
                 icon: Clock,
                 color: 'text-yellow-500',
                 title: 'Payout Pending',
-                description: `Your request for $${amount} is currently under review.`,
+                description: notification.message,
                 date,
                 timestamp,
+                href: '/dashboard/payouts',
+                isUnread: notification.isRead === false
+            };
+        case 'link_suspension':
+            return {
+                id: notification.id,
+                icon: ShieldAlert,
+                color: 'text-yellow-500',
+                title: 'Link Monetization Suspended',
+                description: notification.message,
+                date,
+                timestamp,
+                href: `/dashboard/links/${notification.linkId}`,
+                isUnread: notification.isRead === false
+            };
+        case 'link_deleted':
+            return {
+                id: notification.id,
+                icon: Trash2,
+                color: 'text-destructive',
+                title: 'Link Deleted',
+                description: notification.message,
+                date,
+                timestamp,
+                href: '/dashboard',
+                isUnread: notification.isRead === false
+            };
+        case 'milestone':
+        default:
+            return {
+                id: notification.id,
+                icon: Trophy,
+                color: 'text-blue-500',
+                title: 'Milestone Reached!',
+                description: notification.message,
+                date,
+                timestamp,
+                href: notification.linkId ? `/dashboard/links/${notification.linkId}` : '/dashboard/analytics',
+                isUnread: notification.isRead === false
             };
     }
+};
+
+const processPayouts = (payouts: PayoutRequest[]): Notification[] => {
+    return payouts.map(p => {
+        const amount = p.amount.toFixed(2);
+        let type: Notification['type'] = 'payout_requested';
+        if (p.status === 'completed') type = 'payout_completed';
+        if (p.status === 'rejected') type = 'payout_rejected';
+        
+        return {
+            id: p.id,
+            userId: p.userId,
+            type: type,
+            message: `Your request for $${amount} was ${p.status}.`,
+            createdAt: p.processedAt || p.requestedAt,
+            isRead: p.status !== 'pending' // Consider pending as unread for sorting
+        }
+    })
 }
 
 export default function NotificationsPage() {
     const { user } = useUser();
-    const [notifications, setNotifications] = useState<GenericNotification[]>([]);
+    const [notifications, setNotifications] = useState<FormattedNotification[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         if (user) {
             setLoading(true);
-            const payoutQuery = query(collection(db, "payoutRequests"), where("userId", "==", user.uid));
-            const milestoneQuery = query(collection(db, "notifications"), where("userId", "==", user.uid), where("type", "==", "milestone"));
+            
+            const generalNotificationsQuery = query(
+                collection(db, "notifications"), 
+                where("userId", "==", user.uid),
+                orderBy('createdAt', 'desc')
+            );
+            
+            const payoutRequestsQuery = query(
+                collection(db, 'payoutRequests'), 
+                where('userId', '==', user.uid),
+                orderBy('requestedAt', 'desc')
+            );
 
-            const unsubPayouts = onSnapshot(payoutQuery, (payoutSnapshot) => {
-                const payoutData = payoutSnapshot.docs.map(doc => getPayoutNotificationDetails({ id: doc.id, ...doc.data() } as PayoutRequest));
+            const unsubGeneral = onSnapshot(generalNotificationsQuery, (generalSnapshot) => {
+                const generalData = generalSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
 
-                const unsubMilestones = onSnapshot(milestoneQuery, (milestoneSnapshot) => {
-                    const milestoneData = milestoneSnapshot.docs.map(doc => {
-                        const data = doc.data();
-                        return {
-                            id: doc.id,
-                            icon: Trophy,
-                            color: 'text-blue-500',
-                            title: 'Milestone Reached!',
-                            description: data.message,
-                            date: new Date(data.createdAt.seconds * 1000).toLocaleString(),
-                            timestamp: data.createdAt.seconds,
-                        }
-                    });
+                const unsubPayouts = onSnapshot(payoutRequestsQuery, (payoutSnapshot) => {
+                    const payoutData = payoutSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data()} as PayoutRequest));
+                    const payoutNotifications = processPayouts(payoutData);
+
+                    const allNotifications = [...generalData, ...payoutNotifications];
+                    allNotifications.sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
                     
-                    const allNotifications = [...payoutData, ...milestoneData];
-                    allNotifications.sort((a, b) => b.timestamp - a.timestamp);
-                    setNotifications(allNotifications);
+                    const formatted = allNotifications.map(getNotificationDetails);
+                    setNotifications(formatted);
                     setLoading(false);
                 });
-                 return () => unsubMilestones();
+
+                return () => unsubPayouts();
             });
 
-            return () => unsubPayouts();
+            return () => unsubGeneral();
+        } else if (!user) {
+            setLoading(false);
         }
     }, [user]);
 
@@ -112,19 +183,29 @@ export default function NotificationsPage() {
             <CardContent>
                 <div className="space-y-4">
                     {loading ? (
-                        <p>Loading notifications...</p>
+                         [...Array(3)].map((_, i) => <Skeleton key={i} className="h-20 w-full rounded-lg" />)
                     ) : notifications.length > 0 ? (
                         notifications.map((notification) => (
-                            <div key={notification.id} className="flex items-start gap-4 p-4 border rounded-lg">
-                               <notification.icon className={`h-6 w-6 shrink-0 ${notification.color}`} />
-                               <div className="flex-1 space-y-1">
-                                    <p className="font-semibold">{notification.title}</p>
-                                    <p className="text-sm text-muted-foreground">{notification.description}</p>
-                               </div>
-                               <time className="text-xs text-muted-foreground whitespace-nowrap">
-                                    {notification.date}
-                               </time>
-                            </div>
+                             <Link key={notification.id} href={notification.href} className="block hover:bg-muted/50 rounded-lg transition-colors">
+                                <div className="flex items-start gap-4 p-4 border rounded-lg">
+                                    <div className="relative">
+                                       <notification.icon className={cn('h-6 w-6 shrink-0', notification.color)} />
+                                       {notification.isUnread && notification.type === 'link_suspension' && (
+                                            <span className="absolute top-0 right-0 block h-2 w-2">
+                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
+                                                <span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-500"></span>
+                                            </span>
+                                       )}
+                                    </div>
+                                   <div className="flex-1 space-y-1">
+                                        <p className="font-semibold">{notification.title}</p>
+                                        <p className="text-sm text-muted-foreground">{notification.description}</p>
+                                   </div>
+                                   <time className="text-xs text-muted-foreground whitespace-nowrap pt-1">
+                                        {notification.date}
+                                   </time>
+                                </div>
+                            </Link>
                         ))
                     ) : (
                         <div className="text-center text-muted-foreground py-12">

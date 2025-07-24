@@ -94,7 +94,7 @@ export default function AdminLinksPage() {
         // First, create a notification for the user
         await addDoc(collection(db, 'notifications'), {
             userId: userId,
-            type: 'milestone', // Using 'milestone' type for simplicity, could be a new 'admin_action' type
+            type: 'link_deleted',
             message: `Your link "${title}" was deleted by an administrator.`,
             createdAt: serverTimestamp(),
             isRead: false,
@@ -117,30 +117,26 @@ export default function AdminLinksPage() {
     }
   };
   
-  const handleToggleMonetization = async (link: Link) => {
+ const handleToggleMonetization = async (link: Link) => {
     const newStatus = link.monetizationStatus === 'active' ? 'suspended' : 'active';
-    
+    const linkRef = doc(db, 'links', link.id);
+
     try {
-        const linkRef = doc(db, 'links', link.id);
         await updateDoc(linkRef, { monetizationStatus: newStatus });
 
+        // Create a notification only when suspending
         if (newStatus === 'suspended') {
             await addDoc(collection(db, 'notifications'), {
                 userId: link.userId,
-                type: 'milestone',
-                message: `Monetization for your link "${link.title}" has been suspended due to suspicious activity. Please contact support if you believe this is an error.`,
+                type: 'link_suspension',
+                message: `Monetization for your link "${link.title}" has been suspended.`,
+                linkId: link.id,
                 createdAt: serverTimestamp(),
                 isRead: false,
             });
         }
-
-        // Update local state to reflect the change immediately
-        setLinks(prevLinks => 
-            prevLinks.map(l => 
-                l.id === link.id ? { ...l, monetizationStatus: newStatus } : l
-            )
-        );
-
+        
+        // This toast is shown to the admin after the action is successful
         toast({
             title: 'Monetization Updated',
             description: `Monetization for "${link.title}" has been set to ${newStatus}.`,
@@ -154,7 +150,8 @@ export default function AdminLinksPage() {
         });
         console.error("Error toggling monetization: ", error);
     }
-  };
+};
+
 
   const handleAnalyzeLink = (link: Link) => {
     startTransition(async () => {

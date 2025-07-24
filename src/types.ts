@@ -15,6 +15,18 @@ export type LinkData = {
   monetizationStatus: 'active' | 'suspended';
 };
 
+export type Notification = {
+    id: string;
+    userId: string;
+    type: 'payout_requested' | 'payout_completed' | 'payout_rejected' | 'link_suspension' | 'link_deleted' | 'milestone';
+    message: string;
+    createdAt: any; // Firestore Timestamp
+    isRead: boolean;
+    linkId?: string; // Optional, for link-related notifications
+    href?: string; // Optional, for dynamic linking
+};
+
+
 export type Chat = {
   id: string; // Same as userId
   userId: string;
