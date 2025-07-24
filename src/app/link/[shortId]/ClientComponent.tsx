@@ -1,3 +1,4 @@
+
 /**
  * !! ANTES DE EDITAR ESTE ARCHIVO, REVISA LAS DIRECTRICES EN LOS SIGUIENTES DOCUMENTOS: !!
  * - /README.md
@@ -68,36 +69,18 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
     setStatus('redirecting');
 
     try {
-        const linkRef = doc(db, 'links', dataToUse.id);
-        const batch = writeBatch(db);
-
-        // 1. Increment the main click counter on the link
-        batch.update(linkRef, { clicks: increment(1) });
-        
-        // 2. Add a detailed record of this click
-        const clickLogRef = doc(collection(db, 'clicks'));
-        batch.set(clickLogRef, {
-            linkId: dataToUse.id,
-            userId: dataToUse.userId,
-            timestamp: serverTimestamp(),
-            userAgent: navigator.userAgent || '',
-            ip: 'client-side', // IP is not available on the client
+        const response = await fetch('/api/click', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ shortId: dataToUse.shortId }),
         });
 
-        // 3. If monetizable, calculate and update earnings
-        if (dataToUse.monetizable) {
-            let activeCpm = 3.00; // Default fallback CPM
-            const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
-            const cpmSnapshot = await getDocs(cpmQuery);
-            if (!cpmSnapshot.empty) {
-                activeCpm = cpmSnapshot.docs[0].data().rate;
-            }
-            const earningsPerClick = activeCpm / 1000;
-            batch.update(linkRef, { generatedEarnings: increment(earningsPerClick) });
+        if (!response.ok) {
+            const errorData = await response.json();
+            console.error('Failed to record click:', errorData.error);
         }
-        
-        await batch.commit();
-
     } catch(error) {
         console.error("Failed to count click:", error);
         // We still redirect the user even if counting fails
@@ -114,7 +97,7 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
 
   if (status === 'loading' || status === 'redirecting') {
     return (
-      <div className="flex h-screen w-full flex-col items-center justify-center bg-background text-foreground">
+      <div className="flex h-screen w-full flex-col items-center justify-center bg-background text-foreground p-4">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
         <p className="mt-4 text-lg text-muted-foreground">Redirecting...</p>
       </div>
@@ -128,7 +111,7 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
   
   // Fallback loading state
   return (
-    <div className="flex h-screen w-full flex-col items-center justify-center bg-background text-foreground">
+    <div className="flex h-screen w-full flex-col items-center justify-center bg-background text-foreground p-4">
       <Loader2 className="h-12 w-12 animate-spin text-primary" />
       <p className="mt-4 text-lg text-muted-foreground">Please wait...</p>
     </div>

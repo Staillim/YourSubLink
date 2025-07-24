@@ -1,3 +1,4 @@
+
 /**
  * !! ANTES DE EDITAR ESTE ARCHIVO, REVISA LAS DIRECTRICES EN LOS SIGUIENTES DOCUMENTOS: !!
  * - /README.md
@@ -169,8 +170,8 @@ export default function AuthenticationPage() {
   }
 
   return (
-    <main className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4">
-      <div className="absolute top-8 left-8">
+    <main className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4 sm:p-6">
+      <div className="absolute top-4 left-4 sm:top-8 sm:left-8">
         <Logo />
       </div>
       <Tabs
@@ -182,15 +183,15 @@ export default function AuthenticationPage() {
         }}
       >
         <Card className="shadow-2xl">
-          <CardHeader className="text-center">
-            <CardTitle className="text-2xl font-bold tracking-tight text-primary">
+          <CardHeader className="text-center px-4 sm:px-6">
+            <CardTitle className="text-xl sm:text-2xl font-bold tracking-tight text-primary">
               {showResetForm ? 'Reset Password' : 'Welcome to YourSubLink'}
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-sm sm:text-base">
               {showResetForm ? 'Enter your email to receive a reset link.' : 'Enter your credentials to access your account'}
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-4 sm:px-6">
             {!showResetForm && (
                 <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="signin">Sign In</TabsTrigger>
@@ -340,7 +341,7 @@ export default function AuthenticationPage() {
 
             {!showResetForm && (
                 <>
-                    <div className="relative my-6">
+                    <div className="relative my-4">
                         <div className="absolute inset-0 flex items-center">
                             <span className="w-full border-t" />
                         </div>
@@ -366,8 +367,8 @@ export default function AuthenticationPage() {
             )}
           </CardContent>
           {!showResetForm && (
-          <CardFooter className="flex justify-center text-sm">
-            <p className="text-muted-foreground">
+          <CardFooter className="flex justify-center text-sm px-4 sm:px-6 pb-4">
+            <p className="text-muted-foreground text-center">
               By continuing, you agree to our{' '}
               <a href="#" className="font-medium text-primary hover:underline">
                 Terms of Service

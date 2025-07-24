@@ -26,7 +26,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
-import { MoreVertical, UserX, UserCheck, Eye, Loader2, DollarSign } from 'lucide-react';
+import { MoreVertical, UserX, UserCheck, Eye, Loader2, DollarSign, Link2, Wallet } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
     DropdownMenu,
@@ -185,10 +185,8 @@ export default function AdminUsersPage() {
                     <TableHeader>
                         <TableRow>
                             <TableHead>User</TableHead>
-                            <TableHead className="hidden sm:table-cell">Links</TableHead>
-                            <TableHead className="hidden md:table-cell">Generated</TableHead>
-                            <TableHead className="hidden md:table-cell">Paid</TableHead>
-                            <TableHead>Balance</TableHead>
+                            <TableHead className="hidden md:table-cell">Stats</TableHead>
+                            <TableHead className="hidden sm:table-cell">Balance</TableHead>
                             <TableHead className="hidden sm:table-cell">Role</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
@@ -199,11 +197,37 @@ export default function AdminUsersPage() {
                                 <TableCell className="font-medium">
                                     <div className="font-semibold">{u.displayName}</div>
                                     <div className="text-sm text-muted-foreground">{u.email}</div>
+                                    {/* Mobile view */}
+                                    <div className="sm:hidden mt-2 space-y-2 text-xs">
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-medium">Balance:</span>
+                                            <span className="font-bold">${(u.generatedEarnings - u.paidEarnings).toFixed(4)}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-medium">Role:</span>
+                                            <Badge variant={u.role === 'admin' ? 'default' : 'secondary'} className={`h-5 ${u.role === 'admin' ? 'bg-primary' : ''}`}>
+                                                {u.role}
+                                            </Badge>
+                                        </div>
+                                    </div>
                                 </TableCell>
-                                <TableCell className="hidden sm:table-cell">{u.linksCount}</TableCell>
-                                <TableCell className="hidden md:table-cell">${u.generatedEarnings.toFixed(4)}</TableCell>
-                                <TableCell className="hidden md:table-cell text-green-500 font-semibold">${u.paidEarnings.toFixed(4)}</TableCell>
-                                <TableCell className="font-bold">${(u.generatedEarnings - u.paidEarnings).toFixed(4)}</TableCell>
+                                <TableCell className="hidden md:table-cell">
+                                    <div className="flex flex-col gap-1 text-sm">
+                                        <div className="flex items-center gap-2">
+                                            <Link2 className="h-3 w-3 text-muted-foreground" />
+                                            <span>{u.linksCount} links</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <DollarSign className="h-3 w-3 text-muted-foreground" />
+                                            <span>${u.generatedEarnings.toFixed(4)} generated</span>
+                                        </div>
+                                         <div className="flex items-center gap-2 text-green-500">
+                                            <Wallet className="h-3 w-3" />
+                                            <span>${u.paidEarnings.toFixed(4)} paid</span>
+                                        </div>
+                                    </div>
+                                </TableCell>
+                                <TableCell className="font-bold hidden sm:table-cell">${(u.generatedEarnings - u.paidEarnings).toFixed(4)}</TableCell>
                                 <TableCell className="hidden sm:table-cell">
                                     <Badge variant={u.role === 'admin' ? 'default' : 'secondary'} className={u.role === 'admin' ? 'bg-primary' : ''}>
                                         {u.role}
@@ -257,7 +281,7 @@ export default function AdminUsersPage() {
                         />
                     </div>
                      <div className="text-sm text-muted-foreground">
-                        Current Balance: ${selectedUser?.generatedEarnings.toFixed(4) ?? '0.0000'}
+                        Current Balance: ${selectedUser ? (selectedUser.generatedEarnings - selectedUser.paidEarnings).toFixed(4) : '0.0000'}
                     </div>
                 </div>
                 <DialogFooter>

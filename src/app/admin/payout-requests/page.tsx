@@ -25,7 +25,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
-import { MoreVertical, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { MoreVertical, CheckCircle, XCircle, Loader2, Calendar, CreditCard } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
     DropdownMenu,
@@ -149,10 +149,9 @@ export default function AdminPayoutRequestsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>User</TableHead>
-                <TableHead>Amount</TableHead>
+                <TableHead className="hidden sm:table-cell">Amount</TableHead>
                 <TableHead className="hidden md:table-cell">Method</TableHead>
                 <TableHead className="hidden lg:table-cell">Details</TableHead>
-                <TableHead className="hidden sm:table-cell">Date</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -163,11 +162,27 @@ export default function AdminPayoutRequestsPage() {
                   <TableCell>
                     <div className="font-medium">{req.userName}</div>
                     <div className="text-xs text-muted-foreground">{req.userEmail}</div>
+                      {/* Mobile-only details */}
+                      <div className="sm:hidden mt-2 space-y-2 text-xs">
+                          <div className="flex items-center gap-2">
+                              <span className="font-medium">Amount:</span>
+                              <span className="font-semibold">${req.amount.toFixed(4)}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                              <span className="font-medium">Method:</span>
+                              <span className="capitalize text-muted-foreground">{req.method}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                              <span className="font-medium">Date:</span>
+                              <span className="text-muted-foreground">
+                                  {req.requestedAt ? new Date(req.requestedAt.seconds * 1000).toLocaleDateString() : 'N/A'}
+                              </span>
+                          </div>
+                      </div>
                   </TableCell>
-                  <TableCell className="font-semibold">${req.amount.toFixed(4)}</TableCell>
+                  <TableCell className="font-semibold hidden sm:table-cell">${req.amount.toFixed(4)}</TableCell>
                   <TableCell className="capitalize hidden md:table-cell">{req.method}</TableCell>
                   <TableCell className="hidden lg:table-cell">{req.details}</TableCell>
-                  <TableCell className="hidden sm:table-cell">{req.requestedAt ? new Date(req.requestedAt.seconds * 1000).toLocaleDateString() : 'N/A'}</TableCell>
                   <TableCell>
                     <Badge variant={req.status === 'pending' ? 'secondary' : req.status === 'completed' ? 'default' : 'destructive'}
                         className={req.status === 'completed' ? 'bg-green-600' : ''}>
@@ -201,7 +216,7 @@ export default function AdminPayoutRequestsPage() {
               ))}
                {requests.length === 0 && (
                 <TableRow>
-                    <TableCell colSpan={7} className="h-24 text-center">
+                    <TableCell colSpan={6} className="h-24 text-center">
                     No pending payout requests.
                     </TableCell>
                 </TableRow>
