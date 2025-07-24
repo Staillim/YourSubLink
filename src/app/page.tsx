@@ -1,4 +1,5 @@
 
+
 /**
  * !! ANTES DE EDITAR ESTE ARCHIVO, REVISA LAS DIRECTRICES EN LOS SIGUIENTES DOCUMENTOS: !!
  * - /README.md
@@ -379,7 +380,7 @@ export default function AuthenticationPage() {
             )}
           </CardContent>
           {!showResetForm && (
-          <CardFooter className="flex justify-center text-sm px-4 sm:px-6 pb-4">
+          <CardFooter className="flex flex-col items-center gap-2 text-sm px-4 sm:px-6 pb-4">
             <p className="text-muted-foreground text-center">
               By continuing, you agree to our{' '}
               <a href="#" className="font-medium text-primary hover:underline">
@@ -387,6 +388,9 @@ export default function AuthenticationPage() {
               </a>
               .
             </p>
+             <a href="https://t.me/YourSubSuport" target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline">
+                Contactar con soporte
+             </a>
           </CardFooter>
           )}
         </Card>
