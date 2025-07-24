@@ -1,69 +1,77 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-
+  
+    // Helper functions
     function isOwner(userId) {
       return request.auth.uid == userId;
     }
-
+    
     function isAdmin() {
-      // Check if the user is authenticated and if their user document shows they are an admin.
-      return request.auth != null && 
-             exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
+    // Rules for the 'users' collection
     match /users/{userId} {
+      // Admins can read/write any user profile.
+      // Users can only read/write their own profile.
       allow read, write: if isOwner(userId) || isAdmin();
     }
 
+    // Rules for the 'links' collection
     match /links/{linkId} {
-      allow read;
-      allow create, update, delete: if request.auth != null && (isOwner(request.resource.data.userId) || isAdmin());
-    }
-
-    match /clicks/{clickId} {
-      allow read, create;
-    }
-
-    match /cpmHistory/{cpmId} {
-      allow read;
-      allow create, update: if isAdmin();
-    }
-
-    match /payoutRequests/{payoutId} {
-      // Users can create their own requests
-      allow create: if request.auth != null && isOwner(request.resource.data.userId);
-      // Users can read their own requests, Admins can read any
-      allow read: if request.auth != null && (isOwner(resource.data.userId) || isAdmin());
-      // Only Admins can update (approve/reject)
-      allow update: if isAdmin();
+      // Anyone can read a link document for redirection purposes.
+      allow get: if true;
+      // Users can create links. Admins can list all links.
+      allow list: if isAdmin();
+      // Users can only create/update/delete their own links. Admins can do it for any link.
+      allow write: if resource.data.userId == request.auth.uid || isAdmin();
     }
     
-    match /notifications/{notificationId} {
-        allow read: if request.auth != null && (isOwner(resource.data.userId) || isAdmin());
+    // Rules for the 'clicks' collection
+    match /clicks/{clickId} {
+      // Anyone can create a click log.
+      allow create: if true;
+      // Only admins can read the full list of clicks.
+      allow read, list: if isAdmin();
+    }
+    
+    // Rules for the 'cpmHistory' collection
+    match /cpmHistory/{cpmId} {
+      // Only admins can manage CPM history.
+      allow read, write: if isAdmin();
     }
 
-    // Chat-related rules
+    // Rules for the 'payoutRequests' collection
+    match /payoutRequests/{requestId} {
+       // Users can create their own requests. Admins can read/write all.
+       allow create: if request.resource.data.userId == request.auth.uid;
+       allow read, list, update: if isOwner(request.resource.data.userId) || isAdmin();
+    }
+    
+    // Rules for the 'chats' collection and 'messages' subcollection
     match /chats/{userId} {
-      // An admin can list all chats to display them in the support panel.
+      // An admin can read any chat document. A user can only read their own.
+      allow get: if isOwner(userId) || isAdmin();
+      // Only admins can list all chats.
       allow list: if isAdmin();
-      
-      // A user can read their own chat. An admin can read any chat.
-      allow read: if isOwner(userId) || isAdmin();
-
-      // A user can create/update their own chat document (e.g., update lastMessage).
-      // An admin can update any chat document (e.g., to mark as read).
+      // A user can create/update their own chat document. An admin can update any.
       allow write: if isOwner(userId) || isAdmin();
       
-      // Messages subcollection
+      // Rules for the 'messages' subcollection
       match /messages/{messageId} {
-        // A user can read messages in their own chat. An admin can read any.
-        allow read: if isOwner(userId) || isAdmin();
-
-        // A user can write (create) messages in their own chat. An admin can write to any.
-        allow write: if isOwner(userId) || isAdmin();
+        // A user can read/write messages in their own chat. An admin can do it in any chat.
+        allow read, write: if isOwner(userId) || isAdmin();
       }
+    }
+    
+    // Rules for the 'notifications' collection
+    match /notifications/{notificationId} {
+      // Users can only read notifications intended for them.
+      allow read: if resource.data.userId == request.auth.uid;
+      // Admins are the only ones who can create notifications.
+      allow create: if isAdmin();
     }
   }
 }
