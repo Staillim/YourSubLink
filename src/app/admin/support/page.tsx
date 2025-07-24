@@ -16,13 +16,14 @@ import {
   updateDoc,
   writeBatch,
   getDoc,
+  where,
 } from 'firebase/firestore';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card } from '@/components/ui/card';
-import { Send, MessageSquare, MoreVertical } from 'lucide-react';
+import { Send, MessageSquare, MoreVertical, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu,
@@ -97,6 +98,9 @@ export default function AdminSupportPage() {
         })) as ChatMessage[];
         setMessages(messagesData);
         setLoadingMessages(false);
+      }, (error) => {
+        console.error("Error fetching messages: ", error);
+        setLoadingMessages(false);
       });
       return () => unsubscribe();
     }
@@ -116,6 +120,7 @@ export default function AdminSupportPage() {
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || !selectedTicket || !user) return;
+    if (selectedTicket.status === 'completed') return; // Prevent sending on completed tickets
 
     const messageText = newMessage;
     setNewMessage('');
@@ -288,9 +293,8 @@ export default function AdminSupportPage() {
             </div>
             <ScrollArea className="flex-1 p-4">
                 {loadingMessages ? (
-                    <div className="p-4 space-y-4">
-                        <Skeleton className="h-12 w-3/4" />
-                        <Skeleton className="h-12 w-3/4 ml-auto" />
+                    <div className="p-4 space-y-4 flex items-center justify-center h-full">
+                        <Loader2 className="h-8 w-8 animate-spin" />
                     </div>
                 ) : (
                     <div className="space-y-4">
@@ -344,3 +348,6 @@ export default function AdminSupportPage() {
   );
 }
 
+
+
+    
