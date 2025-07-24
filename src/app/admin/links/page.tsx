@@ -17,12 +17,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
-import { MoreVertical, Trash2, ExternalLink, BarChart3, Eye, Calendar, ShieldCheck, Loader2 } from 'lucide-react';
+import { MoreVertical, Trash2, ExternalLink, BarChart3, Eye, Calendar, ShieldCheck, Loader2, DollarSign, DollarSignOff } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
+    DropdownMenuSeparator,
     DropdownMenuTrigger,
   } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -101,6 +102,24 @@ export default function AdminLinksPage() {
             description: "There was an error deleting the link.",
             variant: "destructive"
         })
+    }
+  };
+  
+  const handleToggleMonetization = async (link: Link) => {
+    const newStatus = link.monetizationStatus === 'active' ? 'suspended' : 'active';
+    try {
+        const linkRef = doc(db, 'links', link.id);
+        await updateDoc(linkRef, { monetizationStatus: newStatus });
+        toast({
+            title: 'Monetization Updated',
+            description: `Monetization for "${link.title}" has been ${newStatus}.`,
+        });
+    } catch (error) {
+        toast({
+            title: 'Error',
+            description: 'Could not update monetization status.',
+            variant: 'destructive',
+        });
     }
   };
 
@@ -270,6 +289,19 @@ export default function AdminLinksPage() {
                                             <ExternalLink className="mr-2 h-4 w-4" />
                                             <span>View Link</span>
                                         </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        {link.monetizationStatus === 'active' ? (
+                                            <DropdownMenuItem onClick={() => handleToggleMonetization(link)}>
+                                                <DollarSignOff className="mr-2 h-4 w-4 text-destructive" />
+                                                <span className="text-destructive">Suspend Monetization</span>
+                                            </DropdownMenuItem>
+                                        ) : (
+                                            <DropdownMenuItem onClick={() => handleToggleMonetization(link)}>
+                                                <DollarSign className="mr-2 h-4 w-4 text-green-500" />
+                                                <span className="text-green-500">Re-enable Monetization</span>
+                                            </DropdownMenuItem>
+                                        )}
+                                        <DropdownMenuSeparator />
                                         <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(link.id)}>
                                             <Trash2 className="mr-2 h-4 w-4" />
                                             <span>Delete</span>
