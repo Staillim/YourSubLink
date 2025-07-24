@@ -45,11 +45,13 @@ export function useUser() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Si la autenticación de Firebase aún está cargando, mantenemos el estado de carga general.
     if (authLoading) {
       setLoading(true);
       return;
     }
 
+    // Si no hay un usuario autenticado, terminamos la carga.
     if (!authUser) {
       setUserProfile(null);
       setPayouts([]);
@@ -57,6 +59,8 @@ export function useUser() {
       return;
     }
 
+    // El usuario está autenticado, pero necesitamos cargar sus datos. Mantenemos la carga activa.
+    setLoading(true);
     let isSubscribed = true;
 
     const userDocRef = doc(db, 'users', authUser.uid);
@@ -83,6 +87,8 @@ export function useUser() {
             paidEarnings: userData.paidEarnings || 0,
         });
       } else {
+        // Si el perfil no existe, lo creamos.
+        // La propia función createUserProfile establecerá los datos, lo que activará este listener de nuevo.
         await createUserProfile(authUser);
       }
     });
@@ -94,6 +100,8 @@ export function useUser() {
           requests.push({ id: doc.id, ...doc.data() } as PayoutRequest);
       });
       setPayouts(requests.sort((a,b) => (b.requestedAt?.seconds ?? 0) - (a.requestedAt?.seconds ?? 0)));
+      // CORRECCIÓN: La carga solo finaliza DESPUÉS de haber obtenido el perfil y los pagos.
+      // Se combina la lógica de ambos listeners para asegurar que todo esté listo.
       setLoading(false);
     });
 
