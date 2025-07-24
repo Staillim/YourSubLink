@@ -260,12 +260,16 @@ export default function DashboardPage() {
                                               </Badge>
                                           )}
                                           {link.monetizationStatus === 'suspended' && (
-                                              <Tooltip>
-                                                  <TooltipTrigger><BadgeHelp className="h-4 w-4 text-muted-foreground"/></TooltipTrigger>
-                                                  <TooltipContent>
-                                                      <p>Monetization for this link has been suspended due to suspicious activity. <br/> If you believe this is an error, please contact support.</p>
-                                                  </TooltipContent>
-                                              </Tooltip>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <button>
+                                                            <BadgeHelp className="h-4 w-4 text-muted-foreground"/>
+                                                        </button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                        <p>Monetization for this link has been suspended due to suspicious activity. <br/> If you believe this is an error, please contact support.</p>
+                                                    </TooltipContent>
+                                                </Tooltip>
                                           )}
                                       </div>
                                   </div>
@@ -296,14 +300,22 @@ export default function DashboardPage() {
                                   )}
                                   {link.monetizationStatus === 'suspended' ? (
                                       <Tooltip>
-                                          <TooltipTrigger><BadgeHelp className="h-4 w-4 text-muted-foreground"/></TooltipTrigger>
+                                          <TooltipTrigger asChild>
+                                                <button>
+                                                    <BadgeHelp className="h-4 w-4 text-muted-foreground"/>
+                                                </button>
+                                          </TooltipTrigger>
                                           <TooltipContent>
                                               <p className="max-w-xs">Monetization for this link has been suspended due to suspicious activity. If you believe this is an error, please contact support.</p>
                                           </TooltipContent>
                                       </Tooltip>
                                   ) : (
                                       <Tooltip>
-                                          <TooltipTrigger><BadgeHelp className="h-4 w-4 text-muted-foreground"/></TooltipTrigger>
+                                          <TooltipTrigger asChild>
+                                             <button>
+                                                <BadgeHelp className="h-4 w-4 text-muted-foreground"/>
+                                             </button>
+                                          </TooltipTrigger>
                                           <TooltipContent>
                                               <p>{link.monetizable ? 'This link is eligible for monetization.' : `This link needs at least ${3 - link.rules.length} more rule(s) to be monetizable.`}</p>
                                           </TooltipContent>

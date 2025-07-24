@@ -123,6 +123,17 @@ export default function AdminLinksPage() {
         const linkRef = doc(db, 'links', link.id);
         await updateDoc(linkRef, { monetizationStatus: newStatus });
 
+        // If suspending, create a notification for the user
+        if (newStatus === 'suspended') {
+            await addDoc(collection(db, 'notifications'), {
+                userId: link.userId,
+                type: 'milestone', // Re-using type for simplicity
+                message: `Monetization for your link "${link.title}" has been suspended. Please contact support if you believe this is an error.`,
+                createdAt: serverTimestamp(),
+                isRead: false,
+            });
+        }
+
         // Update local state to reflect the change immediately
         setLinks(prevLinks => 
             prevLinks.map(l => 
