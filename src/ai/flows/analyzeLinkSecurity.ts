@@ -11,7 +11,7 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit, Timestamp } from 'firebase/firestore';
 
 const AnalyzeLinkSecurityInputSchema = z.object({
   linkId: z.string().describe("The ID of the link to analyze."),
@@ -68,7 +68,6 @@ const analyzeLinkSecurityFlow = ai.defineFlow(
     const clicksQuery = query(
       collection(db, 'clicks'),
       where('linkId', '==', input.linkId),
-      orderBy('timestamp', 'desc'),
       limit(200)
     );
     const clicksSnapshot = await getDocs(clicksQuery);
@@ -81,16 +80,23 @@ const analyzeLinkSecurityFlow = ai.defineFlow(
         analyzedClicks: 0,
       };
     }
+    
+    // 2. Sort the clicks by timestamp descending in code
+    const sortedDocs = clicksSnapshot.docs.sort((a, b) => {
+        const timestampA = a.data().timestamp as Timestamp;
+        const timestampB = b.data().timestamp as Timestamp;
+        return (timestampB?.seconds ?? 0) - (timestampA?.seconds ?? 0);
+    });
 
-    const clickTimestamps = clicksSnapshot.docs.map(doc => {
-        const timestamp = doc.data().timestamp;
+    const clickTimestamps = sortedDocs.map(doc => {
+        const timestamp = doc.data().timestamp as Timestamp;
         return timestamp ? new Date(timestamp.seconds * 1000).toISOString() : '';
     }).filter(Boolean);
 
-    // 2. Call the AI prompt with the timestamps
+    // 3. Call the AI prompt with the timestamps
     const { output } = await prompt({ clickTimestamps });
 
-    // 3. Return the AI's analysis
+    // 4. Return the AI's analysis
     return { ...output!, analyzedClicks: clickTimestamps.length };
   }
 );
