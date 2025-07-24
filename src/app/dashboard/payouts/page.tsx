@@ -147,7 +147,7 @@ export default function PayoutsPage() {
                         <DollarSign className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">${availableBalance.toFixed(2)}</div>
+                        <div className="text-2xl font-bold">${availableBalance.toFixed(4)}</div>
                         <p className="text-xs text-muted-foreground">Ready for withdrawal</p>
                     </CardContent>
                 </Card>
@@ -157,7 +157,7 @@ export default function PayoutsPage() {
                         <Wallet className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">${payoutsPending.toFixed(2)}</div>
+                        <div className="text-2xl font-bold">${payoutsPending.toFixed(4)}</div>
                         <p className="text-xs text-muted-foreground">Requested but not yet paid</p>
                     </CardContent>
                 </Card>
@@ -167,7 +167,7 @@ export default function PayoutsPage() {
                         <PiggyBank className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">${paidEarnings.toFixed(2)}</div>
+                        <div className="text-2xl font-bold">${paidEarnings.toFixed(4)}</div>
                         <p className="text-xs text-muted-foreground">Total earnings paid out to you</p>
                     </CardContent>
                 </Card>
@@ -245,7 +245,7 @@ export default function PayoutsPage() {
                                 payouts.map(p => (
                                     <TableRow key={p.id}>
                                         <TableCell>{p.requestedAt ? new Date(p.requestedAt.seconds * 1000).toLocaleDateString() : 'Processing...'}</TableCell>
-                                        <TableCell className="font-medium">${p.amount.toFixed(2)}</TableCell>
+                                        <TableCell className="font-medium">${p.amount.toFixed(4)}</TableCell>
                                         <TableCell className="capitalize">{p.method}</TableCell>
                                         <TableCell>
                                             <Badge variant={p.status === 'pending' ? 'secondary' : p.status === 'completed' ? 'default' : 'destructive'}

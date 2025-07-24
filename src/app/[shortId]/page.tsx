@@ -1,7 +1,7 @@
 
 import { getDoc, doc, collection, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import ClientComponent from './ClientComponent';
+import ClientComponent from '../link/[shortId]/ClientComponent';
 
 /**
  * This is the main Server Component for the short link page.

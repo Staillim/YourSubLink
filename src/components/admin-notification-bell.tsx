@@ -100,7 +100,7 @@ export function AdminNotificationBell() {
                                     <div className="flex-1 text-sm">
                                         <p className="font-medium">New Payout Request</p>
                                         <p className="text-xs text-muted-foreground">
-                                            {payout.userName} requested ${payout.amount.toFixed(2)}.
+                                            {payout.userName} requested ${payout.amount.toFixed(4)}.
                                         </p>
                                     </div>
                                 </div>

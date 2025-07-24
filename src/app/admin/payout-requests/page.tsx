@@ -155,7 +155,7 @@ export default function AdminPayoutRequestsPage() {
                     <div className="font-medium">{req.userName}</div>
                     <div className="text-xs text-muted-foreground">{req.userEmail}</div>
                   </TableCell>
-                  <TableCell className="font-semibold">${req.amount.toFixed(2)}</TableCell>
+                  <TableCell className="font-semibold">${req.amount.toFixed(4)}</TableCell>
                   <TableCell className="capitalize">{req.method}</TableCell>
                   <TableCell>{req.details}</TableCell>
                   <TableCell>{req.requestedAt ? new Date(req.requestedAt.seconds * 1000).toLocaleDateString() : 'N/A'}</TableCell>
