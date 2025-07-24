@@ -76,26 +76,34 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
         
         // 2. Add a detailed record of this click
         const clickLogRef = doc(collection(db, 'clicks'));
-        batch.set(clickLogRef, {
+        
+        const clickLogData: any = {
             linkId: dataToUse.id,
             userId: dataToUse.userId,
             timestamp: serverTimestamp(),
             userAgent: navigator.userAgent || '',
             ip: 'client-side', // IP is not available on the client
-        });
+        };
 
         // 3. If monetizable, calculate and update earnings
         if (dataToUse.monetizable) {
             let activeCpm = 3.00; // Default fallback CPM
+            let activeCpmId = null;
             const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
             const cpmSnapshot = await getDocs(cpmQuery);
             if (!cpmSnapshot.empty) {
+                activeCpmId = cpmSnapshot.docs[0].id;
                 activeCpm = cpmSnapshot.docs[0].data().rate;
             }
             const earningsPerClick = activeCpm / 1000;
             batch.update(linkRef, { generatedEarnings: increment(earningsPerClick) });
+
+            // Add CPM info to the click log
+            clickLogData.earnings = earningsPerClick;
+            clickLogData.cpmHistoryId = activeCpmId;
         }
         
+        batch.set(clickLogRef, clickLogData);
         await batch.commit();
 
     } catch(error) {
