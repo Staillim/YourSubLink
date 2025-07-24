@@ -9,11 +9,11 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Users, Link2, DollarSign, Eye } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import type { UserProfile } from '@/hooks/use-user';
 
 type Link = {
     clicks: number;
     monetizable: boolean;
-    generatedEarnings: number;
 };
 
 type PayoutRequest = {
@@ -30,14 +30,12 @@ export default function AdminDashboardPage() {
     const [totalRevenue, setTotalRevenue] = useState<number | null>(null);
     const [monetizableLinks, setMonetizableLinks] = useState<number | null>(null);
     const [monetizableClicks, setMonetizableClicks] = useState<number | null>(null);
-    const [activeCpm, setActiveCpm] = useState<number>(3.00); // Default CPM
     const [recentPayouts, setRecentPayouts] = useState<PayoutRequest[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const usersQuery = query(collection(db, 'users'));
         const linksQuery = query(collection(db, 'links'));
-        const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
         // Simplified query to avoid composite index requirement.
         // We will filter out 'pending' status on the client side.
         const payoutsQuery = query(
@@ -47,36 +45,32 @@ export default function AdminDashboardPage() {
         );
 
         const unsubUsers = onSnapshot(usersQuery, (snapshot) => {
+            let revenue = 0;
+            snapshot.forEach(doc => {
+                const data = doc.data() as UserProfile;
+                revenue += data.generatedEarnings || 0;
+            });
             setUserCount(snapshot.size);
+            setTotalRevenue(revenue);
             if(loading) setLoading(false);
         });
 
         const unsubLinks = onSnapshot(linksQuery, (snapshot) => {
             let clicks = 0;
             let monetizable = 0;
-            let revenue = 0;
             let monetizableClicksCount = 0;
             snapshot.forEach((doc) => {
                 const data = doc.data() as Link;
                 clicks += data.clicks || 0;
-                revenue += data.generatedEarnings || 0;
                 if (data.monetizable) {
                     monetizable++;
                     monetizableClicksCount += data.clicks || 0;
                 }
             });
             setTotalClicks(clicks);
-            setTotalRevenue(revenue);
             setMonetizableLinks(monetizable);
             setMonetizableClicks(monetizableClicksCount);
             if (loading) setLoading(false);
-        });
-
-        const unsubCpm = onSnapshot(cpmQuery, (snapshot) => {
-            if (!snapshot.empty) {
-                const cpmDoc = snapshot.docs[0];
-                setActiveCpm(cpmDoc.data().rate);
-            }
         });
 
         const unsubPayouts = onSnapshot(payoutsQuery, (snapshot) => {
@@ -95,7 +89,6 @@ export default function AdminDashboardPage() {
         return () => {
             unsubUsers();
             unsubLinks();
-            unsubCpm();
             unsubPayouts();
         };
     }, [loading]);

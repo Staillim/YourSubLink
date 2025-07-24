@@ -91,7 +91,7 @@ export default function AnalyticsPage() {
   }, [user, userLoading]);
 
   const totalClicks = links.reduce((acc, link) => acc + link.clicks, 0);
-  const totalEarnings = links.reduce((acc, link) => acc + (link.generatedEarnings || 0), 0);
+  const totalEarnings = profile?.generatedEarnings ?? 0;
 
   const getChartData = () => {
     const monthlyEarnings: { [key: string]: number } = {};
@@ -132,7 +132,7 @@ export default function AnalyticsPage() {
 
   if (userLoading || linksLoading) {
       return (
-        <>
+        <div className="flex flex-col gap-6">
             <div className="flex items-center">
                 <h1 className="text-lg font-semibold md:text-2xl">Analytics</h1>
             </div>
@@ -145,12 +145,12 @@ export default function AnalyticsPage() {
                 <Skeleton className="h-80" />
                 <Skeleton className="h-80" />
             </div>
-        </>
+        </div>
       )
   }
 
   return (
-    <>
+    <div className="flex flex-col gap-6">
       <div className="flex items-center">
         <h1 className="text-lg font-semibold md:text-2xl">Analytics</h1>
       </div>
@@ -244,6 +244,6 @@ export default function AnalyticsPage() {
             </CardContent>
         </Card>
       </div>
-    </>
+    </div>
   );
 }
