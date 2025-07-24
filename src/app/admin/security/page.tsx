@@ -7,11 +7,21 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Shield } from "lucide-react";
 
 export default function AdminSecurityPage() {
     return (
         <div className="flex flex-col gap-6">
             <h1 className="text-2xl font-bold">Security & Anti-bot</h1>
+
+            <Alert>
+                <Shield className="h-4 w-4" />
+                <AlertTitle>Future Implementation</AlertTitle>
+                <AlertDescription>
+                    The controls below are visual representations for a future security implementation. Currently, they do not have any real effect on the system's behavior.
+                </AlertDescription>
+            </Alert>
 
             <Card>
                 <CardHeader>
@@ -26,7 +36,7 @@ export default function AdminSecurityPage() {
                                 Prevent repeated clicks from the same IP address and User-Agent within an hour.
                             </p>
                         </div>
-                        <Switch id="ip-filtering" defaultChecked />
+                        <Switch id="ip-filtering" defaultChecked disabled />
                     </div>
                     <div className="flex items-center justify-between rounded-lg border p-4">
                         <div className="space-y-0.5">
@@ -35,7 +45,7 @@ export default function AdminSecurityPage() {
                                 Analyze interaction speed to detect non-human behavior.
                             </p>
                         </div>
-                        <Switch id="interaction-speed" />
+                        <Switch id="interaction-speed" disabled />
                     </div>
                     <div className="flex items-center justify-between rounded-lg border p-4">
                         <div className="space-y-0.5">
@@ -44,7 +54,7 @@ export default function AdminSecurityPage() {
                                 Temporarily suspend links with highly suspicious activity.
                             </p>
                         </div>
-                        <Switch id="auto-suspend" defaultChecked />
+                        <Switch id="auto-suspend" defaultChecked disabled />
                     </div>
                 </CardContent>
             </Card>
