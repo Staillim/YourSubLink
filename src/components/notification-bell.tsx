@@ -74,7 +74,7 @@ export function NotificationBell() {
                 <div className="p-4">
                     <h4 className="font-medium text-sm">Notifications</h4>
                 </div>
-                <div className="space-y-2 p-4 pt-0 max-h-80 overflow-y-auto">
+                <div className="space-y-2 p-4 pt-0 max-h-80 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                     {notifications.length === 0 ? (
                         <div className="text-center text-muted-foreground py-8">
                              <Bell className="mx-auto h-8 w-8 mb-2" />
