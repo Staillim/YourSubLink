@@ -142,9 +142,6 @@ export default function LinkGate({ linkData, onAllStepsCompleted }: { linkData: 
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4 p-4 sm:p-6">
-                    {/* Placeholder for a top ad */}
-                    <div className="mx-auto h-24 w-full max-w-xs" />
-
                     <div className="space-y-3">
                         {linkData.rules.map((rule, index) => {
                           const state = ruleStates[index];
@@ -186,9 +183,6 @@ export default function LinkGate({ linkData, onAllStepsCompleted }: { linkData: 
                         })}
                     </div>
 
-                    {/* Placeholder for a bottom ad */}
-                    <div className="mx-auto h-24 w-full max-w-xs" />
-
                     <Button
                         onClick={handleUnlock}
                         disabled={!allRulesCompleted}
@@ -220,9 +214,6 @@ export default function LinkGate({ linkData, onAllStepsCompleted }: { linkData: 
                             <p className="text-4xl font-bold">{countdown}</p>
                         </div>
                     )}
-                    
-                    {/* Placeholder for an ad in the countdown view */}
-                    <div className="mx-auto h-24 w-full max-w-xs" />
                     
                     <Button
                         onClick={handleContinue}
