@@ -92,7 +92,20 @@ export default function AuthenticationPage() {
         await auth.signOut();
         toast({
             title: 'Account Suspended',
-            description: 'Your account has been suspended. Please contact support.',
+            description: (
+              <span>
+                Your account has been suspended. Please{' '}
+                <a
+                  href="https://t.me/YourSubSuport"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-bold underline"
+                >
+                  contact support
+                </a>
+                .
+              </span>
+            ),
             variant: 'destructive',
             duration: 8000,
         });
