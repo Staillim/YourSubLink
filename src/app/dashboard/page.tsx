@@ -252,13 +252,23 @@ export default function DashboardPage() {
                                 <div className="md:hidden mt-2 space-y-2 text-xs">
                                     <div className="flex items-center gap-2">
                                         <span className="font-medium">Status:</span>
-                                        {link.monetizationStatus === 'suspended' ? (
-                                            <Badge variant="secondary" className="h-5 bg-yellow-500 text-black">Suspended</Badge>
-                                        ) : (
-                                            <Badge variant={link.monetizable ? 'default' : 'secondary'} className={`h-5 ${link.monetizable ? 'bg-green-600' : ''}`}>
-                                                {link.monetizable ? 'Monetizable' : 'Not Monetizable'}
-                                            </Badge>
-                                        )}
+                                        <div className="flex items-center gap-1">
+                                            {link.monetizationStatus === 'suspended' ? (
+                                                <Badge variant="secondary" className="h-5 bg-yellow-500 text-black">Suspended</Badge>
+                                            ) : (
+                                                <Badge variant={link.monetizable ? 'default' : 'secondary'} className={`h-5 ${link.monetizable ? 'bg-green-600' : ''}`}>
+                                                    {link.monetizable ? 'Monetizable' : 'Not Monetizable'}
+                                                </Badge>
+                                            )}
+                                            {link.monetizationStatus === 'suspended' && (
+                                                <Tooltip>
+                                                    <TooltipTrigger><BadgeHelp className="h-4 w-4 text-muted-foreground"/></TooltipTrigger>
+                                                    <TooltipContent>
+                                                        <p>Monetization for this link has been suspended due to suspicious activity. <br/> If you believe this is an error, please contact support.</p>
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                            )}
+                                        </div>
                                     </div>
                                     <div className="flex items-center gap-4">
                                         <div className="flex items-center gap-1 text-muted-foreground">
@@ -277,21 +287,30 @@ export default function DashboardPage() {
                                 </div>
                             </TableCell>
                             <TableCell className="hidden md:table-cell">
-                                {link.monetizationStatus === 'suspended' ? (
-                                    <Badge variant="secondary" className="bg-yellow-500 text-black">Suspended</Badge>
-                                ) : (
-                                    <Badge variant={link.monetizable ? 'default' : 'secondary'} className={link.monetizable ? 'bg-green-600' : ''}>
+                                <div className="flex items-center gap-1.5">
+                                    {link.monetizationStatus === 'suspended' ? (
+                                        <Badge variant="secondary" className="bg-yellow-500 text-black">Suspended</Badge>
+                                    ) : (
+                                        <Badge variant={link.monetizable ? 'default' : 'secondary'} className={link.monetizable ? 'bg-green-600' : ''}>
+                                            {link.monetizable ? 'Monetizable' : 'Not Monetizable'}
+                                        </Badge>
+                                    )}
+                                    {link.monetizationStatus === 'suspended' ? (
                                         <Tooltip>
-                                            <TooltipTrigger className="flex items-center gap-1">
-                                                {link.monetizable ? 'Monetizable' : 'Not Monetizable'}
-                                                <BadgeHelp className="h-3 w-3"/>
-                                            </TooltipTrigger>
+                                            <TooltipTrigger><BadgeHelp className="h-4 w-4 text-muted-foreground"/></TooltipTrigger>
+                                            <TooltipContent>
+                                                <p className="max-w-xs">Monetization for this link has been suspended due to suspicious activity. If you believe this is an error, please contact support.</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    ) : (
+                                        <Tooltip>
+                                            <TooltipTrigger><BadgeHelp className="h-4 w-4 text-muted-foreground"/></TooltipTrigger>
                                             <TooltipContent>
                                                 <p>{link.monetizable ? 'This link is eligible for monetization.' : `This link needs at least ${3 - link.rules.length} more rule(s) to be monetizable.`}</p>
                                             </TooltipContent>
                                         </Tooltip>
-                                    </Badge>
-                                )}
+                                    )}
+                                </div>
                             </TableCell>
                             <TableCell className="hidden sm:table-cell">{link.clicks}</TableCell>
                             <TableCell className="font-semibold text-green-500 hidden sm:table-cell">${link.generatedEarnings.toFixed(4)}</TableCell>

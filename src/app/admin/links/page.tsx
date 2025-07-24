@@ -1,10 +1,11 @@
 
+
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, doc, deleteDoc, getDoc, updateDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, deleteDoc, getDoc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import {
   Table,
   TableBody,
@@ -87,13 +88,24 @@ export default function AdminLinksPage() {
     return () => unsubscribe();
   }, []);
 
-  const handleDelete = async (id: string) => {
-    if(!confirm('Are you sure you want to delete this link permanently?')) return;
+  const handleDelete = async (id: string, userId: string, title: string) => {
+    if(!confirm('Are you sure you want to delete this link permanently? This will notify the user.')) return;
     try {
+        // First, create a notification for the user
+        await addDoc(collection(db, 'notifications'), {
+            userId: userId,
+            type: 'milestone', // Using 'milestone' type for simplicity, could be a new 'admin_action' type
+            message: `Your link "${title}" was deleted by an administrator.`,
+            createdAt: serverTimestamp(),
+            isRead: false,
+        });
+
+        // Then, delete the link
         await deleteDoc(doc(db, "links", id));
+        
         toast({
             title: "Link deleted",
-            description: "The link has been permanently removed.",
+            description: "The link has been permanently removed and the user has been notified.",
             variant: "destructive"
         })
     } catch (error) {
@@ -308,7 +320,7 @@ export default function AdminLinksPage() {
                                             </DropdownMenuItem>
                                         )}
                                         <DropdownMenuSeparator />
-                                        <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(link.id)}>
+                                        <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(link.id, link.userId, link.title)}>
                                             <Trash2 className="mr-2 h-4 w-4" />
                                             <span>Delete</span>
                                         </DropdownMenuItem>
