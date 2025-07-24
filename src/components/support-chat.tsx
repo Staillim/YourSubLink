@@ -23,6 +23,7 @@ import { cn } from '@/lib/utils';
 import type { ChatMessage, SupportTicket } from '@/types';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { Badge } from './ui/badge';
+import { Textarea } from './ui/textarea';
 
 const getStatusBadgeVariant = (status: SupportTicket['status']) => {
     switch (status) {
@@ -58,14 +59,17 @@ export default function SupportChat() {
     setLoading(true);
     const ticketsQuery = query(
         collection(db, 'supportTickets'), 
-        where('userId', '==', user.uid),
-        orderBy('lastMessageTimestamp', 'desc')
+        where('userId', '==', user.uid)
     );
     const unsubscribe = onSnapshot(ticketsQuery, (snapshot) => {
         const ticketsData = snapshot.docs.map((doc) => ({
             id: doc.id,
             ...doc.data(),
         })) as SupportTicket[];
+        
+        // Sort tickets by last message timestamp descending on the client side
+        ticketsData.sort((a, b) => (b.lastMessageTimestamp?.seconds ?? 0) - (a.lastMessageTimestamp?.seconds ?? 0));
+
         setTickets(ticketsData);
         setLoading(false);
     });
@@ -113,6 +117,9 @@ export default function SupportChat() {
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !user || !profile || !selectedTicket) return;
 
+    // Prevent sending messages on a completed ticket
+    if (selectedTicket.status === 'completed') return;
+
     const messageText = newMessage;
     setNewMessage('');
 
@@ -142,7 +149,7 @@ export default function SupportChat() {
     const ticketData: Omit<SupportTicket, 'id'> = {
         userId: user.uid,
         userName: profile.displayName,
-        userEmail: profile.email,
+        userEmail: profile.email || 'No email provided',
         subject: newSubject,
         lastMessage: newMessage,
         lastMessageTimestamp: serverTimestamp(),
