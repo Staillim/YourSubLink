@@ -11,4 +11,5 @@ export type LinkData = {
   userId: string;
   monetizable: boolean;
   clicks: number;
+  monetizationStatus: 'active' | 'suspended';
 };

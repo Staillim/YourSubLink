@@ -1,3 +1,4 @@
+
 /**
  * !! ANTES DE EDITAR ESTE ARCHIVO, REVISA LAS DIRECTRICES EN LOS SIGUIENTES DOCUMENTOS: !!
  * - /README.md
@@ -25,7 +26,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
-import { MoreVertical, UserX, UserCheck, Eye, Loader2, DollarSign, Link2, Wallet, History } from 'lucide-react';
+import { MoreVertical, UserX, UserCheck, Eye, Loader2, DollarSign, Link2, Wallet, History, ShieldBan } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
     DropdownMenu,
@@ -55,7 +56,7 @@ type UserProfile = {
   linksCount: number;
   generatedEarnings: number;
   paidEarnings: number;
-  monetizationStatus: 'active' | 'inactive';
+  accountStatus: 'active' | 'suspended';
 };
 
 export default function AdminUsersPage() {
@@ -85,9 +86,6 @@ export default function AdminUsersPage() {
         const linksQuery = query(collection(db, 'links'), where('userId', '==', userDoc.id));
         const linksSnapshot = await getDocs(linksQuery);
 
-        // DOCUMENTACIÓN: El cálculo correcto de las ganancias generadas.
-        // Se deben sumar las ganancias de cada enlace individualmente, ya que ese es el origen de la verdad.
-        // El campo 'generatedEarnings' en el documento del usuario no se utiliza para este cálculo.
         const totalGeneratedEarnings = linksSnapshot.docs.reduce((acc, doc) => {
             return acc + (doc.data().generatedEarnings || 0);
         }, 0);
@@ -101,7 +99,7 @@ export default function AdminUsersPage() {
           linksCount: linksSnapshot.size,
           generatedEarnings: totalGeneratedEarnings,
           paidEarnings: userData.paidEarnings || 0,
-          monetizationStatus: 'active', // Placeholder
+          accountStatus: userData.accountStatus || 'active',
         });
       }
 
@@ -130,14 +128,6 @@ export default function AdminUsersPage() {
     setIsSubmitting(true);
     try {
         const userDocRef = doc(db, 'users', selectedUser.uid);
-
-        // DOCUMENTACIÓN DE LÓGICA CRÍTICA (2024-05-22):
-        // Para añadir saldo a un usuario (ej. un bono o corrección manual), no debemos tocar
-        // 'generatedEarnings', ya que ese dato se calcula dinámicamente desde los enlaces.
-        // La forma contablemente correcta es tratarlo como un "pago negativo".
-        // Al decrementar 'paidEarnings', el balance disponible (Generated - Paid) aumenta correctamente.
-        // Ejemplo: Balance = 10 (gen) - 5 (paid) = 5. Si añadimos 2, el nuevo balance debe ser 7.
-        // Lógica: 10 (gen) - (5 - 2) (paid) = 7.
         await updateDoc(userDocRef, { paidEarnings: increment(-amountToAdd) });
         
         toast({
@@ -164,10 +154,7 @@ export default function AdminUsersPage() {
     setIsPayoutHistoryDialogOpen(true);
     setHistoryLoading(true);
     try {
-        const q = query(
-            collection(db, 'payoutRequests'),
-            where('userId', '==', user.uid)
-        );
+        const q = query(collection(db, 'payoutRequests'), where('userId', '==', user.uid));
         const querySnapshot = await getDocs(q);
         const historyData = querySnapshot.docs
             .map(doc => ({ id: doc.id, ...doc.data() } as PayoutRequest))
@@ -182,6 +169,28 @@ export default function AdminUsersPage() {
         setHistoryLoading(false);
     }
   };
+
+  const handleToggleAccountStatus = async (userToUpdate: UserProfile) => {
+    const newStatus = userToUpdate.accountStatus === 'active' ? 'suspended' : 'active';
+    const actionText = newStatus === 'suspended' ? 'suspend' : 'reactivate';
+
+    if (!confirm(`Are you sure you want to ${actionText} this user account?`)) return;
+
+    try {
+        const userDocRef = doc(db, 'users', userToUpdate.uid);
+        await updateDoc(userDocRef, { accountStatus: newStatus });
+        toast({
+            title: `User ${actionText}ed`,
+            description: `${userToUpdate.displayName}'s account has been ${actionText}d.`,
+        });
+    } catch (error) {
+        toast({
+            title: 'Error',
+            description: `Could not ${actionText} the user.`,
+            variant: 'destructive',
+        });
+    }
+  }
 
 
   if (loading) {
@@ -231,13 +240,13 @@ export default function AdminUsersPage() {
                             <TableHead>User</TableHead>
                             <TableHead className="hidden md:table-cell">Stats</TableHead>
                             <TableHead className="hidden sm:table-cell">Balance</TableHead>
-                            <TableHead className="hidden sm:table-cell">Role</TableHead>
+                            <TableHead>Status</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {users.map((u) => (
-                            <TableRow key={u.uid}>
+                            <TableRow key={u.uid} className={u.accountStatus === 'suspended' ? 'bg-destructive/10' : ''}>
                                 <TableCell className="font-medium">
                                     <div className="font-semibold">{u.displayName}</div>
                                     <div className="text-sm text-muted-foreground">{u.email}</div>
@@ -247,10 +256,10 @@ export default function AdminUsersPage() {
                                             <span className="font-medium">Balance:</span>
                                             <span className="font-bold">${(u.generatedEarnings - u.paidEarnings).toFixed(4)}</span>
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                            <span className="font-medium">Role:</span>
-                                            <Badge variant={u.role === 'admin' ? 'default' : 'secondary'} className={`h-5 ${u.role === 'admin' ? 'bg-primary' : ''}`}>
-                                                {u.role}
+                                         <div className="flex items-center gap-2">
+                                            <span className="font-medium">Status:</span>
+                                            <Badge variant={u.accountStatus === 'active' ? 'default' : 'destructive'} className={`${u.accountStatus === 'active' ? 'bg-green-600' : ''}`}>
+                                                {u.accountStatus}
                                             </Badge>
                                         </div>
                                     </div>
@@ -272,10 +281,15 @@ export default function AdminUsersPage() {
                                     </div>
                                 </TableCell>
                                 <TableCell className="font-bold hidden sm:table-cell">${(u.generatedEarnings - u.paidEarnings).toFixed(4)}</TableCell>
-                                <TableCell className="hidden sm:table-cell">
-                                    <Badge variant={u.role === 'admin' ? 'default' : 'secondary'} className={u.role === 'admin' ? 'bg-primary' : ''}>
-                                        {u.role}
-                                    </Badge>
+                                <TableCell>
+                                    <div className="flex flex-col items-start gap-1">
+                                         <Badge variant={u.role === 'admin' ? 'default' : 'secondary'} className={u.role === 'admin' ? 'bg-primary' : ''}>
+                                            {u.role}
+                                        </Badge>
+                                        <Badge variant={u.accountStatus === 'active' ? 'default' : 'destructive'} className={`${u.accountStatus === 'active' ? 'bg-green-600' : ''}`}>
+                                            {u.accountStatus}
+                                        </Badge>
+                                    </div>
                                 </TableCell>
                                 <TableCell className="text-right">
                                 <DropdownMenu>
@@ -292,6 +306,10 @@ export default function AdminUsersPage() {
                                             <DropdownMenuItem onClick={() => openAddBalanceDialog(u)}>
                                                 <DollarSign className="mr-2 h-4 w-4" />
                                                 <span>Add Balance</span>
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => handleToggleAccountStatus(u)} className={u.accountStatus === 'suspended' ? 'text-green-500' : 'text-destructive'}>
+                                                {u.accountStatus === 'suspended' ? <UserCheck className="mr-2 h-4 w-4" /> : <UserX className="mr-2 h-4 w-4" />}
+                                                <span>{u.accountStatus === 'suspended' ? 'Reactivate' : 'Suspend'} User</span>
                                             </DropdownMenuItem>
                                         </DropdownMenuContent>
                                 </DropdownMenu>

@@ -19,8 +19,9 @@ import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, doc, writeBatch, increment, serverTimestamp } from 'firebase/firestore';
 
 export default function ClientComponent({ shortId }: { shortId: string }) {
-  const [status, setStatus] = useState<'loading' | 'gate' | 'redirecting' | 'not-found'>('loading');
+  const [status, setStatus] = useState<'loading' | 'gate' | 'redirecting' | 'not-found' | 'invalid'>('loading');
   const [linkData, setLinkData] = useState<LinkData | null>(null);
+  const [gateStartTime, setGateStartTime] = useState<number | null>(null);
 
   useEffect(() => {
     if (!shortId) {
@@ -47,6 +48,7 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
         const hasRules = link.rules && link.rules.length > 0;
 
         if (hasRules) {
+            setGateStartTime(Date.now());
             setStatus('gate');
         } else {
             // If no rules, count the click and redirect immediately.
@@ -66,6 +68,18 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
     const dataToUse = finalLinkData || linkData;
     if (!dataToUse) return;
 
+    // Security check: Interaction Speed
+    if (gateStartTime) {
+        const completionTime = Date.now();
+        const durationInSeconds = (completionTime - gateStartTime) / 1000;
+        // If it took less than 10 seconds, it's likely a bot. Don't count the click.
+        if (durationInSeconds < 10) {
+            console.warn(`Invalid click detected: completed too fast (${durationInSeconds}s). Redirecting without counting.`);
+            window.location.href = dataToUse.original;
+            return;
+        }
+    }
+
     setStatus('redirecting');
 
     try {
@@ -81,11 +95,10 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
             linkId: dataToUse.id,
             userId: dataToUse.userId,
             timestamp: serverTimestamp(),
-            // IP and User-Agent cannot be reliably collected from the client.
         });
 
-        // 3. If monetizable, calculate and increment earnings
-        if (dataToUse.monetizable) {
+        // 3. If monetizable AND not suspended, calculate and increment earnings
+        if (dataToUse.monetizable && dataToUse.monetizationStatus !== 'suspended') {
             let activeCpm = 3.00; // Default fallback CPM
             
             const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
@@ -104,7 +117,6 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
 
     } catch(error) {
         console.error("Failed to count click:", error);
-        // We still redirect the user even if counting fails to ensure a good user experience.
     } finally {
         // Redirect to the final destination
         window.location.href = dataToUse.original;

@@ -87,6 +87,18 @@ export default function AuthenticationPage() {
 
   const handleRedirectBasedOnRole = async (user: any) => {
     const profile = await getUserProfile(user.uid);
+    if (profile?.accountStatus === 'suspended') {
+        await auth.signOut();
+        toast({
+            title: 'Account Suspended',
+            description: 'Your account has been suspended. Please contact support.',
+            variant: 'destructive',
+            duration: 8000,
+        });
+        router.push('/');
+        return;
+    }
+
     if (profile?.role === 'admin') {
         router.push('/admin');
     } else {

@@ -15,7 +15,7 @@ export default function AdminSecurityPage() {
         <div className="flex flex-col gap-6">
             <h1 className="text-2xl font-bold">Security & Anti-bot</h1>
 
-            <Alert>
+             <Alert>
                 <Shield className="h-4 w-4" />
                 <AlertTitle>Future Implementation</AlertTitle>
                 <AlertDescription>
@@ -31,27 +31,18 @@ export default function AdminSecurityPage() {
                 <CardContent className="space-y-6">
                     <div className="flex items-center justify-between rounded-lg border p-4">
                         <div className="space-y-0.5">
-                            <Label htmlFor="ip-filtering" className="text-base">IP/User-Agent Filtering</Label>
-                            <p className="text-sm text-muted-foreground">
-                                Prevent repeated clicks from the same IP address and User-Agent within an hour.
-                            </p>
-                        </div>
-                        <Switch id="ip-filtering" defaultChecked disabled />
-                    </div>
-                    <div className="flex items-center justify-between rounded-lg border p-4">
-                        <div className="space-y-0.5">
                             <Label htmlFor="interaction-speed" className="text-base">Interaction Speed Check</Label>
                             <p className="text-sm text-muted-foreground">
-                                Analyze interaction speed to detect non-human behavior.
+                                Clicks completed too quickly (under 10s) are automatically invalidated.
                             </p>
                         </div>
-                        <Switch id="interaction-speed" disabled />
+                        <Switch id="interaction-speed" defaultChecked disabled />
                     </div>
                     <div className="flex items-center justify-between rounded-lg border p-4">
                         <div className="space-y-0.5">
-                            <Label htmlFor="auto-suspend" className="text-base">Automatic Suspension</Label>
+                            <Label htmlFor="auto-suspend" className="text-base">AI-Powered Monetization Suspension</Label>
                             <p className="text-sm text-muted-foreground">
-                                Temporarily suspend links with highly suspicious activity.
+                                Manually trigger an AI analysis on a link to suspend monetization if suspicious.
                             </p>
                         </div>
                         <Switch id="auto-suspend" defaultChecked disabled />
