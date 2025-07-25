@@ -170,7 +170,7 @@ function AuthForm() {
 
       toast({
           title: 'Verification Email Sent',
-          description: 'Please check your inbox to verify your email address before signing in.',
+          description: 'Please check your inbox (and spam folder) to verify your email address before signing in.',
           duration: 8000
       });
 
