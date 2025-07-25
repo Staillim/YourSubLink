@@ -68,7 +68,6 @@ export function AdminNotificationBell() {
         };
     }, [user, role, userLoading]);
     
-    // This function is now more robust. It iterates over the state directly.
     const handleMarkAsRead = async () => {
         if (unreadChats.length === 0) return;
 
@@ -80,7 +79,7 @@ export function AdminNotificationBell() {
         
         try {
             await batch.commit();
-            // No need to manually update state, onSnapshot will do it.
+            // onSnapshot will automatically update the state, no need to manually set it
         } catch (error) {
             console.error("Error marking chats as read: ", error);
         }
@@ -152,11 +151,6 @@ export function AdminNotificationBell() {
                             ))}
                         </>
                     )}
-                </div>
-                <div className="p-2 border-t">
-                    <Button variant="link" size="sm" asChild className="w-full">
-                        <Link href="/admin/history">View all system history</Link>
-                    </Button>
                 </div>
             </PopoverContent>
         </Popover>
