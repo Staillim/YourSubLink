@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Logo, TikTokIcon } from '@/components/icons';
-import { BarChart3, MessageSquare, DollarSign, ArrowRight, CheckCircle, ExternalLink, Youtube, Facebook, Instagram, ThumbsUp, Globe, Bot, Wallet, Users, Link2 as LinkIconLucide, Edit, Share2, Award } from 'lucide-react';
+import { BarChart3, MessageSquare, DollarSign, ArrowRight, CheckCircle, ExternalLink, Youtube, Facebook, Instagram, ThumbsUp, Globe, Bot, Wallet, Users, Link2 as LinkIconLucide, Edit, Share2, Award, ShieldCheck } from 'lucide-react';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 
@@ -56,7 +56,7 @@ export default function LandingPage() {
                             {/* Desktop Mockup */}
                             <div className="relative mx-auto border-slate-800 dark:border-slate-800 bg-slate-800 border-[8px] rounded-t-xl w-full max-w-4xl h-auto shadow-2xl">
                                 <Image
-                                    src="https://placehold.co/1200x675"
+                                    src="https://placehold.co/1200x675.png"
                                     alt="Dashboard Screenshot"
                                     width={1200}
                                     height={675}
@@ -72,7 +72,7 @@ export default function LandingPage() {
                                 <div className="h-[64px] w-[3px] bg-gray-800 absolute -end-[17px] top-[142px] rounded-e-lg"></div>
                                 <div className="rounded-[2rem] overflow-hidden w-full h-full bg-white dark:bg-black">
                                      <Image
-                                        src="https://placehold.co/300x600"
+                                        src="https://placehold.co/300x600.png"
                                         alt="Mobile App Screenshot"
                                         width={300}
                                         height={600}
@@ -86,32 +86,32 @@ export default function LandingPage() {
                 </section>
 
 
-                {/* Features Section */}
+                {/* Why us Section */}
                 <section className="py-16 px-4 bg-muted/40">
                     <div className="container mx-auto">
                         <h2 className="text-3xl font-bold text-center mb-12">
-                            Powerful, Intuitive, and Reliable
+                            ¿Por qué usar YourSubLink?
                         </h2>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                             <Card className="flex flex-col items-center text-center p-6">
+                                <ShieldCheck className="h-12 w-12 text-primary mb-4" />
+                                <h3 className="text-xl font-semibold mb-2">Advanced Monetization</h3>
+                                <p className="text-muted-foreground">
+                                    Maximize your earnings with our rule system and custom CPMs for top-performing users.
+                                </p>
+                            </Card>
+                            <Card className="flex flex-col items-center text-center p-6">
                                 <BarChart3 className="h-12 w-12 text-primary mb-4" />
-                                <h3 className="text-xl font-semibold mb-2">An Intuitive Dashboard</h3>
+                                <h3 className="text-xl font-semibold mb-2">Intuitive Dashboard</h3>
                                 <p className="text-muted-foreground">
                                     Manage your links, track earnings, and get insights from a clean, modern interface available on all your devices.
                                 </p>
                             </Card>
                             <Card className="flex flex-col items-center text-center p-6">
                                 <Wallet className="h-12 w-12 text-primary mb-4" />
-                                <h3 className="text-xl font-semibold mb-2">Clear and Simple Payouts</h3>
+                                <h3 className="text-xl font-semibold mb-2">Reliable Payouts & Support</h3>
                                 <p className="text-muted-foreground">
-                                    Request your earnings with just a few clicks. We offer clear tracking of your available balance and payout history.
-                                </p>
-                            </Card>
-                            <Card className="flex flex-col items-center text-center p-6">
-                                <MessageSquare className="h-12 w-12 text-primary mb-4" />
-                                <h3 className="text-xl font-semibold mb-2">Direct Support Chat</h3>
-                                <p className="text-muted-foreground">
-                                    Have a question? Get help directly from our integrated support chat inside your user dashboard. We are here for you.
+                                    Request your earnings with a few clicks and get help directly from our integrated support chat. We are here for you.
                                 </p>
                             </Card>
                         </div>
@@ -185,3 +185,5 @@ export default function LandingPage() {
         </div>
     );
 }
+
+    
