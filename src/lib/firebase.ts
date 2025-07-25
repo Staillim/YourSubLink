@@ -1,3 +1,4 @@
+
 /**
  * !! ANTES DE EDITAR ESTE ARCHIVO, REVISA LAS DIRECTRICES EN LOS SIGUIENTES DOCUMENTOS: !!
  * - /README.md
@@ -8,7 +9,7 @@
  */
 
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
-import { getAuth, User } from "firebase/auth";
+import { getAuth, User, sendEmailVerification } from "firebase/auth";
 import { getFirestore, doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
@@ -62,4 +63,4 @@ const getUserProfile = async (uid: string) => {
     return null;
 }
 
-export { app, auth, db, storage, createUserProfile, getUserProfile };
+export { app, auth, db, storage, createUserProfile, getUserProfile, sendEmailVerification };

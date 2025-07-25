@@ -23,7 +23,7 @@ import {
   sendPasswordResetEmail,
   updateProfile,
 } from 'firebase/auth';
-import { auth, createUserProfile, getUserProfile } from '@/lib/firebase';
+import { auth, createUserProfile, getUserProfile, sendEmailVerification } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -68,8 +68,13 @@ export default function AuthenticationPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('signin');
-  const [isLoading, setIsLoading] = useState(false);
   const [showResetForm, setShowResetForm] = useState(false);
+
+  // Separate loading states for each form submission
+  const [isSigningIn, setIsSigningIn] = useState(false);
+  const [isSigningUp, setIsSigningUp] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const [isGoogleSigningIn, setIsGoogleSigningIn] = useState(false);
 
   const signInForm = useForm<z.infer<typeof signInSchema>>({
     resolver: zodResolver(signInSchema),
@@ -121,7 +126,7 @@ export default function AuthenticationPage() {
   }
 
   const handleSignIn = async (values: z.infer<typeof signInSchema>) => {
-    setIsLoading(true);
+    setIsSigningIn(true);
     try {
       const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
       await handleRedirectBasedOnRole(userCredential.user);
@@ -132,18 +137,25 @@ export default function AuthenticationPage() {
         variant: 'destructive',
       });
     } finally {
-      setIsLoading(false);
+      setIsSigningIn(false);
     }
   };
 
   const handleSignUp = async (values: z.infer<typeof signUpSchema>) => {
-    setIsLoading(true);
+    setIsSigningUp(true);
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
       
       await updateProfile(user, { displayName: values.name });
       await createUserProfile(user);
+      
+      // Send verification email
+      await sendEmailVerification(user);
+      toast({
+          title: 'Verification Email Sent',
+          description: 'Please check your inbox to verify your email address.',
+      });
 
       router.push('/dashboard');
     } catch (error: any) {
@@ -153,12 +165,12 @@ export default function AuthenticationPage() {
         variant: 'destructive',
       });
     } finally {
-      setIsLoading(false);
+      setIsSigningUp(false);
     }
   };
 
   const handleGoogleSignIn = async () => {
-    setIsLoading(true);
+    setIsGoogleSigningIn(true);
     try {
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
@@ -171,12 +183,12 @@ export default function AuthenticationPage() {
         variant: 'destructive',
       });
     } finally {
-      setIsLoading(false);
+      setIsGoogleSigningIn(false);
     }
   };
 
   const handlePasswordReset = async (values: z.infer<typeof resetPasswordSchema>) => {
-    setIsLoading(true);
+    setIsResetting(true);
     try {
       await sendPasswordResetEmail(auth, values.email);
       toast({
@@ -191,9 +203,11 @@ export default function AuthenticationPage() {
             variant: 'destructive',
         });
     } finally {
-        setIsLoading(false);
+        setIsResetting(false);
     }
   }
+
+  const isLoading = isSigningIn || isSigningUp || isResetting || isGoogleSigningIn;
 
   return (
     <main className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4 sm:p-6">
@@ -246,8 +260,8 @@ export default function AuthenticationPage() {
                             </FormItem>
                             )}
                         />
-                        <Button type="submit" className="w-full font-semibold" disabled={isLoading}>
-                            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        <Button type="submit" className="w-full font-semibold" disabled={isResetting}>
+                            {isResetting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Send Reset Email
                         </Button>
                         <Button variant="link" className="w-full" onClick={() => setShowResetForm(false)}>
@@ -296,8 +310,8 @@ export default function AuthenticationPage() {
                       </FormItem>
                     )}
                   />
-                  <Button type="submit" className="w-full font-semibold" disabled={isLoading}>
-                    {isLoading && activeTab === 'signin' && !signInForm.formState.isSubmitting && (
+                  <Button type="submit" className="w-full font-semibold" disabled={isSigningIn}>
+                    {isSigningIn && (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     )}
                     Sign In
@@ -355,8 +369,8 @@ export default function AuthenticationPage() {
                       </FormItem>
                     )}
                   />
-                  <Button type="submit" className="w-full font-semibold" disabled={isLoading}>
-                    {isLoading && activeTab === 'signup' && !signUpForm.formState.isSubmitting && (
+                  <Button type="submit" className="w-full font-semibold" disabled={isSigningUp}>
+                    {isSigningUp && (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     )}
                     Sign Up
@@ -383,7 +397,7 @@ export default function AuthenticationPage() {
                         onClick={handleGoogleSignIn}
                         disabled={isLoading}
                     >
-                        {isLoading && !signInForm.formState.isSubmitting && !signUpForm.formState.isSubmitting && (
+                        {isGoogleSigningIn && (
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         )}
                         <GoogleIcon className="mr-2 h-5 w-5" />
