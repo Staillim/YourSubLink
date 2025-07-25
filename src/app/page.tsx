@@ -4,10 +4,21 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Logo } from '@/components/icons';
-import { BarChart3, MessageSquare, DollarSign, ArrowRight } from 'lucide-react';
+import { Logo, TikTokIcon } from '@/components/icons';
+import { BarChart3, MessageSquare, DollarSign, ArrowRight, CheckCircle, ExternalLink, Youtube, Facebook, Instagram, ThumbsUp, Globe, Bot } from 'lucide-react';
 import Image from 'next/image';
+import { cn } from '@/lib/utils';
 
+
+const DemoRule = ({ icon: Icon, text, className, isCompleted }: { icon: any, text: string, className: string, isCompleted?: boolean }) => (
+    <div className={cn("flex items-center justify-between p-3 rounded-lg transition-all text-left", className, isCompleted && "bg-green-600 hover:bg-green-600/90 ring-1 ring-green-400 !text-white")}>
+        <div className="flex items-center gap-3">
+            {isCompleted ? <CheckCircle className="h-5 w-5 shrink-0" /> : <Icon className="h-5 w-5 shrink-0" />}
+            <span className="font-semibold text-sm">{text}</span>
+        </div>
+        {!isCompleted && <ExternalLink className="h-5 w-5 shrink-0" />}
+    </div>
+);
 
 export default function LandingPage() {
     return (
@@ -35,6 +46,34 @@ export default function LandingPage() {
                         </Button>
                     </div>
                 </section>
+
+                {/* Monetization Showcase */}
+                <section className="py-16 px-4">
+                    <div className="container mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+                        <div className="text-center lg:text-left">
+                            <h2 className="text-3xl font-bold mb-4">Monetization in Action</h2>
+                            <p className="text-muted-foreground mb-6">
+                                Instead of a simple redirect, your visitors complete a series of quick and easy steps you define. Each completed step contributes to your earnings. You control the rules, you control the income.
+                            </p>
+                            <ul className="space-y-2 text-left">
+                                <li className="flex items-center gap-2"><CheckCircle className="h-5 w-5 text-green-500" /> <span>Increase engagement on your social media.</span></li>
+                                <li className="flex items-center gap-2"><CheckCircle className="h-5 w-5 text-green-500" /> <span>High and customizable CPM rates.</span></li>
+                                <li className="flex items-center gap-2"><CheckCircle className="h-5 w-5 text-green-500" /> <span>AI-powered anti-bot detection to ensure real views.</span></li>
+                            </ul>
+                        </div>
+                        <Card className="w-full max-w-md mx-auto shadow-2xl bg-card">
+                            <CardContent className="p-6 space-y-3">
+                                <p className="text-center text-sm font-semibold text-muted-foreground">COMPLETE THE STEPS TO UNLOCK THE LINK</p>
+                                <DemoRule icon={Youtube} text="Subscribe on YouTube" className="bg-[#FF0000] hover:bg-[#FF0000]/90 text-white" isCompleted />
+                                <DemoRule icon={TikTokIcon} text="Follow on TikTok" className="bg-black hover:bg-black/90 text-white" />
+                                <DemoRule icon={Facebook} text="Like on Facebook" className="bg-[#1877F2] hover:bg-[#1877F2]/90 text-white" />
+                                <DemoRule icon={Globe} text="Visit our Website" className="bg-muted hover:bg-muted/90 text-muted-foreground" />
+                                <Button disabled className="w-full !mt-5" size="lg">Unlock Link</Button>
+                            </CardContent>
+                        </Card>
+                    </div>
+                </section>
+
 
                 {/* Features Section */}
                 <section className="py-16 px-4 bg-muted/40">
