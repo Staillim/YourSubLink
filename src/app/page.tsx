@@ -1,5 +1,4 @@
 
-
 /**
  * !! ANTES DE EDITAR ESTE ARCHIVO, REVISA LAS DIRECTRICES EN LOS SIGUIENTES DOCUMENTOS: !!
  * - /README.md
@@ -129,7 +128,19 @@ export default function AuthenticationPage() {
     setIsSigningIn(true);
     try {
       const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
-      await handleRedirectBasedOnRole(userCredential.user);
+      const user = userCredential.user;
+
+      if (!user.emailVerified) {
+          await auth.signOut();
+          toast({
+              title: 'Email Not Verified',
+              description: 'Please check your inbox and verify your email address to log in.',
+              variant: 'destructive',
+          });
+          return;
+      }
+
+      await handleRedirectBasedOnRole(user);
     } catch (error: any) {
       toast({
         title: 'Authentication Error',
@@ -174,8 +185,21 @@ export default function AuthenticationPage() {
     try {
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
-      await createUserProfile(result.user);
-      await handleRedirectBasedOnRole(result.user);
+      const user = result.user;
+
+      if (!user.emailVerified) {
+        await auth.signOut();
+        toast({
+          title: 'Email Not Verified',
+          description: 'Your Google account email is not verified. Please verify it to continue.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      
+      await createUserProfile(user);
+      await handleRedirectBasedOnRole(user);
+
     } catch (error: any) {
       toast({
         title: 'Google Sign-In Error',
