@@ -1,10 +1,9 @@
+
 'use server';
 /**
  * @fileOverview A flow to verify a Google reCAPTCHA v3 token.
  * 
  * - verifyRecaptcha - A function that handles the verification process.
- * - VerifyRecaptchaInput - The input type for the verifyRecaptcha function.
- * - VerifyRecaptchaOutput - The return type for the verifyRecaptcha function.
  */
 
 import { ai } from '@/ai/genkit';
@@ -13,7 +12,7 @@ import { z } from 'genkit';
 const VerifyRecaptchaInputSchema = z.object({
   token: z.string().describe("The reCAPTCHA token from the client."),
 });
-export type VerifyRecaptchaInput = z.infer<typeof VerifyRecaptchaInputSchema>;
+type VerifyRecaptchaInput = z.infer<typeof VerifyRecaptchaInputSchema>;
 
 const VerifyRecaptchaOutputSchema = z.object({
   success: z.boolean().describe("Whether the token is valid."),
@@ -50,9 +49,11 @@ const verifyRecaptchaFlow = ai.defineFlow(
       
       const data = await response.json();
 
+      // If the request was not successful, the score might be missing.
+      // We provide a default value of 0 to satisfy the schema.
       return {
         success: data.success,
-        score: data.score,
+        score: data.score ?? 0,
         errorCodes: data['error-codes'],
       };
 
