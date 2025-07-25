@@ -51,7 +51,6 @@ export function NotificationBell() {
     }, [user]);
 
     const handleMarkAsRead = async () => {
-        setIsOpen(false); // Close popover immediately
         if (!user || !hasUnread) return;
 
         const q = query(collection(db, 'notifications'), where('userId', '==', user.uid), where('isRead', '==', false));
@@ -65,9 +64,16 @@ export function NotificationBell() {
         });
         await batch.commit();
     }
+    
+    const handleOpenChange = (open: boolean) => {
+        setIsOpen(open);
+        if (open) {
+            handleMarkAsRead();
+        }
+    };
 
     return (
-        <Popover open={isOpen} onOpenChange={setIsOpen}>
+        <Popover open={isOpen} onOpenChange={handleOpenChange}>
             <PopoverTrigger asChild>
                 <Button variant="ghost" size="icon" className="relative">
                     <Bell className="h-5 w-5" />
@@ -115,7 +121,7 @@ export function NotificationBell() {
                     )}
                 </div>
                 <div className="p-2 border-t">
-                    <Link href="/dashboard/notifications" onClick={handleMarkAsRead} className="w-full">
+                    <Link href="/dashboard/notifications" onClick={() => setIsOpen(false)} className="w-full">
                         <Button variant="link" size="sm" className="w-full">
                            View all notifications
                         </Button>
