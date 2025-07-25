@@ -40,7 +40,7 @@ export default function AdminSettingsPage() {
     const handleUpdateCpm = async (e: React.FormEvent) => {
         e.preventDefault();
         const rate = parseFloat(newCpmRate);
-        if (isNaN(rate) || rate <= 0) {
+        if (isNaN(rate) || rate < 0) {
             toast({ title: 'Invalid Rate', description: 'Please enter a valid positive number.', variant: 'destructive'});
             return;
         }
