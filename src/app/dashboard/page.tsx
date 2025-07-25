@@ -71,6 +71,7 @@ export type LinkItem = {
   description?: string;
   monetizable: boolean;
   rules: Rule[];
+  sponsoredRules?: Rule[];
   generatedEarnings: number;
   monetizationStatus: 'active' | 'suspended';
 };
@@ -129,6 +130,7 @@ function DashboardPageComponent() {
                 description: data.description,
                 monetizable: data.monetizable || false,
                 rules: data.rules || [],
+                sponsoredRules: data.sponsoredRules || [],
                 generatedEarnings: data.generatedEarnings || 0,
                 monetizationStatus: data.monetizationStatus || 'active',
             });

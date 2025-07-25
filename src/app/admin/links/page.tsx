@@ -2,10 +2,10 @@
 
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useState, useTransition, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, doc, deleteDoc, getDoc, updateDoc, addDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { collection, onSnapshot, doc, deleteDoc, getDoc, updateDoc, addDoc, serverTimestamp, writeBatch, arrayUnion } from 'firebase/firestore';
 import {
   Table,
   TableBody,
@@ -18,7 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
-import { MoreVertical, Trash2, ExternalLink, BarChart3, Eye, Calendar, ShieldCheck, Loader2, DollarSign, ShieldBan } from 'lucide-react';
+import { MoreVertical, Trash2, ExternalLink, BarChart3, Eye, Calendar, ShieldCheck, Loader2, DollarSign, ShieldBan, PlusCircle } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
     DropdownMenu,
@@ -29,7 +29,10 @@ import {
   } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { analyzeLinkSecurity } from '@/ai/flows/analyzeLinkSecurity';
-
+import { Checkbox } from '@/components/ui/checkbox';
+import { RuleEditor, type Rule } from '@/components/rule-editor';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose, DialogTrigger } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 
 type Link = {
   id: string;
@@ -52,6 +55,16 @@ export default function AdminLinksPage() {
   const router = useRouter();
   const [isAnalyzing, startTransition] = useTransition();
   const [analyzingLinkId, setAnalyzingLinkId] = useState<string | null>(null);
+
+  // State for row selection
+  const [selectedLinks, setSelectedLinks] = useState<Record<string, boolean>>({});
+  
+  // State for sponsored rule dialog
+  const [isRuleDialogOpen, setIsRuleDialogOpen] = useState(false);
+  const [sponsoredRules, setSponsoredRules] = useState<Rule[]>([]);
+  const [isSubmittingRule, setIsSubmittingRule] = useState(false);
+
+  const selectedCount = useMemo(() => Object.values(selectedLinks).filter(Boolean).length, [selectedLinks]);
 
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, 'links'), async (snapshot) => {
@@ -87,6 +100,23 @@ export default function AdminLinksPage() {
 
     return () => unsubscribe();
   }, []);
+
+  const handleSelect = (linkId: string, checked: boolean | 'indeterminate') => {
+    setSelectedLinks(prev => ({ ...prev, [linkId]: !!checked }));
+  };
+
+  const handleSelectAll = (checked: boolean | 'indeterminate') => {
+    if (checked) {
+      const allSelected = links.reduce((acc, link) => {
+        acc[link.id] = true;
+        return acc;
+      }, {} as Record<string, boolean>);
+      setSelectedLinks(allSelected);
+    } else {
+      setSelectedLinks({});
+    }
+  };
+
 
   const handleDelete = async (id: string, userId: string, title: string) => {
     if(!confirm('Are you sure you want to delete this link permanently? This will notify the user.')) return;
@@ -202,6 +232,39 @@ export default function AdminLinksPage() {
     });
   };
 
+  const handleAddSponsoredRule = async () => {
+    if(sponsoredRules.length === 0 || sponsoredRules.some(r => !r.url)) {
+        toast({ title: 'Invalid Rule', description: 'Please ensure all sponsored rules have a valid URL.', variant: 'destructive'});
+        return;
+    }
+    
+    setIsSubmittingRule(true);
+    try {
+        const batch = writeBatch(db);
+        const selectedIds = Object.keys(selectedLinks).filter(id => selectedLinks[id]);
+
+        selectedIds.forEach(linkId => {
+            const linkRef = doc(db, 'links', linkId);
+            batch.update(linkRef, {
+                sponsoredRules: arrayUnion(...sponsoredRules)
+            });
+        });
+
+        await batch.commit();
+        toast({
+            title: 'Rules Applied',
+            description: `The sponsored rule(s) have been applied to ${selectedIds.length} link(s).`
+        });
+        setIsRuleDialogOpen(false);
+        setSponsoredRules([]);
+        setSelectedLinks({});
+    } catch (error) {
+         toast({ title: 'Error', description: 'Could not apply sponsored rules.', variant: 'destructive' });
+    } finally {
+        setIsSubmittingRule(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex flex-col gap-4">
@@ -235,7 +298,36 @@ export default function AdminLinksPage() {
   return (
     <TooltipProvider>
         <div className="flex flex-col gap-4">
-        <h1 className="text-2xl font-bold">Link Management</h1>
+        <div className="flex items-center justify-between gap-4">
+            <h1 className="text-2xl font-bold">Link Management</h1>
+            <Dialog open={isRuleDialogOpen} onOpenChange={setIsRuleDialogOpen}>
+                <DialogTrigger asChild>
+                    <Button disabled={selectedCount === 0}>
+                        <PlusCircle className="mr-2 h-4 w-4" />
+                        Add Sponsored Rule ({selectedCount})
+                    </Button>
+                </DialogTrigger>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Add Sponsored Rule(s)</DialogTitle>
+                        <DialogDescription>
+                            These rules will be added to the {selectedCount} selected link(s). They won't affect the user's own monetization rules.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4">
+                        <Label>Sponsored Rules</Label>
+                        <RuleEditor rules={sponsoredRules} onRulesChange={setSponsoredRules} />
+                    </div>
+                    <DialogFooter>
+                        <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
+                        <Button onClick={handleAddSponsoredRule} disabled={isSubmittingRule}>
+                           {isSubmittingRule && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                           Apply Rule(s)
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </div>
         <Card>
             <CardHeader>
             <CardTitle>All Links</CardTitle>
@@ -245,6 +337,12 @@ export default function AdminLinksPage() {
             <Table>
                 <TableHeader>
                 <TableRow>
+                    <TableHead padding="checkbox">
+                        <Checkbox 
+                            checked={selectedCount > 0 && selectedCount === links.length}
+                            onCheckedChange={handleSelectAll}
+                        />
+                    </TableHead>
                     <TableHead>Link</TableHead>
                     <TableHead className="hidden md:table-cell">User</TableHead>
                     <TableHead className="hidden sm:table-cell">Clicks</TableHead>
@@ -255,7 +353,13 @@ export default function AdminLinksPage() {
                 </TableHeader>
                 <TableBody>
                 {links.map((link) => (
-                    <TableRow key={link.id}>
+                    <TableRow key={link.id} data-state={selectedLinks[link.id] ? 'selected' : ''}>
+                        <TableCell padding="checkbox">
+                            <Checkbox 
+                                checked={!!selectedLinks[link.id]}
+                                onCheckedChange={(checked) => handleSelect(link.id, checked)}
+                            />
+                        </TableCell>
                         <TableCell>
                             <div className="font-semibold truncate max-w-[200px] sm:max-w-xs">{link.title}</div>
                             <a href={link.short} target='_blank' rel='noopener noreferrer' className="text-xs text-muted-foreground hover:underline block truncate max-w-[200px] sm:max-w-xs">{link.short}</a>
@@ -350,7 +454,7 @@ export default function AdminLinksPage() {
                 ))}
                  {links.length === 0 && (
                 <TableRow>
-                    <TableCell colSpan={6} className="h-24 text-center">
+                    <TableCell colSpan={7} className="h-24 text-center">
                     No links found in the system.
                     </TableCell>
                 </TableRow>
