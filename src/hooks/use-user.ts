@@ -22,9 +22,11 @@ export type UserProfile = {
   email: string;
   photoURL: string;
   role: 'user' | 'admin';
+  linksCount: number;
   generatedEarnings: number;
   paidEarnings: number;
-  customCpm?: number | null;
+  accountStatus: 'active' | 'suspended';
+  customCpm: number | null;
 };
 
 export type PayoutRequest = {
@@ -97,7 +99,9 @@ export function useUser() {
             role: userData.role || 'user',
             generatedEarnings: totalGeneratedEarnings,
             paidEarnings: userData.paidEarnings || 0,
-            customCpm: userData.customCpm || null,
+            customCpm: userData.customCpm === undefined ? null : userData.customCpm,
+            accountStatus: userData.accountStatus || 'active',
+            linksCount: 0, // This will be updated below
         });
       } else {
         await createUserProfile(authUser);

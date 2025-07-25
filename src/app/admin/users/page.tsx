@@ -59,19 +59,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { PayoutRequest } from '@/hooks/use-user';
 import { cn } from '@/lib/utils';
+import type { UserProfile } from '@/hooks/use-user';
 
-type UserProfile = {
-  uid: string;
-  displayName: string;
-  email: string;
-  photoURL: string;
-  role: 'user' | 'admin';
-  linksCount: number;
-  generatedEarnings: number;
-  paidEarnings: number;
-  accountStatus: 'active' | 'suspended';
-  customCpm?: number | null;
-};
 
 export default function AdminUsersPage() {
   const { user } = useUser();
@@ -114,7 +103,7 @@ export default function AdminUsersPage() {
           generatedEarnings: totalGeneratedEarnings,
           paidEarnings: userData.paidEarnings || 0,
           accountStatus: userData.accountStatus || 'active',
-          customCpm: userData.customCpm || null,
+          customCpm: userData.customCpm === undefined ? null : userData.customCpm,
         });
       }
 
