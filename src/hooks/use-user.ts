@@ -26,7 +26,7 @@ export type UserProfile = {
   generatedEarnings: number;
   paidEarnings: number;
   accountStatus: 'active' | 'suspended';
-  customCpm: number | null;
+  customCpm?: number | null;
 };
 
 export type PayoutRequest = {
@@ -99,7 +99,7 @@ export function useUser() {
             role: userData.role || 'user',
             generatedEarnings: totalGeneratedEarnings,
             paidEarnings: userData.paidEarnings || 0,
-            customCpm: userData.customCpm === undefined ? null : userData.customCpm,
+            customCpm: userData.customCpm,
             accountStatus: userData.accountStatus || 'active',
             linksCount: 0, // This will be updated below
         });
@@ -137,10 +137,16 @@ export function useUser() {
         .reduce((acc, p) => acc + p.amount, 0);
 
   const availableBalance = generatedEarnings - paidEarnings - payoutsPending;
+  
+  const finalProfile: UserProfile | null = userProfile ? {
+      ...userProfile,
+      // Treat customCpm of 0 as null so the UI can correctly show global CPM
+      customCpm: userProfile.customCpm === 0 ? null : userProfile.customCpm,
+  } : null;
 
   return {
     user: authUser as FirebaseUser | null,
-    profile: userProfile,
+    profile: finalProfile,
     role: userProfile?.role,
     loading: loading,
     payouts,

@@ -104,7 +104,7 @@ export default function AdminUsersPage() {
           generatedEarnings: totalGeneratedEarnings,
           paidEarnings: userData.paidEarnings || 0,
           accountStatus: userData.accountStatus || 'active',
-          customCpm: userData.customCpm === undefined ? null : userData.customCpm,
+          customCpm: userData.customCpm,
         });
       }
 
@@ -160,7 +160,10 @@ export default function AdminUsersPage() {
 
    const handleSetCustomCpm = async () => {
     if (!selectedUser) return;
-    const newCpm = customCpmAmount === '' ? null : parseFloat(customCpmAmount);
+    
+    const parsedCpm = parseFloat(customCpmAmount);
+    // Treat empty string or "0" as a reason to remove the custom CPM.
+    const newCpm = customCpmAmount === '' || parsedCpm === 0 ? null : parsedCpm;
 
     if (newCpm !== null && (isNaN(newCpm) || newCpm < 0)) {
         toast({ title: 'Invalid CPM', description: 'Please enter a valid positive number or leave it blank to remove.', variant: 'destructive' });
@@ -449,7 +452,7 @@ export default function AdminUsersPage() {
                 <DialogHeader>
                     <DialogTitle>Set Custom CPM for {selectedUser?.displayName}</DialogTitle>
                     <DialogDescription>
-                        Set a specific CPM rate for this user. This will override the global rate for all their links. Leave blank to remove the custom CPM.
+                        Set a specific CPM rate for this user. This will override the global rate for all their links. Leave blank or set to 0 to remove the custom CPM.
                     </DialogDescription>
                 </DialogHeader>
                  <div className="grid gap-4 py-4">
@@ -460,7 +463,7 @@ export default function AdminUsersPage() {
                             type="number"
                             value={customCpmAmount}
                             onChange={(e) => setCustomCpmAmount(e.target.value)}
-                            placeholder="e.g. 4.50"
+                            placeholder="e.g. 4.50 (or 0 to remove)"
                         />
                     </div>
                 </div>

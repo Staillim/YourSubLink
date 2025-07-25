@@ -101,10 +101,10 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
             const customCpm = userData?.customCpm;
 
             if (customCpm && customCpm > 0) {
-                // Use custom CPM
+                // Use custom CPM because it's defined and greater than 0
                 cpmUsed = customCpm;
             } else {
-                // Use global CPM
+                // Use global CPM if custom is null, undefined, or 0
                 const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
                 const cpmSnapshot = await getDocs(cpmQuery);
                 let activeCpm = 3.00; // Default fallback CPM
