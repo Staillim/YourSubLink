@@ -17,7 +17,7 @@ export function AdminNotificationBell() {
     const { user, role, loading: userLoading } = useUser();
     const [pendingPayouts, setPendingPayouts] = useState<PayoutRequest[]>([]);
     const [recentChats, setRecentChats] = useState<SupportTicket[]>([]);
-    const [hasUnread, setHasUnread] = useState(false);
+    const [unreadChats, setUnreadChats] = useState<SupportTicket[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -28,10 +28,10 @@ export function AdminNotificationBell() {
 
         let payoutsLoaded = false;
         let chatsLoaded = false;
-        let unreadLoaded = false;
+        let unreadChatsLoaded = false;
 
         const checkAllLoaded = () => {
-            if (payoutsLoaded && chatsLoaded && unreadLoaded) {
+            if (payoutsLoaded && chatsLoaded && unreadChatsLoaded) {
                 setLoading(false);
             }
         };
@@ -43,7 +43,6 @@ export function AdminNotificationBell() {
             checkAllLoaded();
         });
 
-        // Query for the 5 most recent chats to display
         const recentChatsQuery = query(collection(db, 'supportTickets'), orderBy('lastMessageTimestamp', 'desc'), limit(5));
         const unsubRecentChats = onSnapshot(recentChatsQuery, (snapshot) => {
             setRecentChats(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SupportTicket)));
@@ -51,11 +50,10 @@ export function AdminNotificationBell() {
             checkAllLoaded();
         });
         
-        // Query just for the unread status indicator
         const unreadChatsQuery = query(collection(db, 'supportTickets'), where('isReadByAdmin', '==', false));
         const unsubUnread = onSnapshot(unreadChatsQuery, (snapshot) => {
-            setHasUnread(!snapshot.empty);
-            unreadLoaded = true;
+            setUnreadChats(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SupportTicket)));
+            unreadChatsLoaded = true;
             checkAllLoaded();
         })
 
@@ -67,7 +65,6 @@ export function AdminNotificationBell() {
     }, [user, role, userLoading]);
 
     const handleMarkAsRead = async () => {
-        const unreadChats = recentChats.filter(chat => !chat.isReadByAdmin);
         if (unreadChats.length === 0) return;
 
         const batch = writeBatch(db);
@@ -84,13 +81,13 @@ export function AdminNotificationBell() {
     };
 
     const handleOpenChange = (open: boolean) => {
-        if (open && hasUnread) {
+        if (open && unreadChats.length > 0) {
             handleMarkAsRead();
         }
     };
     
     const hasNotifications = pendingPayouts.length > 0 || recentChats.length > 0;
-    const notificationIndicator = pendingPayouts.length > 0 || hasUnread;
+    const notificationIndicator = pendingPayouts.length > 0 || unreadChats.length > 0;
 
 
     if (loading) {
@@ -152,9 +149,9 @@ export function AdminNotificationBell() {
                     )}
                 </div>
                 <div className="p-2 border-t">
-                    <Link href="/admin/history">
+                    <Link href="/admin/support">
                         <Button variant="link" size="sm" className="w-full">
-                           <History className="mr-2 h-4 w-4" /> View all system history
+                           <MessageSquare className="mr-2 h-4 w-4" /> View All Support Tickets
                         </Button>
                     </Link>
                 </div>
