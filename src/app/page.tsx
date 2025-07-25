@@ -8,6 +8,7 @@ import { Logo, TikTokIcon } from '@/components/icons';
 import { BarChart3, MessageSquare, DollarSign, ArrowRight, CheckCircle, ExternalLink, Youtube, Facebook, Instagram, ThumbsUp, Globe, Bot, Wallet, Users, Link2 as LinkIconLucide, Edit, Share2, Award, ShieldCheck } from 'lucide-react';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
+import { ThemeSwitcher } from '@/components/theme-switcher';
 
 
 const DemoRule = ({ icon: Icon, text, className, isCompleted }: { icon: any, text: string, className: string, isCompleted?: boolean }) => (
@@ -27,6 +28,7 @@ export default function LandingPage() {
             <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between p-4 bg-background/80 backdrop-blur-sm">
                 <Logo />
                 <div className="flex items-center gap-2">
+                    <ThemeSwitcher />
                     <Button asChild variant="ghost">
                         <Link href="/auth">Sign In</Link>
                     </Button>

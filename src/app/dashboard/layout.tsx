@@ -24,6 +24,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useRouter } from 'next/navigation';
 import { NotificationBell } from '@/components/notification-bell';
 import SupportChat from '@/components/support-chat';
+import { ThemeSwitcher } from '@/components/theme-switcher';
 
 
 export default function DashboardLayout({
@@ -127,6 +128,7 @@ export default function DashboardLayout({
           <div className="w-full flex-1">
             {/* Can add a search bar here later */}
           </div>
+          <ThemeSwitcher />
           <NotificationBell />
           <UserNav />
         </header>

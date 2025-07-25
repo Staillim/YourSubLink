@@ -21,6 +21,7 @@ import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AdminNav } from '@/components/admin-nav';
 import { AdminNotificationBell } from '@/components/admin-notification-bell';
+import { ThemeSwitcher } from '@/components/theme-switcher';
 
 export default function AdminLayout({
   children,
@@ -128,6 +129,7 @@ export default function AdminLayout({
           <div className="w-full flex-1">
             {/* Can add a search bar here later */}
           </div>
+          <ThemeSwitcher />
           <AdminNotificationBell />
           <UserNav />
         </header>
