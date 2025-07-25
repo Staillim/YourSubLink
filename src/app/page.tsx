@@ -69,6 +69,7 @@ function AuthForm() {
   const router = useRouter();
   const { toast } = useToast();
   const [showResetForm, setShowResetForm] = useState(false);
+  const [activeTab, setActiveTab] = useState('signin');
 
   // Separate loading states for each form submission
   const [isSigningIn, setIsSigningIn] = useState(false);
@@ -172,6 +173,8 @@ function AuthForm() {
           description: 'Please check your inbox to verify your email address before signing in.',
           duration: 8000
       });
+
+      setActiveTab('signin');
 
     } catch (error: any) {
         if (error.code === 'auth/email-already-in-use') {
@@ -282,7 +285,7 @@ function AuthForm() {
                     </Form>
                 ) : (
                 <>
-                    <Tabs defaultValue="signin" className="w-full">
+                    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                         <TabsList className="grid w-full grid-cols-2">
                             <TabsTrigger value="signin">Sign In</TabsTrigger>
                             <TabsTrigger value="signup">Sign Up</TabsTrigger>
@@ -449,3 +452,5 @@ export default function AuthenticationPage() {
         </main>
     )
 }
+
+    
