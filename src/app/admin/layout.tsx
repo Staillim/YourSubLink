@@ -34,8 +34,8 @@ export default function AdminLayout({
   React.useEffect(() => {
     if (!loading) {
       if (!user) {
-        // Not logged in, redirect to home
-        router.push('/');
+        // Not logged in, redirect to auth page
+        router.push('/auth');
       } else if (role !== 'admin') {
         // Not an admin, redirect to user dashboard
         router.push('/dashboard');
