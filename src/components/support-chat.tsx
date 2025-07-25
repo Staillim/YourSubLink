@@ -121,14 +121,12 @@ export default function SupportChat() {
     if (!ticket.isReadByUser && user) {
         const batch = writeBatch(db);
         
-        // 1. Mark ticket as read
         const ticketRef = doc(db, 'supportTickets', ticket.id);
         batch.update(ticketRef, { isReadByUser: true });
         
-        // 2. Find and mark corresponding notification as read
         const notifQuery = query(
             collection(db, 'notifications'), 
-            where('userId', '==', user.uid), // Check ownership
+            where('userId', '==', user.uid),
             where('ticketId', '==', ticket.id),
             where('isRead', '==', false)
         );
@@ -146,7 +144,6 @@ export default function SupportChat() {
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !user || !profile || !selectedTicket) return;
 
-    // Prevent sending messages on a completed ticket
     if (selectedTicket.status === 'completed') return;
 
     const messageText = newMessage;
@@ -155,7 +152,6 @@ export default function SupportChat() {
     const batch = writeBatch(db);
     const ticketRef = doc(db, 'supportTickets', selectedTicket.id);
 
-    // 1. Add new message to subcollection
     const messagesRef = doc(collection(ticketRef, 'messages'));
     batch.set(messagesRef, {
       text: messageText,
@@ -163,13 +159,12 @@ export default function SupportChat() {
       timestamp: serverTimestamp(),
     });
     
-    // 2. Update parent ticket document
     batch.update(ticketRef, {
         lastMessage: messageText,
         lastMessageTimestamp: serverTimestamp(),
         isReadByAdmin: false,
         isReadByUser: true,
-        status: 'pending', // Re-open the ticket if user replies
+        status: 'pending',
     });
 
     await batch.commit();
@@ -182,7 +177,6 @@ export default function SupportChat() {
 
     const batch = writeBatch(db);
 
-    // 1. Create the new ticket document
     const ticketRef = doc(collection(db, 'supportTickets'));
     batch.set(ticketRef, {
         userId: user.uid,
@@ -196,7 +190,6 @@ export default function SupportChat() {
         status: 'pending',
     });
     
-    // 2. Add the initial message to its subcollection
     const messagesRef = doc(collection(ticketRef, 'messages'));
     batch.set(messagesRef, {
         text: newMessage,
