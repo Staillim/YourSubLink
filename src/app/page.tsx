@@ -46,7 +46,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 import { GoogleReCaptchaProvider, useGoogleReCaptcha } from 'react-google-recaptcha-v3';
 import { verifyRecaptcha } from '@/ai/flows/verifyRecaptcha';
@@ -71,6 +71,13 @@ function AuthForm() {
   const { toast } = useToast();
   const [showResetForm, setShowResetForm] = useState(false);
   const { executeRecaptcha } = useGoogleReCaptcha();
+  const [isRecaptchaReady, setIsRecaptchaReady] = useState(false);
+
+  useEffect(() => {
+    if (executeRecaptcha) {
+      setIsRecaptchaReady(true);
+    }
+  }, [executeRecaptcha]);
 
   // Separate loading states for each form submission
   const [isSigningIn, setIsSigningIn] = useState(false);
@@ -407,7 +414,7 @@ function AuthForm() {
                                 </FormItem>
                                 )}
                             />
-                            <Button type="submit" className="w-full font-semibold" disabled={isSigningUp}>
+                            <Button type="submit" className="w-full font-semibold" disabled={isSigningUp || !isRecaptchaReady}>
                                 {isSigningUp && (
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                 )}
@@ -487,3 +494,4 @@ export default function AuthenticationPage() {
         </main>
     )
 }
+
