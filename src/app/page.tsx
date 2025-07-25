@@ -51,12 +51,12 @@ export default function LandingPage() {
                         <p className="text-muted-foreground mb-8 max-w-2xl mx-auto">This is what visitors see: a clean interface with clear steps. Each step completed brings you closer to your earnings.</p>
                         <div className="relative mx-auto max-w-4xl">
                             <Image
-                                src="https://placehold.co/1200x675.png"
+                                src="/pc-interface.png"
                                 alt="PC Interface"
                                 width={1200}
                                 height={675}
                                 className="rounded-xl shadow-2xl"
-                                data-ai-hint="pc interface"
+                                data-ai-hint="dashboard screenshot"
                             />
                         </div>
                     </div>
