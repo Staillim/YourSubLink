@@ -49,28 +49,39 @@ export default function LandingPage() {
 
                 {/* Monetization Showcase */}
                 <section className="py-16 px-4">
-                    <div className="container mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-                        <div className="text-center lg:text-left">
-                            <h2 className="text-3xl font-bold mb-4">Monetization in Action</h2>
-                            <p className="text-muted-foreground mb-6">
-                                Instead of a simple redirect, your visitors complete a series of quick and easy steps you define. Each completed step contributes to your earnings. You control the rules, you control the income.
-                            </p>
-                            <ul className="space-y-2 text-left">
-                                <li className="flex items-center gap-2"><CheckCircle className="h-5 w-5 text-green-500" /> <span>Increase engagement on your social media.</span></li>
-                                <li className="flex items-center gap-2"><CheckCircle className="h-5 w-5 text-green-500" /> <span>High and customizable CPM rates.</span></li>
-                                <li className="flex items-center gap-2"><CheckCircle className="h-5 w-5 text-green-500" /> <span>AI-powered anti-bot detection to ensure real views.</span></li>
-                            </ul>
-                        </div>
-                        <Card className="w-full max-w-md mx-auto shadow-2xl bg-card">
-                            <CardContent className="p-6 space-y-3">
-                                <p className="text-center text-sm font-semibold text-muted-foreground">COMPLETE THE STEPS TO UNLOCK THE LINK</p>
-                                <DemoRule icon={Youtube} text="Subscribe on YouTube" className="bg-[#FF0000] hover:bg-[#FF0000]/90 text-white" isCompleted />
-                                <DemoRule icon={TikTokIcon} text="Follow on TikTok" className="bg-black hover:bg-black/90 text-white" />
-                                <DemoRule icon={Facebook} text="Like on Facebook" className="bg-[#1877F2] hover:bg-[#1877F2]/90 text-white" />
-                                <DemoRule icon={Globe} text="Visit our Website" className="bg-muted hover:bg-muted/90 text-muted-foreground" />
-                                <Button disabled className="w-full !mt-5" size="lg">Unlock Link</Button>
-                            </CardContent>
-                        </Card>
+                     <div className="container mx-auto text-center">
+                        <h2 className="text-3xl font-bold mb-4">A Powerful and Intuitive Dashboard</h2>
+                        <p className="text-muted-foreground mb-8 max-w-2xl mx-auto">Manage your links, track your earnings, and get insights from a clean and modern interface, available on all your devices.</p>
+                         <div className="flex flex-col lg:flex-row justify-center items-center gap-8">
+                            {/* Desktop Mockup */}
+                            <div className="relative mx-auto border-slate-800 dark:border-slate-800 bg-slate-800 border-[8px] rounded-t-xl w-full max-w-4xl h-auto shadow-2xl">
+                                <Image
+                                    src="https://placehold.co/1200x675"
+                                    alt="Dashboard Screenshot"
+                                    width={1200}
+                                    height={675}
+                                    data-ai-hint="dashboard analytics"
+                                    className="rounded-t-lg"
+                                />
+                            </div>
+                            {/* Mobile Mockup */}
+                            <div className="relative mx-auto border-gray-800 dark:border-gray-800 bg-gray-800 border-[14px] rounded-[2.5rem] h-[600px] w-[300px] shadow-xl">
+                                <div className="w-[140px] h-[18px] bg-gray-800 top-0 rounded-b-[1rem] left-1/2 -translate-x-1/2 absolute"></div>
+                                <div className="h-[46px] w-[3px] bg-gray-800 absolute -start-[17px] top-[124px] rounded-s-lg"></div>
+                                <div className="h-[46px] w-[3px] bg-gray-800 absolute -start-[17px] top-[178px] rounded-s-lg"></div>
+                                <div className="h-[64px] w-[3px] bg-gray-800 absolute -end-[17px] top-[142px] rounded-e-lg"></div>
+                                <div className="rounded-[2rem] overflow-hidden w-full h-full bg-white dark:bg-black">
+                                     <Image
+                                        src="https://placehold.co/300x600"
+                                        alt="Mobile App Screenshot"
+                                        width={300}
+                                        height={600}
+                                        data-ai-hint="mobile interface"
+                                        className="w-full h-full object-cover"
+                                    />
+                                </div>
+                            </div>
+                         </div>
                     </div>
                 </section>
 
@@ -104,44 +115,6 @@ export default function LandingPage() {
                                 </p>
                             </Card>
                         </div>
-                    </div>
-                </section>
-
-                 {/* Image Showcase */}
-                <section className="py-20 px-4">
-                    <div className="container mx-auto text-center">
-                        <h2 className="text-3xl font-bold mb-4">A Powerful and Intuitive Dashboard</h2>
-                        <p className="text-muted-foreground mb-8 max-w-2xl mx-auto">Manage your links, track your earnings, and get insights from a clean and modern interface, available on all your devices.</p>
-                         <div className="flex flex-col lg:flex-row justify-center items-center gap-8">
-                            {/* Desktop Mockup */}
-                            <div className="relative mx-auto border-slate-800 dark:border-slate-800 bg-slate-800 border-[8px] rounded-t-xl w-full max-w-4xl h-auto shadow-2xl">
-                                <Image
-                                    src="https://placehold.co/1200x675"
-                                    alt="Dashboard Screenshot"
-                                    width={1200}
-                                    height={675}
-                                    data-ai-hint="dashboard analytics"
-                                    className="rounded-t-lg"
-                                />
-                            </div>
-                            {/* Mobile Mockup */}
-                            <div className="relative mx-auto border-gray-800 dark:border-gray-800 bg-gray-800 border-[14px] rounded-[2.5rem] h-[600px] w-[300px] shadow-xl">
-                                <div className="w-[140px] h-[18px] bg-gray-800 top-0 rounded-b-[1rem] left-1/2 -translate-x-1/2 absolute"></div>
-                                <div className="h-[46px] w-[3px] bg-gray-800 absolute -start-[17px] top-[124px] rounded-s-lg"></div>
-                                <div className="h-[46px] w-[3px] bg-gray-800 absolute -start-[17px] top-[178px] rounded-s-lg"></div>
-                                <div className="h-[64px] w-[3px] bg-gray-800 absolute -end-[17px] top-[142px] rounded-e-lg"></div>
-                                <div className="rounded-[2rem] overflow-hidden w-full h-full bg-white dark:bg-black">
-                                     <Image
-                                        src="https://placehold.co/300x600"
-                                        alt="Mobile App Screenshot"
-                                        width={300}
-                                        height={600}
-                                        data-ai-hint="mobile interface"
-                                        className="w-full h-full object-cover"
-                                    />
-                                </div>
-                            </div>
-                         </div>
                     </div>
                 </section>
             </main>
