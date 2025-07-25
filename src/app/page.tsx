@@ -46,37 +46,27 @@ export default function LandingPage() {
 
                 {/* Monetization Showcase */}
                 <section className="py-16 px-4">
-                     <div className="container mx-auto text-center">
+                    <div className="container mx-auto text-center">
                         <h2 className="text-3xl font-bold mb-4">Monetization in Action</h2>
                         <p className="text-muted-foreground mb-8 max-w-2xl mx-auto">This is what visitors see: a clean interface with clear steps. Each step completed brings you closer to your earnings.</p>
-                         <div className="flex flex-col lg:flex-row justify-center items-center gap-8">
-                            {/* Desktop Mockup */}
-                             <div className="bg-gray-800 border-4 border-gray-900 rounded-xl shadow-2xl overflow-hidden w-full max-w-3xl">
-                                <div className="w-full h-auto">
-                                    <Image
-                                        src="https://placehold.co/1200x675.png"
-                                        alt="Dashboard Screenshot"
-                                        width={1200}
-                                        height={675}
-                                        data-ai-hint="dashboard analytics"
-                                        className="object-cover w-full h-full"
-                                    />
-                                </div>
-                            </div>
-                            {/* Mobile Mockup */}
-                            <div className="relative mx-auto border-gray-800 dark:border-gray-800 bg-gray-800 border-[8px] rounded-[1.5rem] h-[480px] w-[240px] shadow-xl">
-                                <div className="rounded-[1rem] overflow-hidden w-full h-full bg-white dark:bg-black">
-                                     <Image
-                                        src="https://placehold.co/300x600.png"
-                                        alt="Mobile App Screenshot"
-                                        width={300}
-                                        height={600}
-                                        data-ai-hint="mobile interface"
-                                        className="w-full h-full object-cover"
-                                    />
-                                </div>
-                            </div>
-                         </div>
+                        <div className="flex flex-col lg:flex-row justify-center items-center gap-8">
+                            <Image
+                                src="https://placehold.co/1200x675.png"
+                                alt="Dashboard Screenshot"
+                                width={1200}
+                                height={675}
+                                data-ai-hint="dashboard analytics"
+                                className="w-full max-w-3xl rounded-xl shadow-2xl"
+                            />
+                            <Image
+                                src="https://placehold.co/300x600.png"
+                                alt="Mobile App Screenshot"
+                                width={300}
+                                height={600}
+                                data-ai-hint="mobile interface"
+                                className="w-[240px] h-[480px] rounded-xl shadow-2xl"
+                            />
+                        </div>
                     </div>
                 </section>
                 
@@ -108,7 +98,7 @@ export default function LandingPage() {
                                 <BarChart3 className="h-12 w-12 text-primary mb-4" />
                                 <h3 className="text-xl font-semibold mb-2">Intuitive Dashboard</h3>
                                 <p className="text-muted-foreground">
-                                    Manage your links, track earnings, and get insights from a clean, modern interface available on all your devices.
+                                    Manage your links, track your earnings, and get insights from a clean, modern interface available on all your devices.
                                 </p>
                             </Card>
                             <Card className="flex flex-col items-center text-center p-6">
