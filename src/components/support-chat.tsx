@@ -38,6 +38,25 @@ const getStatusBadgeVariant = (status: SupportTicket['status']) => {
     }
 }
 
+const predefinedQuestions = [
+    { 
+        question: "Problema con un pago",
+        template: "Hola, tengo un problema con un pago. El ID de la transacción es (si lo tienes): \n\nMi problema es: "
+    },
+    { 
+        question: "Un enlace no funciona",
+        template: "Hola, uno de mis enlaces no funciona correctamente. El enlace es: \n\nEl problema que estoy viendo es: "
+    },
+    {
+        question: "Pregunta sobre mi saldo",
+        template: "Hola, tengo una pregunta sobre mi saldo. \n\nMi duda es: "
+    },
+    {
+        question: "Sugerencia para la plataforma",
+        template: "Hola, tengo una sugerencia para mejorar la plataforma. \n\nMi sugerencia es: "
+    }
+];
+
 
 export default function SupportChat() {
   const { user, profile } = useUser();
@@ -205,6 +224,11 @@ export default function SupportChat() {
     setLoading(false);
     setView('list');
   };
+  
+  const handlePredefinedQuestionClick = (subject: string, template: string) => {
+    setNewSubject(subject);
+    setNewMessage(template);
+  }
 
   const handleOpenWidget = () => {
     setIsOpen(true);
@@ -315,10 +339,25 @@ export default function SupportChat() {
 
           {/* New Ticket View */}
           {view === 'new' && (
-            <>
-                <div className="p-3 flex-1 space-y-4">
-                     <Input value={newSubject} onChange={(e) => setNewSubject(e.target.value)} placeholder="Subject" />
-                     <Textarea value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder="How can we help you?" className="h-40"/>
+            <ScrollArea className="flex-1">
+                <div className="p-3 space-y-4">
+                    <p className="text-xs text-muted-foreground">Select a common issue or write your own subject.</p>
+                    <div className="flex flex-col space-y-2">
+                        {predefinedQuestions.map((q, i) => (
+                            <Button 
+                                key={i} 
+                                variant="outline" 
+                                size="sm" 
+                                className="h-auto py-2 justify-start text-left"
+                                onClick={() => handlePredefinedQuestionClick(q.question, q.template)}
+                            >
+                                {q.question}
+                            </Button>
+                        ))}
+                    </div>
+                    
+                    <Input value={newSubject} onChange={(e) => setNewSubject(e.target.value)} placeholder="Subject" />
+                    <Textarea value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder="How can we help you?" className="h-28"/>
                 </div>
                 <div className="p-3 border-t">
                      <Button className="w-full" onClick={handleCreateTicket} disabled={loading || !newSubject.trim() || !newMessage.trim()}>
@@ -326,7 +365,7 @@ export default function SupportChat() {
                         Send Ticket
                     </Button>
                 </div>
-            </>
+            </ScrollArea>
           )}
         </div>
       </div>
