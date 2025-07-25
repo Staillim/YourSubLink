@@ -50,8 +50,8 @@ export default function LandingPage() {
                 {/* Monetization Showcase */}
                 <section className="py-16 px-4">
                      <div className="container mx-auto text-center">
-                        <h2 className="text-3xl font-bold mb-4">A Powerful and Intuitive Dashboard</h2>
-                        <p className="text-muted-foreground mb-8 max-w-2xl mx-auto">Manage your links, track your earnings, and get insights from a clean and modern interface, available on all your devices.</p>
+                        <h2 className="text-3xl font-bold mb-4">Monetization in Action</h2>
+                        <p className="text-muted-foreground mb-8 max-w-2xl mx-auto">This is what visitors see: a clean interface with clear steps. Each step completed brings you closer to your earnings.</p>
                          <div className="flex flex-col lg:flex-row justify-center items-center gap-8">
                             {/* Desktop Mockup */}
                             <div className="relative mx-auto border-slate-800 dark:border-slate-800 bg-slate-800 border-[8px] rounded-t-xl w-full max-w-4xl h-auto shadow-2xl">
