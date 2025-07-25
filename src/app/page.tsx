@@ -48,8 +48,7 @@ import {
 } from '@/components/ui/form';
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Loader2 } from 'lucide-react';
-import ReCAPTCHA from 'react-google-recaptcha';
-import { verifyRecaptcha } from '@/ai/flows/verifyRecaptcha';
+
 
 const signInSchema = z.object({
   email: z.string().email({ message: 'Invalid email address.' }),
@@ -70,7 +69,6 @@ function AuthForm() {
   const router = useRouter();
   const { toast } = useToast();
   const [showResetForm, setShowResetForm] = useState(false);
-  const recaptchaRef = useRef<ReCAPTCHA>(null);
 
   // Separate loading states for each form submission
   const [isSigningIn, setIsSigningIn] = useState(false);
@@ -158,27 +156,6 @@ function AuthForm() {
   const handleSignUp = async (values: z.infer<typeof signUpSchema>) => {
     setIsSigningUp(true);
 
-    const token = recaptchaRef.current?.getValue();
-    if (!token) {
-        toast({ title: "reCAPTCHA validation failed", description: "Please complete the reCAPTCHA.", variant: "destructive" });
-        setIsSigningUp(false);
-        return;
-    }
-    
-    recaptchaRef.current?.reset();
-
-    const recaptchaResult = await verifyRecaptcha({ token });
-
-    if (!recaptchaResult.success || recaptchaResult.score < 0.5) {
-        if(recaptchaResult.errorCodes?.includes('missing-secret-key')) {
-             toast({ title: "Server Configuration Error", description: "The reCAPTCHA keys are not configured correctly. Please contact support.", variant: "destructive", duration: 8000 });
-        } else {
-             toast({ title: "Bot behavior detected", description: "Your registration attempt was blocked by our security system.", variant: "destructive" });
-        }
-        setIsSigningUp(false);
-        return;
-    }
-
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
@@ -254,20 +231,6 @@ function AuthForm() {
     } finally {
         setIsResetting(false);
     }
-  }
-  
-  const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
-  if (!siteKey) {
-      return (
-          <Card className="w-full max-w-md shadow-2xl p-8">
-              <CardHeader>
-                  <CardTitle>Configuration Error</CardTitle>
-              </CardHeader>
-              <CardContent>
-                  <p className="text-destructive">The reCAPTCHA site key is not configured. Please set NEXT_PUBLIC_RECAPTCHA_SITE_KEY in your environment variables.</p>
-              </CardContent>
-          </Card>
-      )
   }
 
   const isLoading = isSigningIn || isSigningUp || isResetting || isGoogleSigningIn;
@@ -422,11 +385,6 @@ function AuthForm() {
                                     <FormMessage />
                                 </FormItem>
                                 )}
-                            />
-                             <ReCAPTCHA
-                                ref={recaptchaRef}
-                                sitekey={siteKey}
-                                theme="dark"
                             />
                             <Button type="submit" className="w-full font-semibold" disabled={isSigningUp}>
                                 {isSigningUp && (
