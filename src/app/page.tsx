@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -115,7 +116,7 @@ export default function LandingPage() {
                             {/* Desktop Mockup */}
                             <div className="relative mx-auto border-slate-800 dark:border-slate-800 bg-slate-800 border-[8px] rounded-t-xl w-full max-w-4xl h-auto shadow-2xl">
                                 <Image
-                                    src="https://placehold.co/1200x675.png"
+                                    src="https://placehold.co/1200x675"
                                     alt="Dashboard Screenshot"
                                     width={1200}
                                     height={675}
@@ -131,7 +132,7 @@ export default function LandingPage() {
                                 <div className="h-[64px] w-[3px] bg-gray-800 absolute -end-[17px] top-[142px] rounded-e-lg"></div>
                                 <div className="rounded-[2rem] overflow-hidden w-full h-full bg-white dark:bg-black">
                                      <Image
-                                        src="https://placehold.co/300x600.png"
+                                        src="https://placehold.co/300x600"
                                         alt="Mobile App Screenshot"
                                         width={300}
                                         height={600}
