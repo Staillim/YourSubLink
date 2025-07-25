@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Logo, TikTokIcon } from '@/components/icons';
-import { BarChart3, MessageSquare, DollarSign, ArrowRight, CheckCircle, ExternalLink, Youtube, Facebook, Instagram, ThumbsUp, Globe, Bot } from 'lucide-react';
+import { BarChart3, MessageSquare, DollarSign, ArrowRight, CheckCircle, ExternalLink, Youtube, Facebook, Instagram, ThumbsUp, Globe, Bot, Wallet, Users, Link2 as LinkIconLucide } from 'lucide-react';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 
@@ -90,21 +90,21 @@ export default function LandingPage() {
                 <section className="py-16 px-4 bg-muted/40">
                     <div className="container mx-auto">
                         <h2 className="text-3xl font-bold text-center mb-12">
-                            Everything You Need to Succeed
+                            Powerful, Intuitive, and Reliable
                         </h2>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                             <Card className="flex flex-col items-center text-center p-6">
                                 <BarChart3 className="h-12 w-12 text-primary mb-4" />
-                                <h3 className="text-xl font-semibold mb-2">Detailed Analytics</h3>
+                                <h3 className="text-xl font-semibold mb-2">An Intuitive Dashboard</h3>
                                 <p className="text-muted-foreground">
-                                    Understand your audience with detailed click tracking, performance graphs, and revenue breakdowns for each link.
+                                    Manage your links, track earnings, and get insights from a clean, modern interface available on all your devices.
                                 </p>
                             </Card>
                             <Card className="flex flex-col items-center text-center p-6">
-                                <DollarSign className="h-12 w-12 text-primary mb-4" />
-                                <h3 className="text-xl font-semibold mb-2">Flexible Monetization</h3>
+                                <Wallet className="h-12 w-12 text-primary mb-4" />
+                                <h3 className="text-xl font-semibold mb-2">Clear and Simple Payouts</h3>
                                 <p className="text-muted-foreground">
-                                    Benefit from a global CPM rate or earn a custom, higher rate based on your performance. We reward our best users.
+                                    Request your earnings with just a few clicks. We offer clear tracking of your available balance and payout history.
                                 </p>
                             </Card>
                             <Card className="flex flex-col items-center text-center p-6">
