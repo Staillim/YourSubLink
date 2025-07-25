@@ -1,4 +1,5 @@
 
+
 /**
  * !! ANTES DE EDITAR ESTE ARCHIVO, REVISA LAS DIRECTRICES EN LOS SIGUIENTES DOCUMENTOS: !!
  * - /README.md
@@ -33,7 +34,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Copy, Link as LinkIcon, Loader2, MoreVertical, Trash2, ExternalLink, BadgeHelp, Edit, PlusCircle, BarChart3, DollarSign, Calendar, Eye, ShieldCheck, ShieldX, ShieldQuestion } from 'lucide-react';
+import { Copy, Link as LinkIcon, Loader2, MoreVertical, Trash2, ExternalLink, BadgeHelp, Edit, PlusCircle, BarChart3, DollarSign, Calendar, Eye, ShieldCheck, ShieldX, ShieldQuestion, ChevronDown } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
@@ -73,6 +74,14 @@ export type LinkItem = {
   generatedEarnings: number;
   monetizationStatus: 'active' | 'suspended';
 };
+
+const TABS = [
+    { id: 'all', label: 'Todos', icon: LinkIcon },
+    { id: 'monetizable', label: 'Monetizable', icon: ShieldCheck },
+    { id: 'not-monetizable', label: 'Not Monetizable', icon: ShieldX },
+    { id: 'suspended', label: 'Suspended', icon: ShieldQuestion }
+];
+
 
 function DashboardPageComponent() {
   const [user, loading] = useAuthState(auth);
@@ -349,8 +358,12 @@ function DashboardPageComponent() {
     );
   }
 
-  const tab = searchParams.get('tab');
-  const defaultTab = tab === 'monetizable' || tab === 'not-monetizable' || tab === 'suspended' ? tab : 'all';
+  const tabParam = searchParams.get('tab');
+  const activeTab = useMemo(() => TABS.find(t => t.id === tabParam) || TABS[0], [tabParam]);
+  
+  const handleTabChange = (tabId: string) => {
+    router.push(`/dashboard?tab=${tabId}`);
+  };
 
   if (loading || linksLoading) {
     return (
@@ -376,21 +389,34 @@ function DashboardPageComponent() {
           </Button>
       </div>
       <div className="grid gap-6">
-            <Tabs defaultValue={defaultTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-4">
-                    <TabsTrigger value="all">
-                        <LinkIcon className="mr-2"/> Todos
-                    </TabsTrigger>
-                    <TabsTrigger value="monetizable">
-                        <ShieldCheck className="mr-2"/> Monetizable
-                    </TabsTrigger>
-                    <TabsTrigger value="not-monetizable">
-                        <ShieldX className="mr-2"/> Not Monetizable
-                    </TabsTrigger>
-                    <TabsTrigger value="suspended">
-                        <ShieldQuestion className="mr-2"/> Suspended
-                    </TabsTrigger>
+            <Tabs defaultValue={activeTab.id} onValueChange={handleTabChange} className="w-full">
+                {/* Desktop Tabs */}
+                <TabsList className="hidden md:grid w-full grid-cols-4">
+                    {TABS.map(tab => (
+                        <TabsTrigger key={tab.id} value={tab.id}>
+                           <tab.icon className="mr-2"/> {tab.label}
+                        </TabsTrigger>
+                    ))}
                 </TabsList>
+                {/* Mobile Dropdown */}
+                <div className="md:hidden">
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="outline" className="w-full justify-between">
+                                {activeTab.label}
+                                <ChevronDown className="h-4 w-4" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent className="w-full">
+                            {TABS.map(tab => (
+                                <DropdownMenuItem key={tab.id} onClick={() => handleTabChange(tab.id)}>
+                                    <tab.icon className="mr-2"/> {tab.label}
+                                </DropdownMenuItem>
+                            ))}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </div>
+                
                 <TabsContent value="all">
                     <Card>
                         <CardHeader>
