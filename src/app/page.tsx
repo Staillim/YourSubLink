@@ -181,18 +181,29 @@ function AuthForm() {
       await createUserProfile(user);
       
       await sendEmailVerification(user);
+
+      signUpForm.reset(); // Reset form fields after successful submission
+
       toast({
           title: 'Verification Email Sent',
-          description: 'Please check your inbox to verify your email address.',
+          description: 'Please check your inbox to verify your email address before signing in.',
+          duration: 8000
       });
 
-      router.push('/');
     } catch (error: any) {
-      toast({
-        title: 'Authentication Error',
-        description: error.message,
-        variant: 'destructive',
-      });
+        if (error.code === 'auth/email-already-in-use') {
+            toast({
+                title: 'Registration Error',
+                description: 'This email address is already registered. Please sign in.',
+                variant: 'destructive',
+            });
+        } else {
+            toast({
+                title: 'Authentication Error',
+                description: error.message,
+                variant: 'destructive',
+            });
+        }
     } finally {
       setIsSigningUp(false);
     }
@@ -482,3 +493,5 @@ export default function AuthenticationPage() {
         </main>
     )
 }
+
+    
