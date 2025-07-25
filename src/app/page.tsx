@@ -1,10 +1,11 @@
+
 'use client';
 
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Logo, TikTokIcon } from '@/components/icons';
-import { BarChart3, MessageSquare, DollarSign, ArrowRight, CheckCircle, ExternalLink, Youtube, Facebook, Instagram, ThumbsUp, Globe, Bot, Wallet, Users, Link2 as LinkIconLucide } from 'lucide-react';
+import { BarChart3, MessageSquare, DollarSign, ArrowRight, CheckCircle, ExternalLink, Youtube, Facebook, Instagram, ThumbsUp, Globe, Bot, Wallet, Users, Link2 as LinkIconLucide, Edit, Share2, Award } from 'lucide-react';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 
@@ -116,12 +117,69 @@ export default function LandingPage() {
                         </div>
                     </div>
                 </section>
+
+                 {/* How it works Section */}
+                <section className="py-16 px-4">
+                    <div className="container mx-auto text-center">
+                        <h2 className="text-3xl font-bold mb-4">Getting Started is Easy</h2>
+                        <p className="text-muted-foreground mb-12 max-w-2xl mx-auto">In just a few simple steps, you can be on your way to earning.</p>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-left">
+                            <div className="flex flex-col items-center md:items-start text-center md:text-left gap-4">
+                                <div className="flex items-center justify-center bg-primary/10 text-primary rounded-full h-12 w-12">
+                                    <Edit className="h-6 w-6"/>
+                                </div>
+                                <h3 className="text-xl font-semibold">1. Create & Customize</h3>
+                                <p className="text-muted-foreground">Shorten any URL and add monetization rules in our simple editor. Choose from different social media actions to engage your audience.</p>
+                            </div>
+                            <div className="flex flex-col items-center md:items-start text-center md:text-left gap-4">
+                                <div className="flex items-center justify-center bg-primary/10 text-primary rounded-full h-12 w-12">
+                                    <Share2 className="h-6 w-6"/>
+                                </div>
+                                <h3 className="text-xl font-semibold">2. Share Your Link</h3>
+                                <p className="text-muted-foreground">Distribute your new, powerful link across your social media, website, or any platform to reach your followers.</p>
+                            </div>
+                            <div className="flex flex-col items-center md:items-start text-center md:text-left gap-4">
+                                <div className="flex items-center justify-center bg-primary/10 text-primary rounded-full h-12 w-12">
+                                    <Award className="h-6 w-6"/>
+                                </div>
+                                <h3 className="text-xl font-semibold">3. Earn & Analyze</h3>
+                                <p className="text-muted-foreground">Watch your earnings grow with every click. Track your performance with our detailed analytics and request payouts easily.</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                
+                 {/* Social Proof Section */}
+                <section className="py-16 px-4 bg-muted/40">
+                    <div className="container mx-auto text-center">
+                        <h2 className="text-3xl font-bold mb-10">Join a Growing Community</h2>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                            <div>
+                                <p className="text-4xl font-bold text-primary">1,200+</p>
+                                <p className="text-muted-foreground mt-2">Active Users</p>
+                            </div>
+                            <div>
+                                <p className="text-4xl font-bold text-primary">50,000+</p>
+                                <p className="text-muted-foreground mt-2">Links Created</p>
+                            </div>
+                            <div>
+                                <p className="text-4xl font-bold text-primary">$1,500+</p>
+                                <p className="text-muted-foreground mt-2">Paid to Creators</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
             </main>
 
             {/* Footer */}
-            <footer className="py-8 bg-muted/40">
-                <div className="container mx-auto text-center text-muted-foreground">
+            <footer className="py-8 bg-muted/40 border-t">
+                <div className="container mx-auto text-center text-muted-foreground flex flex-col sm:flex-row justify-between items-center gap-4">
                     <p>&copy; {new Date().getFullYear()} YourSubLink. All rights reserved.</p>
+                    <div className="flex gap-4">
+                        <Link href="#" className="text-sm hover:text-primary transition-colors">Terms of Service</Link>
+                        <Link href="#" className="text-sm hover:text-primary transition-colors">Privacy Policy</Link>
+                    </div>
                 </div>
             </footer>
         </div>
