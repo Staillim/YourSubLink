@@ -68,32 +68,30 @@ export function AdminNotificationBell() {
         };
     }, [user, role, userLoading]);
     
+    // This function is now more robust. It iterates over the state directly.
     const handleMarkAsRead = async () => {
         if (unreadChats.length === 0) return;
 
         const batch = writeBatch(db);
-        const unreadIds = unreadChats.map(chat => chat.id);
-        
-        const q = query(collection(db, 'supportTickets'), where('__name__', 'in', unreadIds));
-        const querySnapshot = await getDocs(q);
-
-        querySnapshot.forEach(doc => {
-            batch.update(doc.ref, { isReadByAdmin: true });
+        unreadChats.forEach(chat => {
+            const ticketRef = doc(db, 'supportTickets', chat.id);
+            batch.update(ticketRef, { isReadByAdmin: true });
         });
-
+        
         try {
             await batch.commit();
+            // No need to manually update state, onSnapshot will do it.
         } catch (error) {
             console.error("Error marking chats as read: ", error);
         }
     };
     
     const handleOpenChange = (open: boolean) => {
+        // We only care about when the popover is opened.
         if (open && unreadChats.length > 0) {
             handleMarkAsRead();
         }
     };
-
 
     const hasUnread = payouts.length > 0 || unreadChats.length > 0;
 
