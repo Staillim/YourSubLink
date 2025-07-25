@@ -43,21 +43,25 @@ service cloud.firestore {
     }
     
     match /notifications/{notificationId} {
+        allow read, list, update: if isOwner(resource.data.userId) || isAdmin();
         allow create: if isAdmin();
-        allow read, list, update: if (isOwner(resource.data.userId) || isAdmin());
     }
     
     match /supportTickets/{ticketId} {
       allow create: if isOwner(request.resource.data.userId);
       allow read: if isOwner(resource.data.userId) || isAdmin();
-      allow list: if isAdmin() || (request.query.where.path == 'userId' && request.query.where.value == request.auth.uid);
-      allow update: if isAdmin() || 
-                      (isOwner(resource.data.userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastMessage', 'lastMessageTimestamp', 'isReadByAdmin', 'isReadByUser', 'status']));
+      allow update: if isAdmin() || (isOwner(resource.data.userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastMessage', 'lastMessageTimestamp', 'isReadByAdmin', 'isReadByUser', 'status']));
+      allow list: if (request.query.where.path == 'userId' && request.query.where.value == request.auth.uid) || isAdmin();
       
       match /messages/{messageId} {
+        // Parent must exist for read/list. This is safe.
         allow read, list: if isAdmin() || get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId == request.auth.uid;
-        allow create: if (isAdmin() || request.resource.data.senderId == request.auth.uid) &&
-                      get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.status != 'completed';
+        
+        // On create (in a batch), parent does not exist yet. Check incoming data.
+        allow create: if isAdmin() || request.resource.data.senderId == request.auth.uid;
+        
+        // Update must check the parent doc status.
+        allow update: if isAdmin() || (get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.status != 'completed' && get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId == request.auth.uid);
       }
     }
   }
