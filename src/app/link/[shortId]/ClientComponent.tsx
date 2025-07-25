@@ -94,16 +94,27 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
 
         // 2. If monetizable AND not suspended, calculate and increment earnings
         if (dataToUse.monetizable && dataToUse.monetizationStatus !== 'suspended') {
-            const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
-            const cpmSnapshot = await getDocs(cpmQuery);
-            
-            let activeCpm = 3.00; // Default fallback CPM
-            if (!cpmSnapshot.empty) {
-                activeCpm = cpmSnapshot.docs[0].data().rate;
+            // Check for a custom CPM on the user's profile
+            const userRef = doc(db, 'users', dataToUse.userId);
+            const userSnap = await getDoc(userRef);
+            const userData = userSnap.data();
+            const customCpm = userData?.customCpm;
+
+            if (customCpm && customCpm > 0) {
+                // Use custom CPM
+                cpmUsed = customCpm;
+            } else {
+                // Use global CPM
+                const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
+                const cpmSnapshot = await getDocs(cpmQuery);
+                let activeCpm = 3.00; // Default fallback CPM
+                if (!cpmSnapshot.empty) {
+                    activeCpm = cpmSnapshot.docs[0].data().rate;
+                }
+                cpmUsed = activeCpm;
             }
             
-            cpmUsed = activeCpm;
-            earningsGenerated = activeCpm / 1000;
+            earningsGenerated = cpmUsed / 1000;
             batch.update(linkRef, { generatedEarnings: increment(earningsGenerated) });
         }
         
