@@ -49,6 +49,16 @@ export default function LandingPage() {
                     <div className="container mx-auto text-center">
                         <h2 className="text-3xl font-bold mb-4">Monetization in Action</h2>
                         <p className="text-muted-foreground mb-8 max-w-2xl mx-auto">This is what visitors see: a clean interface with clear steps. Each step completed brings you closer to your earnings.</p>
+                        <div className="relative mx-auto max-w-4xl">
+                            <Image
+                                src="https://placehold.co/1200x675.png"
+                                alt="PC Interface"
+                                width={1200}
+                                height={675}
+                                className="rounded-xl shadow-2xl"
+                                data-ai-hint="pc interface"
+                            />
+                        </div>
                     </div>
                 </section>
                 
