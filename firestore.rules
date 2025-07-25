@@ -34,6 +34,7 @@ service cloud.firestore {
         allow create: if isOwner(request.resource.data.userId);
         allow read: if isOwner(resource.data.userId) || isAdmin();
         allow update: if isAdmin();
+        // Users can list THEIR OWN requests, admins can list ALL. This matches the queries in the app.
         allow list: if (request.query.where.path == 'userId' && request.query.where.value == request.auth.uid) || isAdmin();
     }
 
@@ -43,20 +44,23 @@ service cloud.firestore {
     }
     
     match /notifications/{notificationId} {
-        allow read, list, update: if isOwner(resource.data.userId) || isAdmin();
         allow create: if isAdmin();
+        allow read, update: if isOwner(resource.data.userId) || isAdmin();
+        // Users can list THEIR OWN notifications, admins can list ALL. This matches the queries in the app.
+        allow list: if (request.query.where.path == 'userId' && request.query.where.value == request.auth.uid) || isAdmin();
     }
     
     match /supportTickets/{ticketId} {
       allow create: if isOwner(request.resource.data.userId);
       allow read: if isOwner(resource.data.userId) || isAdmin();
-      // Admins can update anything. Users can ONLY update the 'isReadByUser' field.
+      // Admins can update anything. Users can ONLY update the isReadByUser flag.
       allow update: if isAdmin() || (isOwner(resource.data.userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isReadByUser']));
+      // Users can list THEIR OWN tickets, admins can list ALL. This matches the queries in the app.
       allow list: if (request.query.where.path == 'userId' && request.query.where.value == request.auth.uid) || isAdmin();
       
       match /messages/{messageId} {
         allow read, list: if isAdmin() || get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId == request.auth.uid;
-        // The create rule must check the incoming data, not the parent doc (which doesn't exist yet in a batch)
+        // Allow creating a message only if the parent ticket is NOT completed.
         allow create: if (isAdmin() || request.resource.data.senderId == request.auth.uid) && get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.status != 'completed';
       }
     }
