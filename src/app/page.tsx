@@ -26,9 +26,14 @@ export default function LandingPage() {
             {/* Header */}
             <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between p-4 bg-background/80 backdrop-blur-sm">
                 <Logo />
-                <Button asChild>
-                    <Link href="/auth">Sign In</Link>
-                </Button>
+                <div className="flex items-center gap-2">
+                    <Button asChild variant="ghost">
+                        <Link href="/auth">Sign In</Link>
+                    </Button>
+                    <Button asChild>
+                        <Link href="/auth">Register</Link>
+                    </Button>
+                </div>
             </header>
 
             <main className="flex-1">
