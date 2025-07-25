@@ -10,12 +10,12 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 
-export const VerifyRecaptchaInputSchema = z.object({
+const VerifyRecaptchaInputSchema = z.object({
   token: z.string().describe("The reCAPTCHA token from the client."),
 });
 export type VerifyRecaptchaInput = z.infer<typeof VerifyRecaptchaInputSchema>;
 
-export const VerifyRecaptchaOutputSchema = z.object({
+const VerifyRecaptchaOutputSchema = z.object({
   success: z.boolean().describe("Whether the token is valid."),
   score: z.number().describe("The score of the user interaction (0.0 to 1.0)."),
   errorCodes: z.array(z.string()).optional().describe("Any error codes returned by the API."),
