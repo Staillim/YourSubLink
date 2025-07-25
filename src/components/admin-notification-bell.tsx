@@ -8,7 +8,7 @@ import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, doc, writeBatch, getDocs, orderBy, limit } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Bell, CreditCard, MessageSquare, History } from 'lucide-react';
+import { Bell, CreditCard, MessageSquare } from 'lucide-react';
 import type { PayoutRequest } from '@/hooks/use-user';
 import { Skeleton } from './ui/skeleton';
 import type { SupportTicket } from '@/types';
@@ -149,9 +149,9 @@ export function AdminNotificationBell() {
                     )}
                 </div>
                 <div className="p-2 border-t">
-                    <Link href="/admin/support">
+                    <Link href="/admin/notifications">
                         <Button variant="link" size="sm" className="w-full">
-                           <MessageSquare className="mr-2 h-4 w-4" /> View All Support Tickets
+                           View All Notifications
                         </Button>
                     </Link>
                 </div>
