@@ -1,24 +1,15 @@
+
 'use client';
 
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Logo, TikTokIcon } from '@/components/icons';
-import { BarChart3, MessageSquare, DollarSign, ArrowRight, CheckCircle, ExternalLink, Youtube, Facebook, Instagram, ThumbsUp, Globe, Bot, Wallet, Users, Link2 as LinkIconLucide, Edit, Share2, Award, ShieldCheck } from 'lucide-react';
+import { Card } from '@/components/ui/card';
+import { Logo } from '@/components/icons';
+import { BarChart3, Edit, Share2, Award, ShieldCheck, Wallet } from 'lucide-react';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { ThemeSwitcher } from '@/components/theme-switcher';
 
-
-const DemoRule = ({ icon: Icon, text, className, isCompleted }: { icon: any, text: string, className: string, isCompleted?: boolean }) => (
-    <div className={cn("flex items-center justify-between p-3 rounded-lg transition-all text-left", className, isCompleted && "bg-green-600 hover:bg-green-600/90 ring-1 ring-green-400 !text-white")}>
-        <div className="flex items-center gap-3">
-            {isCompleted ? <CheckCircle className="h-5 w-5 shrink-0" /> : <Icon className="h-5 w-5 shrink-0" />}
-            <span className="font-semibold text-sm">{text}</span>
-        </div>
-        {!isCompleted && <ExternalLink className="h-5 w-5 shrink-0" />}
-    </div>
-);
 
 export default function LandingPage() {
     return (
@@ -48,7 +39,7 @@ export default function LandingPage() {
                     </p>
                     <div className="mt-8 flex gap-4">
                         <Button asChild size="lg" className="font-semibold">
-                            <Link href="/auth">Get Started for Free <ArrowRight className="ml-2 h-5 w-5"/></Link>
+                            <Link href="/auth">Get Started for Free</Link>
                         </Button>
                     </div>
                 </section>
@@ -60,23 +51,21 @@ export default function LandingPage() {
                         <p className="text-muted-foreground mb-8 max-w-2xl mx-auto">This is what visitors see: a clean interface with clear steps. Each step completed brings you closer to your earnings.</p>
                          <div className="flex flex-col lg:flex-row justify-center items-center gap-8">
                             {/* Desktop Mockup */}
-                            <div className="relative mx-auto border-slate-800 dark:border-slate-800 bg-slate-800 border-[8px] rounded-t-xl w-full max-w-4xl h-auto shadow-2xl">
-                                <Image
-                                    src="https://placehold.co/1200x675.png"
-                                    alt="Dashboard Screenshot"
-                                    width={1200}
-                                    height={675}
-                                    data-ai-hint="dashboard analytics"
-                                    className="rounded-t-lg"
-                                />
+                             <div className="bg-gray-800 border-4 border-gray-900 rounded-xl shadow-2xl overflow-hidden w-full max-w-3xl">
+                                <div className="w-full h-auto">
+                                    <Image
+                                        src="https://placehold.co/1200x675.png"
+                                        alt="Dashboard Screenshot"
+                                        width={1200}
+                                        height={675}
+                                        data-ai-hint="dashboard analytics"
+                                        className="object-cover w-full h-full"
+                                    />
+                                </div>
                             </div>
                             {/* Mobile Mockup */}
-                            <div className="relative mx-auto border-gray-800 dark:border-gray-800 bg-gray-800 border-[14px] rounded-[2.5rem] h-[600px] w-[300px] shadow-xl">
-                                <div className="w-[140px] h-[18px] bg-gray-800 top-0 rounded-b-[1rem] left-1/2 -translate-x-1/2 absolute"></div>
-                                <div className="h-[46px] w-[3px] bg-gray-800 absolute -start-[17px] top-[124px] rounded-s-lg"></div>
-                                <div className="h-[46px] w-[3px] bg-gray-800 absolute -start-[17px] top-[178px] rounded-s-lg"></div>
-                                <div className="h-[64px] w-[3px] bg-gray-800 absolute -end-[17px] top-[142px] rounded-e-lg"></div>
-                                <div className="rounded-[2rem] overflow-hidden w-full h-full bg-white dark:bg-black">
+                            <div className="relative mx-auto border-gray-800 dark:border-gray-800 bg-gray-800 border-[8px] rounded-[1.5rem] h-[480px] w-[240px] shadow-xl">
+                                <div className="rounded-[1rem] overflow-hidden w-full h-full bg-white dark:bg-black">
                                      <Image
                                         src="https://placehold.co/300x600.png"
                                         alt="Mobile App Screenshot"
