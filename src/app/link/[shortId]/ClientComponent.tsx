@@ -16,7 +16,7 @@ import { Loader2 } from 'lucide-react';
 import LinkGate from '@/components/link-gate'; 
 import type { LinkData } from '@/types'; 
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, writeBatch, increment, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, writeBatch, increment, serverTimestamp, getDoc } from 'firebase/firestore';
 
 export default function ClientComponent({ shortId }: { shortId: string }) {
   const [status, setStatus] = useState<'loading' | 'gate' | 'redirecting' | 'not-found' | 'invalid'>('loading');
@@ -89,29 +89,45 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
         // 1. Increment the click counter
         batch.update(linkRef, { clicks: increment(1) });
         
-        // 2. Create a log of the click
+        let cpmUsed = 0;
+        let earningsGenerated = 0;
+
+        // 2. If monetizable AND not suspended, calculate and increment earnings
+        if (dataToUse.monetizable && dataToUse.monetizationStatus !== 'suspended') {
+            const userRef = doc(db, 'users', dataToUse.userId);
+            const userSnap = await getDoc(userRef);
+
+            let finalCpm = 0;
+            // Check for custom CPM on the user
+            if (userSnap.exists() && userSnap.data().customCpm) {
+                finalCpm = userSnap.data().customCpm;
+            } else {
+                // Fallback to global CPM
+                const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
+                const cpmSnapshot = await getDocs(cpmQuery);
+
+                if (!cpmSnapshot.empty) {
+                    finalCpm = cpmSnapshot.docs[0].data().rate;
+                } else {
+                    finalCpm = 3.00; // Default fallback CPM
+                }
+            }
+            
+            cpmUsed = finalCpm;
+            earningsGenerated = finalCpm / 1000;
+            batch.update(linkRef, { generatedEarnings: increment(earningsGenerated) });
+        }
+        
+        // 3. Create a log of the click with earnings info
         const clickLogRef = doc(collection(db, 'clicks'));
         batch.set(clickLogRef, {
             linkId: dataToUse.id,
             userId: dataToUse.userId,
             timestamp: serverTimestamp(),
+            cpmUsed,
+            earningsGenerated,
         });
 
-        // 3. If monetizable AND not suspended, calculate and increment earnings
-        if (dataToUse.monetizable && dataToUse.monetizationStatus !== 'suspended') {
-            let activeCpm = 3.00; // Default fallback CPM
-            
-            const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
-            const cpmSnapshot = await getDocs(cpmQuery);
-
-            if (!cpmSnapshot.empty) {
-                activeCpm = cpmSnapshot.docs[0].data().rate;
-            }
-
-            const earningsPerClick = activeCpm / 1000;
-            batch.update(linkRef, { generatedEarnings: increment(earningsPerClick) });
-        }
-        
         // Commit all operations atomically
         await batch.commit();
 

@@ -1,3 +1,4 @@
+
 /**
  * !! ANTES DE EDITAR ESTE ARCHIVO, REVISA LAS DIRECTRICES EN LOS SIGUIENTES DOCUMENTOS: !!
  * - /README.md
@@ -23,6 +24,7 @@ export type UserProfile = {
   role: 'user' | 'admin';
   generatedEarnings: number;
   paidEarnings: number;
+  customCpm?: number | null;
 };
 
 export type PayoutRequest = {
@@ -95,6 +97,7 @@ export function useUser() {
             role: userData.role || 'user',
             generatedEarnings: totalGeneratedEarnings,
             paidEarnings: userData.paidEarnings || 0,
+            customCpm: userData.customCpm || null,
         });
       } else {
         await createUserProfile(authUser);

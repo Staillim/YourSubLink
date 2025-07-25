@@ -1,3 +1,4 @@
+
 /**
  * !! ANTES DE EDITAR ESTE ARCHIVO, REVISA LAS DIRECTRICES EN LOS SIGUIENTES DOCUMENTOS: !!
  * - /README.md
@@ -25,12 +26,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
-import { MoreVertical, UserX, UserCheck, Eye, Loader2, DollarSign, Link2, Wallet, History, ShieldBan } from 'lucide-react';
+import { MoreVertical, UserX, UserCheck, Eye, Loader2, DollarSign, Link2, Wallet, History, ShieldBan, Pencil } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
+    DropdownMenuSeparator,
     DropdownMenuTrigger,
   } from '@/components/ui/dropdown-menu';
 import {
@@ -68,6 +70,7 @@ type UserProfile = {
   generatedEarnings: number;
   paidEarnings: number;
   accountStatus: 'active' | 'suspended';
+  customCpm?: number | null;
 };
 
 export default function AdminUsersPage() {
@@ -78,8 +81,10 @@ export default function AdminUsersPage() {
 
   // Dialog States
   const [isAddBalanceDialogOpen, setIsAddBalanceDialogOpen] = useState(false);
+  const [isCustomCpmDialogOpen, setIsCustomCpmDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [balanceAmount, setBalanceAmount] = useState('');
+  const [customCpmAmount, setCustomCpmAmount] = useState('');
   const [isPayoutHistoryDialogOpen, setIsPayoutHistoryDialogOpen] = useState(false);
   const [payoutHistory, setPayoutHistory] = useState<PayoutRequest[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -109,6 +114,7 @@ export default function AdminUsersPage() {
           generatedEarnings: totalGeneratedEarnings,
           paidEarnings: userData.paidEarnings || 0,
           accountStatus: userData.accountStatus || 'active',
+          customCpm: userData.customCpm || null,
         });
       }
 
@@ -121,8 +127,14 @@ export default function AdminUsersPage() {
 
   const openAddBalanceDialog = (user: UserProfile) => {
     setSelectedUser(user);
-    setBalanceAmount(''); // Reset amount on open
+    setBalanceAmount('');
     setIsAddBalanceDialogOpen(true);
+  }
+
+  const openCustomCpmDialog = (user: UserProfile) => {
+    setSelectedUser(user);
+    setCustomCpmAmount(user.customCpm?.toString() || '');
+    setIsCustomCpmDialogOpen(true);
   }
 
   const handleAddBalance = async () => {
@@ -145,14 +157,38 @@ export default function AdminUsersPage() {
         });
         
         setIsAddBalanceDialogOpen(false);
-        setSelectedUser(null);
-        setBalanceAmount('');
     } catch (error) {
          toast({
             title: 'Error updating balance',
             description: 'There was a problem updating the user balance.',
             variant: 'destructive',
         });
+    } finally {
+        setIsSubmitting(false);
+    }
+  }
+
+   const handleSetCustomCpm = async () => {
+    if (!selectedUser) return;
+    const newCpm = customCpmAmount === '' ? null : parseFloat(customCpmAmount);
+
+    if (newCpm !== null && (isNaN(newCpm) || newCpm < 0)) {
+        toast({ title: 'Invalid CPM', description: 'Please enter a valid positive number or leave it blank to remove.', variant: 'destructive' });
+        return;
+    }
+
+    setIsSubmitting(true);
+    try {
+        const userDocRef = doc(db, 'users', selectedUser.uid);
+        await updateDoc(userDocRef, { customCpm: newCpm });
+
+        toast({
+            title: 'Custom CPM Updated',
+            description: newCpm === null ? `Removed custom CPM for ${selectedUser.displayName}.` : `Set custom CPM for ${selectedUser.displayName} to $${newCpm.toFixed(4)}.`,
+        });
+        setIsCustomCpmDialogOpen(false);
+    } catch (error) {
+         toast({ title: 'Error', description: 'Could not update custom CPM.', variant: 'destructive' });
     } finally {
         setIsSubmitting(false);
     }
@@ -180,13 +216,8 @@ export default function AdminUsersPage() {
   };
 
   const handleToggleAccountStatus = async (userToUpdate: UserProfile) => {
-    // Safety check: Don't allow an admin to suspend themselves or another admin.
     if (!user || user.uid === userToUpdate.uid || userToUpdate.role === 'admin') {
-         toast({
-            title: 'Action Not Allowed',
-            description: 'Administrators cannot be suspended.',
-            variant: 'destructive',
-        });
+         toast({ title: 'Action Not Allowed', description: 'Administrators cannot be suspended.', variant: 'destructive' });
         return;
     }
 
@@ -201,14 +232,9 @@ export default function AdminUsersPage() {
             description: `${userToUpdate.displayName}'s account has been ${actionText}d.`,
         });
     } catch (error) {
-        toast({
-            title: 'Error',
-            description: `Could not ${actionText} the user.`,
-            variant: 'destructive',
-        });
+        toast({ title: 'Error', description: `Could not ${actionText} the user.`, variant: 'destructive' });
     }
   }
-
 
   if (loading) {
     return (
@@ -257,6 +283,7 @@ export default function AdminUsersPage() {
                             <TableHead>User</TableHead>
                             <TableHead className="hidden md:table-cell">Stats</TableHead>
                             <TableHead className="hidden sm:table-cell">Balance</TableHead>
+                            <TableHead className="hidden md:table-cell">CPM</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
@@ -267,7 +294,6 @@ export default function AdminUsersPage() {
                                 <TableCell className="font-medium">
                                     <div className="font-semibold">{u.displayName}</div>
                                     <div className="text-sm text-muted-foreground">{u.email}</div>
-                                    {/* Mobile view */}
                                     <div className="sm:hidden mt-2 space-y-2 text-xs">
                                         <div className="flex items-center gap-2">
                                             <span className="font-medium">Balance:</span>
@@ -298,6 +324,13 @@ export default function AdminUsersPage() {
                                     </div>
                                 </TableCell>
                                 <TableCell className="font-bold hidden sm:table-cell">${(u.generatedEarnings - u.paidEarnings).toFixed(4)}</TableCell>
+                                <TableCell className="hidden md:table-cell">
+                                    {u.customCpm ? (
+                                        <Badge variant="outline" className="border-blue-500 text-blue-500">${u.customCpm.toFixed(4)}</Badge>
+                                    ) : (
+                                        <span className="text-xs text-muted-foreground">Global</span>
+                                    )}
+                                </TableCell>
                                 <TableCell>
                                     <div className="flex flex-col items-start gap-1">
                                          <Badge variant={u.role === 'admin' ? 'default' : 'secondary'} className={u.role === 'admin' ? 'bg-primary' : ''}>
@@ -316,14 +349,19 @@ export default function AdminUsersPage() {
                                             </Button>
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align="end">
-                                            <DropdownMenuItem onClick={() => openPayoutHistoryDialog(u)}>
-                                                <History className="mr-2 h-4 w-4" />
-                                                <span>View Payout History</span>
+                                             <DropdownMenuItem onClick={() => openCustomCpmDialog(u)}>
+                                                <Pencil className="mr-2 h-4 w-4" />
+                                                <span>Set Custom CPM</span>
                                             </DropdownMenuItem>
                                             <DropdownMenuItem onClick={() => openAddBalanceDialog(u)}>
                                                 <DollarSign className="mr-2 h-4 w-4" />
                                                 <span>Add Balance</span>
                                             </DropdownMenuItem>
+                                             <DropdownMenuItem onClick={() => openPayoutHistoryDialog(u)}>
+                                                <History className="mr-2 h-4 w-4" />
+                                                <span>Payout History</span>
+                                            </DropdownMenuItem>
+                                             <DropdownMenuSeparator />
                                              {u.role !== 'admin' && user?.uid !== u.uid && (
                                                 <AlertDialog>
                                                     <AlertDialogTrigger asChild>
@@ -386,13 +424,44 @@ export default function AdminUsersPage() {
                 </div>
                 <DialogFooter>
                     <DialogClose asChild>
-                        <Button type="button" variant="secondary" onClick={() => setIsAddBalanceDialogOpen(false)}>
-                            Cancel
-                        </Button>
+                        <Button type="button" variant="secondary">Cancel</Button>
                     </DialogClose>
                     <Button onClick={handleAddBalance} disabled={isSubmitting}>
                         {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         Add Balance
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+
+        {/* Custom CPM Dialog */}
+        <Dialog open={isCustomCpmDialogOpen} onOpenChange={setIsCustomCpmDialogOpen}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Set Custom CPM for {selectedUser?.displayName}</DialogTitle>
+                    <DialogDescription>
+                        Set a specific CPM rate for this user. This will override the global rate for all their links. Leave blank to remove the custom CPM.
+                    </DialogDescription>
+                </DialogHeader>
+                 <div className="grid gap-4 py-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="cpm-amount">Custom CPM Rate ($)</Label>
+                        <Input 
+                            id="cpm-amount"
+                            type="number"
+                            value={customCpmAmount}
+                            onChange={(e) => setCustomCpmAmount(e.target.value)}
+                            placeholder="e.g. 4.50"
+                        />
+                    </div>
+                </div>
+                <DialogFooter>
+                    <DialogClose asChild>
+                        <Button type="button" variant="secondary">Cancel</Button>
+                    </DialogClose>
+                    <Button onClick={handleSetCustomCpm} disabled={isSubmitting}>
+                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Save CPM
                     </Button>
                 </DialogFooter>
             </DialogContent>
@@ -446,9 +515,7 @@ export default function AdminUsersPage() {
                 </div>
                  <DialogFooter>
                     <DialogClose asChild>
-                        <Button type="button" variant="secondary">
-                            Close
-                        </Button>
+                        <Button type="button" variant="secondary">Close</Button>
                     </DialogClose>
                 </DialogFooter>
             </DialogContent>
