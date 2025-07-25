@@ -149,24 +149,13 @@ export default function LandingPage() {
                     </div>
                 </section>
                 
-                 {/* Social Proof Section */}
+                 {/* Community Section */}
                 <section className="py-16 px-4 bg-muted/40">
                     <div className="container mx-auto text-center">
-                        <h2 className="text-3xl font-bold mb-10">Join a Growing Community</h2>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                            <div>
-                                <p className="text-4xl font-bold text-primary">1,200+</p>
-                                <p className="text-muted-foreground mt-2">Active Users</p>
-                            </div>
-                            <div>
-                                <p className="text-4xl font-bold text-primary">50,000+</p>
-                                <p className="text-muted-foreground mt-2">Links Created</p>
-                            </div>
-                            <div>
-                                <p className="text-4xl font-bold text-primary">$1,500+</p>
-                                <p className="text-muted-foreground mt-2">Paid to Creators</p>
-                            </div>
-                        </div>
+                        <h2 className="text-3xl font-bold mb-4">Be Part of Our Community</h2>
+                        <p className="max-w-3xl mx-auto text-lg text-muted-foreground">
+                            We are committed to building a community that is flexible, generous, and focused on our users. Your success is our success, and we're excited to grow with you.
+                        </p>
                     </div>
                 </section>
 
@@ -185,5 +174,3 @@ export default function LandingPage() {
         </div>
     );
 }
-
-    
