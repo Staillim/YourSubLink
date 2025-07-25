@@ -116,7 +116,7 @@ export function AdminNotificationBell() {
                     ) : (
                         <>
                             {unreadChats.map(chat => (
-                                <Link href="/admin/support" key={chat.id} className="block p-2 rounded-md hover:bg-muted">
+                                <Link href="/admin/support" key={chat.id} onClick={handleViewAllClick} className="block p-2 rounded-md hover:bg-muted">
                                     <div className="flex items-start gap-3">
                                         <MessageSquare className="h-5 w-5 mt-1 shrink-0 text-blue-500" />
                                         <div className="flex-1 text-sm">
@@ -144,11 +144,13 @@ export function AdminNotificationBell() {
                         </>
                     )}
                 </div>
-                <div className="p-2 border-t">
-                    <Button variant="link" size="sm" asChild className="w-full">
-                        <Link href="/admin/support" onClick={handleViewAllClick}>View all support chats</Link>
-                    </Button>
-                </div>
+                {unreadChats.length > 0 && (
+                    <div className="p-2 border-t">
+                        <Button variant="link" size="sm" asChild className="w-full">
+                            <Link href="/admin/support" onClick={handleViewAllClick}>View all support chats</Link>
+                        </Button>
+                    </div>
+                )}
             </PopoverContent>
         </Popover>
     )
