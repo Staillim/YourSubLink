@@ -304,23 +304,27 @@ export default function AdminSupportPage() {
                 ) : (
                     <div className="space-y-4">
                         {messages.map((msg) => (
-                            <div
-                            key={msg.id}
-                            className={cn(
-                                'flex items-end gap-2 max-w-[80%]',
-                                msg.senderId === 'support' ? 'ml-auto flex-row-reverse' : 'mr-auto'
-                            )}
-                            >
-                            <div
-                                className={cn(
-                                'rounded-lg p-3',
-                                msg.senderId === 'support'
-                                    ? 'bg-primary text-primary-foreground'
-                                    : 'bg-muted'
-                                )}
-                            >
-                                <p className="text-sm">{msg.text}</p>
-                            </div>
+                             <div key={msg.id} className={cn('flex flex-col gap-1', msg.senderId === 'support' ? 'items-end' : 'items-start')}>
+                                <div
+                                    className={cn(
+                                        'flex items-end gap-2 max-w-[80%]',
+                                        msg.senderId === 'support' ? 'flex-row-reverse' : ''
+                                    )}
+                                >
+                                    <div
+                                        className={cn(
+                                        'rounded-lg p-3',
+                                        msg.senderId === 'support'
+                                            ? 'bg-primary text-primary-foreground'
+                                            : 'bg-muted'
+                                        )}
+                                    >
+                                        <p className="text-sm">{msg.text}</p>
+                                    </div>
+                                </div>
+                                <p className="text-xs text-muted-foreground px-1">
+                                    {msg.timestamp ? new Date(msg.timestamp.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                                </p>
                             </div>
                         ))}
                         <div ref={messagesEndRef} />
@@ -352,5 +356,3 @@ export default function AdminSupportPage() {
     </div>
   );
 }
-
-    
