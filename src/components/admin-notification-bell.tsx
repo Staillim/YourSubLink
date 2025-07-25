@@ -8,7 +8,7 @@ import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, doc, writeBatch, getDocs } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Bell, CreditCard, MessageSquare } from 'lucide-react';
+import { Bell, CreditCard, MessageSquare, History } from 'lucide-react';
 import type { PayoutRequest } from '@/hooks/use-user';
 import { Skeleton } from './ui/skeleton';
 import type { SupportTicket } from '@/types';
@@ -79,14 +79,12 @@ export function AdminNotificationBell() {
         
         try {
             await batch.commit();
-            // onSnapshot will automatically update the state, no need to manually set it
         } catch (error) {
             console.error("Error marking chats as read: ", error);
         }
     };
     
     const handleOpenChange = (open: boolean) => {
-        // We only care about when the popover is opened.
         if (open && unreadChats.length > 0) {
             handleMarkAsRead();
         }
@@ -112,10 +110,10 @@ export function AdminNotificationBell() {
                 </Button>
             </PopoverTrigger>
             <PopoverContent className="w-80 p-0">
-                <div className="p-4">
+                <div className="p-4 border-b">
                     <h4 className="font-medium text-sm">Admin Notifications</h4>
                 </div>
-                <div className="space-y-1 p-4 pt-0 max-h-80 overflow-y-auto">
+                <div className="space-y-1 p-4 pt-2 max-h-80 overflow-y-auto">
                     {!hasUnread ? (
                          <div className="text-center text-muted-foreground py-8">
                              <Bell className="mx-auto h-8 w-8 mb-2" />
@@ -151,6 +149,13 @@ export function AdminNotificationBell() {
                             ))}
                         </>
                     )}
+                </div>
+                <div className="p-2 border-t">
+                    <Link href="/admin/history">
+                        <Button variant="link" size="sm" className="w-full">
+                           <History className="mr-2 h-4 w-4" /> View all system history
+                        </Button>
+                    </Link>
                 </div>
             </PopoverContent>
         </Popover>
