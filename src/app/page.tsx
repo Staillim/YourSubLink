@@ -46,9 +46,9 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Loader2 } from 'lucide-react';
-import { GoogleReCaptchaProvider, useGoogleReCaptcha } from 'react-google-recaptcha-v3';
+import ReCAPTCHA from 'react-google-recaptcha';
 import { verifyRecaptcha } from '@/ai/flows/verifyRecaptcha';
 
 const signInSchema = z.object({
@@ -70,14 +70,7 @@ function AuthForm() {
   const router = useRouter();
   const { toast } = useToast();
   const [showResetForm, setShowResetForm] = useState(false);
-  const { executeRecaptcha } = useGoogleReCaptcha();
-  const [isRecaptchaReady, setIsRecaptchaReady] = useState(false);
-
-  useEffect(() => {
-    if (executeRecaptcha) {
-      setIsRecaptchaReady(true);
-    }
-  }, [executeRecaptcha]);
+  const recaptchaRef = useRef<ReCAPTCHA>(null);
 
   // Separate loading states for each form submission
   const [isSigningIn, setIsSigningIn] = useState(false);
@@ -165,13 +158,15 @@ function AuthForm() {
   const handleSignUp = async (values: z.infer<typeof signUpSchema>) => {
     setIsSigningUp(true);
 
-    if (!executeRecaptcha) {
-        toast({ title: "reCAPTCHA not ready", description: "Please wait a moment and try again.", variant: "destructive" });
+    const token = recaptchaRef.current?.getValue();
+    if (!token) {
+        toast({ title: "reCAPTCHA validation failed", description: "Please complete the reCAPTCHA.", variant: "destructive" });
         setIsSigningUp(false);
         return;
     }
+    
+    recaptchaRef.current?.reset();
 
-    const token = await executeRecaptcha('signup');
     const recaptchaResult = await verifyRecaptcha({ token });
 
     if (!recaptchaResult.success || recaptchaResult.score < 0.5) {
@@ -259,6 +254,20 @@ function AuthForm() {
     } finally {
         setIsResetting(false);
     }
+  }
+  
+  const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
+  if (!siteKey) {
+      return (
+          <Card className="w-full max-w-md shadow-2xl p-8">
+              <CardHeader>
+                  <CardTitle>Configuration Error</CardTitle>
+              </CardHeader>
+              <CardContent>
+                  <p className="text-destructive">The reCAPTCHA site key is not configured. Please set NEXT_PUBLIC_RECAPTCHA_SITE_KEY in your environment variables.</p>
+              </CardContent>
+          </Card>
+      )
   }
 
   const isLoading = isSigningIn || isSigningUp || isResetting || isGoogleSigningIn;
@@ -414,7 +423,12 @@ function AuthForm() {
                                 </FormItem>
                                 )}
                             />
-                            <Button type="submit" className="w-full font-semibold" disabled={isSigningUp || !isRecaptchaReady}>
+                             <ReCAPTCHA
+                                ref={recaptchaRef}
+                                sitekey={siteKey}
+                                theme="dark"
+                            />
+                            <Button type="submit" className="w-full font-semibold" disabled={isSigningUp}>
                                 {isSigningUp && (
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                 )}
@@ -471,27 +485,9 @@ function AuthForm() {
 
 
 export default function AuthenticationPage() {
-    const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
-    if (!siteKey) {
-        return (
-            <main className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4 sm:p-6">
-                <Card className="w-full max-w-md shadow-2xl p-8">
-                    <CardHeader>
-                        <CardTitle>Configuration Error</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <p className="text-destructive">The reCAPTCHA site key is not configured. Please set NEXT_PUBLIC_RECAPTCHA_SITE_KEY in your environment variables.</p>
-                    </CardContent>
-                </Card>
-            </main>
-        )
-    }
     return (
         <main className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4 sm:p-6">
-            <GoogleReCaptchaProvider reCaptchaKey={siteKey}>
-                <AuthForm />
-            </GoogleReCaptchaProvider>
+            <AuthForm />
         </main>
     )
 }
-
