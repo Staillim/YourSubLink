@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -58,6 +59,8 @@ export default function AdminSupportPage() {
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // This is the "double check". Do not proceed if user data is still loading
+    // or if the user is not confirmed to be an admin. This prevents the race condition.
     if (userLoading || role !== 'admin') {
         if (!userLoading) setLoadingTickets(false);
         return;
@@ -117,6 +120,7 @@ export default function AdminSupportPage() {
     e.preventDefault();
     if (!newMessage.trim() || !selectedTicket || !user) return;
     
+    // Prevent sending messages to a completed ticket
     if (selectedTicket.status === 'completed') return;
 
     const messageText = newMessage;
