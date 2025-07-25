@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -126,7 +127,7 @@ export const getNotificationDetails = (notification: Notification): FormattedNot
                 id: notification.id,
                 icon: Star,
                 color: 'text-yellow-400',
-                title: 'CPM Rate Updated!',
+                title: 'Platform Rate Update',
                 description: notification.message,
                 date,
                 timestamp,

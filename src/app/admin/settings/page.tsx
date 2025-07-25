@@ -41,7 +41,7 @@ export default function AdminSettingsPage() {
         e.preventDefault();
         const rate = parseFloat(newCpmRate);
         if (isNaN(rate) || rate < 0) {
-            toast({ title: 'Invalid Rate', description: 'Please enter a valid positive number.', variant: 'destructive'});
+            toast({ title: 'Invalid Rate', description: 'Please enter a valid positive number (0 is allowed).', variant: 'destructive'});
             return;
         }
 
@@ -62,14 +62,36 @@ export default function AdminSettingsPage() {
                 startDate: serverTimestamp(),
                 endDate: null
             });
+            
+            // --- NOTIFICATION LOGIC ---
+            // 1. Fetch all users
+            const usersQuery = query(collection(db, 'users'));
+            const usersSnapshot = await getDocs(usersQuery);
+
+            // 2. Create a notification for each user
+            const notificationMessage = rate > 0
+                ? `The global CPM rate has been updated to $${rate.toFixed(4)}. Your earnings will now reflect this new rate.`
+                : 'The global CPM rate has been set to $0.00. Monetization is temporarily paused due to technical reasons or lack of ad inventory.';
+
+            usersSnapshot.forEach(userDoc => {
+                const notificationRef = doc(collection(db, 'notifications'));
+                batch.set(notificationRef, {
+                    userId: userDoc.id,
+                    type: 'custom_cpm_set', // Re-using this type for a global announcement
+                    message: notificationMessage,
+                    createdAt: serverTimestamp(),
+                    isRead: false,
+                });
+            });
+
 
             await batch.commit();
 
-            toast({ title: 'CPM Rate Updated', description: `The new CPM rate of $${rate.toFixed(4)} is now active.` });
+            toast({ title: 'CPM Rate Updated', description: `The new CPM rate of $${rate.toFixed(4)} is now active. All users have been notified.` });
             setNewCpmRate('');
             await fetchActiveCpm(); // Refresh active CPM data
 
-        } catch (error) {
+        } catch (error: any) {
             console.error("Error updating CPM rate: ", error);
             toast({ title: 'Error', description: 'Could not update CPM rate.', variant: 'destructive'});
         } finally {
@@ -106,7 +128,7 @@ export default function AdminSettingsPage() {
                      <form onSubmit={handleUpdateCpm}>
                         <CardHeader>
                             <CardTitle>Set New CPM Rate</CardTitle>
-                            <CardDescription>Setting a new rate will end the current one and start a new period.</CardDescription>
+                            <CardDescription>Setting a new rate will end the current one and start a new period. All users will be notified of the change.</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="space-y-2">
@@ -115,7 +137,7 @@ export default function AdminSettingsPage() {
                                     id="new-cpm"
                                     type="number"
                                     step="0.0001"
-                                    placeholder="e.g. 3.50"
+                                    placeholder="e.g. 3.50 or 0"
                                     value={newCpmRate}
                                     onChange={(e) => setNewCpmRate(e.target.value)}
                                     required
@@ -123,7 +145,7 @@ export default function AdminSettingsPage() {
                             </div>
                             <Button type="submit" disabled={isSubmitting}>
                                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                Update Rate
+                                Update Rate & Notify Users
                             </Button>
                         </CardContent>
                      </form>
