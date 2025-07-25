@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useUser } from '@/hooks/use-user';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, doc, writeBatch } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, writeBatch, getDocs } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Bell, CreditCard, MessageSquare } from 'lucide-react';
@@ -68,13 +68,17 @@ export function AdminNotificationBell() {
         };
     }, [user, role, userLoading]);
     
-    const handleViewAllClick = async () => {
+    const handleMarkAsRead = async () => {
         if (unreadChats.length === 0) return;
 
         const batch = writeBatch(db);
-        unreadChats.forEach(chat => {
-            const chatRef = doc(db, 'supportTickets', chat.id);
-            batch.update(chatRef, { isReadByAdmin: true });
+        const unreadIds = unreadChats.map(chat => chat.id);
+        
+        const q = query(collection(db, 'supportTickets'), where('__name__', 'in', unreadIds));
+        const querySnapshot = await getDocs(q);
+
+        querySnapshot.forEach(doc => {
+            batch.update(doc.ref, { isReadByAdmin: true });
         });
 
         try {
@@ -83,6 +87,13 @@ export function AdminNotificationBell() {
             console.error("Error marking chats as read: ", error);
         }
     };
+    
+    const handleOpenChange = (open: boolean) => {
+        if (open && unreadChats.length > 0) {
+            handleMarkAsRead();
+        }
+    };
+
 
     const hasUnread = payouts.length > 0 || unreadChats.length > 0;
 
@@ -91,7 +102,7 @@ export function AdminNotificationBell() {
     }
 
     return (
-        <Popover>
+        <Popover onOpenChange={handleOpenChange}>
             <PopoverTrigger asChild>
                 <Button variant="ghost" size="icon" className="relative">
                     <Bell className="h-5 w-5" />
@@ -116,7 +127,7 @@ export function AdminNotificationBell() {
                     ) : (
                         <>
                             {unreadChats.map(chat => (
-                                <Link href="/admin/support" key={chat.id} onClick={handleViewAllClick} className="block p-2 rounded-md hover:bg-muted">
+                                <Link href="/admin/support" key={chat.id} className="block p-2 rounded-md hover:bg-muted">
                                     <div className="flex items-start gap-3">
                                         <MessageSquare className="h-5 w-5 mt-1 shrink-0 text-blue-500" />
                                         <div className="flex-1 text-sm">
@@ -144,13 +155,11 @@ export function AdminNotificationBell() {
                         </>
                     )}
                 </div>
-                {unreadChats.length > 0 && (
-                    <div className="p-2 border-t">
-                        <Button variant="link" size="sm" asChild className="w-full">
-                            <Link href="/admin/support" onClick={handleViewAllClick}>View all support chats</Link>
-                        </Button>
-                    </div>
-                )}
+                <div className="p-2 border-t">
+                    <Button variant="link" size="sm" asChild className="w-full">
+                        <Link href="/admin/history">View all system history</Link>
+                    </Button>
+                </div>
             </PopoverContent>
         </Popover>
     )
