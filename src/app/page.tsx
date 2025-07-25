@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -111,17 +110,37 @@ export default function LandingPage() {
                 <section className="py-20 px-4">
                     <div className="container mx-auto text-center">
                         <h2 className="text-3xl font-bold mb-4">A Powerful and Intuitive Dashboard</h2>
-                        <p className="text-muted-foreground mb-8 max-w-2xl mx-auto">Manage your links, track your earnings, and get insights from a clean and modern interface.</p>
-                         <div className="relative mx-auto border-slate-800 dark:border-slate-800 bg-slate-800 border-[8px] rounded-t-xl w-full h-auto shadow-2xl">
-                            <Image
-                                src="https://placehold.co/1200x675.png"
-                                alt="Dashboard Screenshot"
-                                width={1200}
-                                height={675}
-                                data-ai-hint="dashboard analytics"
-                                className="rounded-t-lg"
-                            />
-                        </div>
+                        <p className="text-muted-foreground mb-8 max-w-2xl mx-auto">Manage your links, track your earnings, and get insights from a clean and modern interface, available on all your devices.</p>
+                         <div className="flex flex-col lg:flex-row justify-center items-center gap-8">
+                            {/* Desktop Mockup */}
+                            <div className="relative mx-auto border-slate-800 dark:border-slate-800 bg-slate-800 border-[8px] rounded-t-xl w-full max-w-4xl h-auto shadow-2xl">
+                                <Image
+                                    src="https://placehold.co/1200x675.png"
+                                    alt="Dashboard Screenshot"
+                                    width={1200}
+                                    height={675}
+                                    data-ai-hint="dashboard analytics"
+                                    className="rounded-t-lg"
+                                />
+                            </div>
+                            {/* Mobile Mockup */}
+                            <div className="relative mx-auto border-gray-800 dark:border-gray-800 bg-gray-800 border-[14px] rounded-[2.5rem] h-[600px] w-[300px] shadow-xl">
+                                <div className="w-[140px] h-[18px] bg-gray-800 top-0 rounded-b-[1rem] left-1/2 -translate-x-1/2 absolute"></div>
+                                <div className="h-[46px] w-[3px] bg-gray-800 absolute -start-[17px] top-[124px] rounded-s-lg"></div>
+                                <div className="h-[46px] w-[3px] bg-gray-800 absolute -start-[17px] top-[178px] rounded-s-lg"></div>
+                                <div className="h-[64px] w-[3px] bg-gray-800 absolute -end-[17px] top-[142px] rounded-e-lg"></div>
+                                <div className="rounded-[2rem] overflow-hidden w-full h-full bg-white dark:bg-black">
+                                     <Image
+                                        src="https://placehold.co/300x600.png"
+                                        alt="Mobile App Screenshot"
+                                        width={300}
+                                        height={600}
+                                        data-ai-hint="mobile interface"
+                                        className="w-full h-full object-cover"
+                                    />
+                                </div>
+                            </div>
+                         </div>
                     </div>
                 </section>
             </main>
