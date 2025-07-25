@@ -45,8 +45,10 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Loader2 } from 'lucide-react';
+import { GoogleReCaptchaProvider, useGoogleReCaptcha } from 'react-google-recaptcha-v3';
+import { verifyRecaptcha } from '@/ai/flows/verifyRecaptcha';
 
 const signInSchema = z.object({
   email: z.string().email({ message: 'Invalid email address.' }),
@@ -63,10 +65,11 @@ const resetPasswordSchema = z.object({
     email: z.string().email({ message: 'Invalid email address.' }),
 });
 
-export default function AuthenticationPage() {
+function AuthForm() {
   const router = useRouter();
   const { toast } = useToast();
   const [showResetForm, setShowResetForm] = useState(false);
+  const { executeRecaptcha } = useGoogleReCaptcha();
 
   // Separate loading states for each form submission
   const [isSigningIn, setIsSigningIn] = useState(false);
@@ -153,6 +156,22 @@ export default function AuthenticationPage() {
 
   const handleSignUp = async (values: z.infer<typeof signUpSchema>) => {
     setIsSigningUp(true);
+
+    if (!executeRecaptcha) {
+        toast({ title: "reCAPTCHA not ready", description: "Please wait a moment and try again.", variant: "destructive" });
+        setIsSigningUp(false);
+        return;
+    }
+
+    const token = await executeRecaptcha('signup');
+    const recaptchaResult = await verifyRecaptcha({ token });
+
+    if (!recaptchaResult.success || recaptchaResult.score < 0.5) {
+        toast({ title: "Bot behavior detected", description: "Your registration attempt was blocked by our security system.", variant: "destructive" });
+        setIsSigningUp(false);
+        return;
+    }
+
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
@@ -166,7 +185,7 @@ export default function AuthenticationPage() {
           description: 'Please check your inbox to verify your email address.',
       });
 
-      router.push('/dashboard');
+      router.push('/');
     } catch (error: any) {
       toast({
         title: 'Authentication Error',
@@ -232,7 +251,7 @@ export default function AuthenticationPage() {
   const isLoading = isSigningIn || isSigningUp || isResetting || isGoogleSigningIn;
 
   return (
-    <main className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4 sm:p-6">
+    <>
       <div className="absolute top-4 left-4 sm:top-8 sm:left-8">
         <Logo />
       </div>
@@ -433,6 +452,32 @@ export default function AuthenticationPage() {
           </CardFooter>
           )}
         </Card>
-    </main>
+    </>
   );
+}
+
+
+export default function AuthenticationPage() {
+    const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
+    if (!siteKey) {
+        return (
+            <main className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4 sm:p-6">
+                <Card className="w-full max-w-md shadow-2xl p-8">
+                    <CardHeader>
+                        <CardTitle>Configuration Error</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="text-destructive">The reCAPTCHA site key is not configured. Please set NEXT_PUBLIC_RECAPTCHA_SITE_KEY in your environment variables.</p>
+                    </CardContent>
+                </Card>
+            </main>
+        )
+    }
+    return (
+        <main className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4 sm:p-6">
+            <GoogleReCaptchaProvider reCaptchaKey={siteKey}>
+                <AuthForm />
+            </GoogleReCaptchaProvider>
+        </main>
+    )
 }
