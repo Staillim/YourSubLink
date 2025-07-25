@@ -22,6 +22,7 @@ export type Notification = {
     isRead: boolean;
     linkId?: string; // Optional, for link-related notifications
     href?: string; // Optional, for dynamic linking
+    ticketId?: string; // Optional, for ticket-related notifications
 };
 
 
@@ -45,3 +46,5 @@ export type ChatMessage = {
   timestamp: any;
   isPredefined?: boolean;
 }
+
+    

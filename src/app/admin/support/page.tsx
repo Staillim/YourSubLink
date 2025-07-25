@@ -151,6 +151,7 @@ export default function AdminSupportPage() {
         message: `Support has replied to your ticket: "${selectedTicket.subject}"`,
         createdAt: serverTimestamp(),
         isRead: false,
+        ticketId: selectedTicket.id, // Associate notification with ticket
       }
       batch.set(notificationRef, notif);
       
@@ -179,6 +180,7 @@ export default function AdminSupportPage() {
             message: `Your support ticket "${ticket.subject}" has been closed.`,
             createdAt: serverTimestamp(),
             isRead: false,
+            ticketId: ticket.id,
         };
         batch.set(notificationRef, notif);
     }
@@ -350,3 +352,5 @@ export default function AdminSupportPage() {
     </div>
   );
 }
+
+    

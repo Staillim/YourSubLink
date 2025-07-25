@@ -16,6 +16,7 @@ import {
   updateDoc,
   getDoc,
   writeBatch,
+  getDocs,
 } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -118,7 +119,26 @@ export default function SupportChat() {
     setSelectedTicket(ticket);
     setView('chat');
     if (!ticket.isReadByUser) {
-        await updateDoc(doc(db, 'supportTickets', ticket.id), { isReadByUser: true });
+        const batch = writeBatch(db);
+        
+        // 1. Mark ticket as read
+        const ticketRef = doc(db, 'supportTickets', ticket.id);
+        batch.update(ticketRef, { isReadByUser: true });
+        
+        // 2. Find and mark corresponding notification as read
+        const notifQuery = query(
+            collection(db, 'notifications'), 
+            where('ticketId', '==', ticket.id),
+            where('isRead', '==', false)
+        );
+        const notifSnapshot = await getDocs(notifQuery);
+        if (!notifSnapshot.empty) {
+            notifSnapshot.docs.forEach(notifDoc => {
+                batch.update(notifDoc.ref, { isRead: true });
+            });
+        }
+        
+        await batch.commit();
     }
   }
 
@@ -328,3 +348,5 @@ export default function SupportChat() {
     </Button>
   );
 }
+
+    
