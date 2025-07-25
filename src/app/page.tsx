@@ -116,7 +116,6 @@ function AuthForm() {
             variant: 'destructive',
             duration: 8000,
         });
-        router.push('/');
         return;
     }
 
@@ -140,6 +139,7 @@ function AuthForm() {
               description: 'Please check your inbox and verify your email address to log in.',
               variant: 'destructive',
           });
+          setIsSigningIn(false);
           return;
       }
 
@@ -168,7 +168,11 @@ function AuthForm() {
     const recaptchaResult = await verifyRecaptcha({ token });
 
     if (!recaptchaResult.success || recaptchaResult.score < 0.5) {
-        toast({ title: "Bot behavior detected", description: "Your registration attempt was blocked by our security system.", variant: "destructive" });
+        if(recaptchaResult.errorCodes?.includes('missing-secret-key')) {
+             toast({ title: "Server Configuration Error", description: "The reCAPTCHA keys are not configured correctly. Please contact support.", variant: "destructive", duration: 8000 });
+        } else {
+             toast({ title: "Bot behavior detected", description: "Your registration attempt was blocked by our security system.", variant: "destructive" });
+        }
         setIsSigningUp(false);
         return;
     }
@@ -182,7 +186,7 @@ function AuthForm() {
       
       await sendEmailVerification(user);
 
-      signUpForm.reset(); // Reset form fields after successful submission
+      signUpForm.reset();
 
       toast({
           title: 'Verification Email Sent',
@@ -215,16 +219,6 @@ function AuthForm() {
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
-
-      if (!user.emailVerified) {
-        await auth.signOut();
-        toast({
-          title: 'Email Not Verified',
-          description: 'Your Google account email is not verified. Please verify it to continue.',
-          variant: 'destructive',
-        });
-        return;
-      }
       
       await createUserProfile(user);
       await handleRedirectBasedOnRole(user);
@@ -269,58 +263,122 @@ function AuthForm() {
       </div>
       
         <Card className="w-full max-w-md shadow-2xl">
-          <CardHeader className="text-center px-4 sm:px-6">
-            <CardTitle className="text-xl sm:text-2xl font-bold tracking-tight text-primary">
-              {showResetForm ? 'Reset Password' : 'Welcome to YourSubLink'}
-            </CardTitle>
-            <CardDescription className="text-sm">
-              {showResetForm ? 'Enter your email to receive a reset link.' : 'Enter your credentials to access your account'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="px-4 sm:px-6">
-            {showResetForm ? (
-                 <Form {...resetPasswordForm}>
-                    <form onSubmit={resetPasswordForm.handleSubmit(handlePasswordReset)} className="space-y-4 pt-4">
-                        <FormField
-                            control={resetPasswordForm.control}
-                            name="email"
-                            render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Email</FormLabel>
-                                <FormControl>
-                                <Input
-                                    type="email"
-                                    placeholder="m@example.com"
-                                    {...field}
+            <CardHeader className="text-center px-4 sm:px-6">
+                <CardTitle className="text-xl sm:text-2xl font-bold tracking-tight text-primary">
+                {showResetForm ? 'Reset Password' : 'Welcome to YourSubLink'}
+                </CardTitle>
+                <CardDescription className="text-sm">
+                {showResetForm ? 'Enter your email to receive a reset link.' : 'Enter your credentials to access your account'}
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="px-4 sm:px-6">
+                {showResetForm ? (
+                    <Form {...resetPasswordForm}>
+                        <form onSubmit={resetPasswordForm.handleSubmit(handlePasswordReset)} className="space-y-4 pt-4">
+                            <FormField
+                                control={resetPasswordForm.control}
+                                name="email"
+                                render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Email</FormLabel>
+                                    <FormControl>
+                                    <Input
+                                        type="email"
+                                        placeholder="m@example.com"
+                                        {...field}
+                                    />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                                )}
+                            />
+                            <Button type="submit" className="w-full font-semibold" disabled={isResetting}>
+                                {isResetting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                Send Reset Email
+                            </Button>
+                            <Button variant="link" className="w-full" onClick={() => setShowResetForm(false)}>
+                                Back to Sign In
+                            </Button>
+                        </form>
+                    </Form>
+                ) : (
+                <>
+                    <Tabs defaultValue="signin" className="w-full">
+                        <TabsList className="grid w-full grid-cols-2">
+                            <TabsTrigger value="signin">Sign In</TabsTrigger>
+                            <TabsTrigger value="signup">Sign Up</TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="signin">
+                            <Form {...signInForm}>
+                                <form
+                                onSubmit={signInForm.handleSubmit(handleSignIn)}
+                                className="space-y-4 pt-4"
+                                >
+                                <FormField
+                                    control={signInForm.control}
+                                    name="email"
+                                    render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Email</FormLabel>
+                                        <FormControl>
+                                        <Input
+                                            type="email"
+                                            placeholder="m@example.com"
+                                            {...field}
+                                        />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                    )}
                                 />
-                                </FormControl>
-                                <FormMessage />
-                            </FormItem>
-                            )}
-                        />
-                        <Button type="submit" className="w-full font-semibold" disabled={isResetting}>
-                            {isResetting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Send Reset Email
-                        </Button>
-                        <Button variant="link" className="w-full" onClick={() => setShowResetForm(false)}>
-                            Back to Sign In
-                        </Button>
-                    </form>
-                </Form>
-            ) : (
-                <Tabs defaultValue="signin" className="w-full">
-                    <TabsList className="grid w-full grid-cols-2">
-                        <TabsTrigger value="signin">Sign In</TabsTrigger>
-                        <TabsTrigger value="signup">Sign Up</TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="signin">
-                        <Form {...signInForm}>
+                                <FormField
+                                    control={signInForm.control}
+                                    name="password"
+                                    render={({ field }) => (
+                                    <FormItem>
+                                        <div className="flex items-center justify-between">
+                                            <FormLabel>Password</FormLabel>
+                                            <Button variant="link" type="button" size="sm" className="h-auto p-0 text-xs" onClick={() => setShowResetForm(true)}>
+                                                Forgot password?
+                                            </Button>
+                                        </div>
+                                        <FormControl>
+                                        <Input type="password" {...field} />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                    )}
+                                />
+                                <Button type="submit" className="w-full font-semibold" disabled={isSigningIn}>
+                                    {isSigningIn && (
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    )}
+                                    Sign In
+                                </Button>
+                                </form>
+                            </Form>
+                        </TabsContent>
+                        <TabsContent value="signup">
+                        <Form {...signUpForm}>
                             <form
-                            onSubmit={signInForm.handleSubmit(handleSignIn)}
+                            onSubmit={signUpForm.handleSubmit(handleSignUp)}
                             className="space-y-4 pt-4"
                             >
                             <FormField
-                                control={signInForm.control}
+                                control={signUpForm.control}
+                                name="name"
+                                render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Name</FormLabel>
+                                    <FormControl>
+                                    <Input placeholder="Max Robinson" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={signUpForm.control}
                                 name="email"
                                 render={({ field }) => (
                                 <FormItem>
@@ -337,16 +395,11 @@ function AuthForm() {
                                 )}
                             />
                             <FormField
-                                control={signInForm.control}
+                                control={signUpForm.control}
                                 name="password"
                                 render={({ field }) => (
                                 <FormItem>
-                                    <div className="flex items-center justify-between">
-                                        <FormLabel>Password</FormLabel>
-                                        <Button variant="link" type="button" size="sm" className="h-auto p-0 text-xs" onClick={() => setShowResetForm(true)}>
-                                            Forgot password?
-                                        </Button>
-                                    </div>
+                                    <FormLabel>Password</FormLabel>
                                     <FormControl>
                                     <Input type="password" {...field} />
                                     </FormControl>
@@ -354,115 +407,56 @@ function AuthForm() {
                                 </FormItem>
                                 )}
                             />
-                            <Button type="submit" className="w-full font-semibold" disabled={isSigningIn}>
-                                {isSigningIn && (
+                            <Button type="submit" className="w-full font-semibold" disabled={isSigningUp}>
+                                {isSigningUp && (
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                 )}
-                                Sign In
+                                Sign Up
                             </Button>
                             </form>
                         </Form>
-                    </TabsContent>
-                    <TabsContent value="signup">
-                    <Form {...signUpForm}>
-                        <form
-                        onSubmit={signUpForm.handleSubmit(handleSignUp)}
-                        className="space-y-4 pt-4"
-                        >
-                        <FormField
-                            control={signUpForm.control}
-                            name="name"
-                            render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Name</FormLabel>
-                                <FormControl>
-                                <Input placeholder="Max Robinson" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                            </FormItem>
-                            )}
-                        />
-                        <FormField
-                            control={signUpForm.control}
-                            name="email"
-                            render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Email</FormLabel>
-                                <FormControl>
-                                <Input
-                                    type="email"
-                                    placeholder="m@example.com"
-                                    {...field}
-                                />
-                                </FormControl>
-                                <FormMessage />
-                            </FormItem>
-                            )}
-                        />
-                        <FormField
-                            control={signUpForm.control}
-                            name="password"
-                            render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Password</FormLabel>
-                                <FormControl>
-                                <Input type="password" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                            </FormItem>
-                            )}
-                        />
-                        <Button type="submit" className="w-full font-semibold" disabled={isSigningUp}>
-                            {isSigningUp && (
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            )}
-                            Sign Up
-                        </Button>
-                        </form>
-                    </Form>
-                    </TabsContent>
-                    <>
-                        <div className="relative my-4">
-                            <div className="absolute inset-0 flex items-center">
-                                <span className="w-full border-t" />
-                            </div>
-                            <div className="relative flex justify-center text-xs uppercase">
-                                <span className="bg-card px-2 text-muted-foreground">
-                                Or continue with
-                                </span>
-                            </div>
+                        </TabsContent>
+                    </Tabs>
+                    <div className="relative my-4">
+                        <div className="absolute inset-0 flex items-center">
+                            <span className="w-full border-t" />
                         </div>
-                        <Button
-                            variant="outline"
-                            className="w-full font-semibold"
-                            onClick={handleGoogleSignIn}
-                            disabled={isLoading}
-                        >
-                            {isGoogleSigningIn && (
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            )}
-                            <GoogleIcon className="mr-2 h-5 w-5" />
-                            Google
-                        </Button>
-                    </>
-                </Tabs>
-            )}
+                        <div className="relative flex justify-center text-xs uppercase">
+                            <span className="bg-card px-2 text-muted-foreground">
+                            Or continue with
+                            </span>
+                        </div>
+                    </div>
+                    <Button
+                        variant="outline"
+                        className="w-full font-semibold"
+                        onClick={handleGoogleSignIn}
+                        disabled={isLoading}
+                    >
+                        {isGoogleSigningIn && (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        )}
+                        <GoogleIcon className="mr-2 h-5 w-5" />
+                        Google
+                    </Button>
+                </>
+                )}
             
-          </CardContent>
-          {!showResetForm && (
-          <CardFooter className="flex flex-col items-center gap-2 text-sm px-4 sm:px-6 pb-4">
-            <p className="text-muted-foreground text-center">
-              By continuing, you agree to our{' '}
-              <a href="#" className="font-medium text-primary hover:underline">
-                Terms of Service
-              </a>
-              .
-            </p>
-             <a href="https://t.me/YourSubSuport" target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline">
-                Contactar con soporte
-             </a>
-          </CardFooter>
-          )}
+            </CardContent>
+            {!showResetForm && (
+            <CardFooter className="flex flex-col items-center gap-2 text-sm px-4 sm:px-6 pb-4">
+                <p className="text-muted-foreground text-center">
+                By continuing, you agree to our{' '}
+                <a href="#" className="font-medium text-primary hover:underline">
+                    Terms of Service
+                </a>
+                .
+                </p>
+                <a href="https://t.me/YourSubSuport" target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline">
+                    Contactar con soporte
+                </a>
+            </CardFooter>
+            )}
         </Card>
     </>
   );
@@ -493,5 +487,3 @@ export default function AuthenticationPage() {
         </main>
     )
 }
-
-    

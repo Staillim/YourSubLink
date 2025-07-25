@@ -19,7 +19,7 @@ const VerifyRecaptchaOutputSchema = z.object({
   score: z.number().describe("The score of the user interaction (0.0 to 1.0)."),
   errorCodes: z.array(z.string()).optional().describe("Any error codes returned by the API."),
 });
-export type VerifyRecaptchaOutput = z.infer<typeof VerifyRecaptchaOutputSchema>;
+type VerifyRecaptchaOutput = z.infer<typeof VerifyRecaptchaOutputSchema>;
 
 export async function verifyRecaptcha(input: VerifyRecaptchaInput): Promise<VerifyRecaptchaOutput> {
   return verifyRecaptchaFlow(input);
@@ -33,7 +33,7 @@ const verifyRecaptchaFlow = ai.defineFlow(
   },
   async ({ token }) => {
     const secretKey = process.env.RECAPTCHA_SECRET_KEY;
-    if (!secretKey) {
+    if (!secretKey || secretKey === 'YourSub') {
         console.error("RECAPTCHA_SECRET_KEY is not set in environment variables.");
         return { success: false, score: 0, errorCodes: ['missing-secret-key'] };
     }
