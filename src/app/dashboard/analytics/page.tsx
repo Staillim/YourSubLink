@@ -2,8 +2,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAuthState } from 'react-firebase-hooks/auth';
-import { auth, db } from '@/lib/firebase';
+import { useUser } from '@/hooks/use-user';
+import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, getDocs, orderBy } from 'firebase/firestore';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import {
@@ -43,7 +43,7 @@ type CpmHistory = {
 
 
 export default function AnalyticsPage() {
-  const [user, loading] = useAuthState(auth);
+  const { user, profile, loading } = useUser();
   const [links, setLinks] = useState<LinkItem[]>([]);
   const [cpmHistory, setCpmHistory] = useState<CpmHistory[]>([]);
   const [linksLoading, setLinksLoading] = useState(true);
@@ -79,6 +79,7 @@ export default function AnalyticsPage() {
             monetizable: data.monetizable || false,
             rules: data.rules || [],
             generatedEarnings: data.generatedEarnings || 0,
+            monetizationStatus: data.monetizationStatus || 'active'
           });
         });
         setLinks(linksData);
@@ -101,14 +102,19 @@ export default function AnalyticsPage() {
   }, [user, loading]);
   
   useEffect(() => {
-    if (linksDataLoaded && cpmDataLoaded) {
+    // We combine the main user loading state with the specific data loading states
+    if (!loading && linksDataLoaded && cpmDataLoaded) {
       setLinksLoading(false);
     }
-  }, [linksDataLoaded, cpmDataLoaded]);
+  }, [loading, linksDataLoaded, cpmDataLoaded]);
 
   const totalClicks = links.reduce((acc, link) => acc + link.clicks, 0);
   const totalEarnings = links.reduce((acc, link) => acc + (link.generatedEarnings || 0), 0);
-  const activeCpm = cpmHistory.find(c => !c.endDate)?.rate || 0;
+  
+  // Determine the active CPM to display
+  const globalActiveCpm = cpmHistory.find(c => !c.endDate)?.rate || 0;
+  const activeCpm = profile?.customCpm !== null && profile?.customCpm !== undefined ? profile.customCpm : globalActiveCpm;
+  const cpmDescription = profile?.customCpm !== null && profile?.customCpm !== undefined ? "Your personal CPM rate" : "Current global rate per 1000 views";
 
   const getMonthlyChartData = () => {
     const monthlyEarnings: { [key: string]: number } = {};
@@ -119,7 +125,7 @@ export default function AnalyticsPage() {
     links.forEach(link => {
         if (getYear(new Date(link.date)) === currentYear && link.generatedEarnings > 0) {
             const month = getMonth(new Date(link.date));
-            const monthKey = `${currentYear}-${month}`;
+            const key = `${currentYear}-${month}`;
             
             if (monthlyEarnings[monthKey]) {
                 monthlyEarnings[monthKey] += link.generatedEarnings;
@@ -198,7 +204,7 @@ export default function AnalyticsPage() {
                   </CardHeader>
                   <CardContent>
                       <div className="text-2xl font-bold">${activeCpm.toFixed(4)}</div>
-                      <p className="text-xs text-muted-foreground">Current rate per 1000 monetized views</p>
+                      <p className="text-xs text-muted-foreground">{cpmDescription}</p>
                   </CardContent>
               </Card>
           </div>
