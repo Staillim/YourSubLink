@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -92,6 +91,15 @@ export default function LandingPage() {
                     </div>
                 </section>
 
+                 {/* Community Section */}
+                <section className="py-16 px-4">
+                    <div className="container mx-auto text-center">
+                        <h2 className="text-3xl font-bold mb-4">Be Part of Our Community</h2>
+                        <p className="max-w-3xl mx-auto text-lg text-muted-foreground">
+                            We are committed to building a community that is flexible, generous, and focused on our users. Your success is our success, and we're excited to grow with you.
+                        </p>
+                    </div>
+                </section>
 
                 {/* Why us Section */}
                 <section className="py-16 px-4 bg-muted/40">
@@ -156,16 +164,6 @@ export default function LandingPage() {
                     </div>
                 </section>
                 
-                 {/* Community Section */}
-                <section className="py-16 px-4 bg-muted/40">
-                    <div className="container mx-auto text-center">
-                        <h2 className="text-3xl font-bold mb-4">Be Part of Our Community</h2>
-                        <p className="max-w-3xl mx-auto text-lg text-muted-foreground">
-                            We are committed to building a community that is flexible, generous, and focused on our users. Your success is our success, and we're excited to grow with you.
-                        </p>
-                    </div>
-                </section>
-
             </main>
 
             {/* Footer */}
