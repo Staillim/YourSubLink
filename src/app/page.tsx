@@ -49,24 +49,6 @@ export default function LandingPage() {
                     <div className="container mx-auto text-center">
                         <h2 className="text-3xl font-bold mb-4">Monetization in Action</h2>
                         <p className="text-muted-foreground mb-8 max-w-2xl mx-auto">This is what visitors see: a clean interface with clear steps. Each step completed brings you closer to your earnings.</p>
-                        <div className="flex flex-col lg:flex-row justify-center items-center gap-8">
-                            <Image
-                                src="https://placehold.co/1200x675.png"
-                                alt="Dashboard Screenshot"
-                                width={1200}
-                                height={675}
-                                data-ai-hint="dashboard analytics"
-                                className="w-full max-w-3xl rounded-xl shadow-2xl"
-                            />
-                            <Image
-                                src="https://placehold.co/300x600.png"
-                                alt="Mobile App Screenshot"
-                                width={300}
-                                height={600}
-                                data-ai-hint="mobile interface"
-                                className="w-[240px] h-[480px] rounded-xl shadow-2xl"
-                            />
-                        </div>
                     </div>
                 </section>
                 
