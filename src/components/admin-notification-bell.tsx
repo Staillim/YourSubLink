@@ -5,23 +5,13 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useUser } from '@/hooks/use-user';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, getDoc, doc, writeBatch } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, writeBatch } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Bell, CreditCard, ShieldAlert, Trophy, MessageSquare } from 'lucide-react';
+import { Bell, CreditCard, MessageSquare } from 'lucide-react';
 import type { PayoutRequest } from '@/hooks/use-user';
 import { Skeleton } from './ui/skeleton';
 import type { SupportTicket } from '@/types';
-
-
-type AdminNotification = {
-    id: string;
-    userName: string;
-    // These fields are optional because a notification can be one of many types.
-    linkTitle?: string;
-    milestone?: number;
-    message?: string;
-}
 
 export function AdminNotificationBell() {
     const { user, role, loading: userLoading } = useUser();
@@ -30,35 +20,53 @@ export function AdminNotificationBell() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // Double-check: Do not proceed if user data is still loading or if the role isn't admin.
-        if (userLoading || role !== 'admin') {
-            if (!userLoading) setLoading(false);
+        if (userLoading) {
+            setLoading(true);
+            return;
+        }
+        if (role !== 'admin') {
+            setLoading(false);
             return;
         }
 
-        setLoading(true);
+        let payoutsLoaded = false;
+        let chatsLoaded = false;
+
+        const checkAllLoaded = () => {
+            if (payoutsLoaded && chatsLoaded) {
+                setLoading(false);
+            }
+        };
 
         const payoutQuery = query(collection(db, "payoutRequests"), where("status", "==", "pending"));
         const unsubPayouts = onSnapshot(payoutQuery, (snapshot) => {
             const payoutData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PayoutRequest));
             setPayouts(payoutData);
-            if (loading) setLoading(false);
+            payoutsLoaded = true;
+            checkAllLoaded();
         }, (error) => {
             console.error("Error fetching payout requests: ", error);
-            if (loading) setLoading(false);
+            payoutsLoaded = true;
+            checkAllLoaded();
         });
 
         const chatsQuery = query(collection(db, 'supportTickets'), where('isReadByAdmin', '==', false));
         const unsubChats = onSnapshot(chatsQuery, (snapshot) => {
             const chatData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SupportTicket));
             setUnreadChats(chatData);
+            chatsLoaded = true;
+            checkAllLoaded();
+        }, (error) => {
+            console.error("Error fetching unread chats: ", error);
+            chatsLoaded = true;
+            checkAllLoaded();
         });
 
         return () => {
             unsubPayouts();
             unsubChats();
         };
-    }, [user, role, userLoading, loading]);
+    }, [user, role, userLoading]);
     
     const handleViewAllClick = async () => {
         if (unreadChats.length === 0) return;
