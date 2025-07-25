@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -23,7 +24,7 @@ import {
     TableRow,
   } from '@/components/ui/table';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
-import { ExternalLink, DollarSign, Eye } from 'lucide-react';
+import { ExternalLink, DollarSign, Eye, ArrowUp } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { LinkItem } from '../page';
 import { format, getMonth, getYear } from 'date-fns';
@@ -114,7 +115,8 @@ export default function AnalyticsPage() {
   // Determine the active CPM to display
   const globalActiveCpm = cpmHistory.find(c => !c.endDate)?.rate || 0;
   const activeCpm = profile?.customCpm !== null && profile?.customCpm !== undefined ? profile.customCpm : globalActiveCpm;
-  const cpmDescription = profile?.customCpm !== null && profile?.customCpm !== undefined ? "Your personal CPM rate" : "Current global rate per 1000 views";
+  
+  const hasCustomCpm = profile?.customCpm !== null && profile?.customCpm !== undefined;
 
   const getMonthlyChartData = () => {
     const monthlyEarnings: { [key: string]: number } = {};
@@ -194,7 +196,7 @@ export default function AnalyticsPage() {
                   </CardHeader>
                   <CardContent>
                       <div className="text-2xl font-bold">+{totalClicks.toLocaleString()}</div>
-                      <p className="text-xs text-muted-foreground">Across all links</p>
+                      <p className="text-xs text-muted-foreground">Across all your links</p>
                   </CardContent>
               </Card>
               <Card>
@@ -204,7 +206,14 @@ export default function AnalyticsPage() {
                   </CardHeader>
                   <CardContent>
                       <div className="text-2xl font-bold">${activeCpm.toFixed(4)}</div>
-                      <p className="text-xs text-muted-foreground">{cpmDescription}</p>
+                      {hasCustomCpm ? (
+                        <div className="text-xs text-muted-foreground flex items-center gap-1">
+                           <ArrowUp className="h-3 w-3 text-green-500"/>
+                           <span>Your custom rate is active (Global: ${globalActiveCpm.toFixed(4)})</span>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">Current global rate per 1000 views</p>
+                      )}
                   </CardContent>
               </Card>
           </div>

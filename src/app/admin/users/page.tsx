@@ -1,4 +1,5 @@
 
+
 /**
  * !! ANTES DE EDITAR ESTE ARCHIVO, REVISA LAS DIRECTRICES EN LOS SIGUIENTES DOCUMENTOS: !!
  * - /README.md
@@ -12,7 +13,7 @@
 
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, doc, updateDoc, query, where, getDocs, serverTimestamp, increment, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, query, where, getDocs, serverTimestamp, increment, orderBy, writeBatch } from 'firebase/firestore';
 import { useUser } from '@/hooks/use-user';
 import {
   Table,
@@ -168,12 +169,31 @@ export default function AdminUsersPage() {
 
     setIsSubmitting(true);
     try {
+        const batch = writeBatch(db);
         const userDocRef = doc(db, 'users', selectedUser.uid);
-        await updateDoc(userDocRef, { customCpm: newCpm });
+        batch.update(userDocRef, { customCpm: newCpm });
+
+        // Create notification for the user
+        const notificationRef = doc(collection(db, 'notifications'));
+        const notificationMessage = newCpm !== null 
+            ? `Your CPM rate has been updated to $${newCpm.toFixed(4)}!`
+            : `Your custom CPM rate has been removed. You are now on the global rate.`;
+        
+        batch.set(notificationRef, {
+            userId: selectedUser.uid,
+            type: 'custom_cpm_set',
+            message: notificationMessage,
+            createdAt: serverTimestamp(),
+            isRead: false,
+        });
+
+        await batch.commit();
 
         toast({
             title: 'Custom CPM Updated',
-            description: newCpm === null ? `Removed custom CPM for ${selectedUser.displayName}.` : `Set custom CPM for ${selectedUser.displayName} to $${newCpm.toFixed(4)}.`,
+            description: newCpm === null 
+                ? `Removed custom CPM for ${selectedUser.displayName}. They have been notified.` 
+                : `Set custom CPM for ${selectedUser.displayName} to $${newCpm.toFixed(4)}. They have been notified.`,
         });
         setIsCustomCpmDialogOpen(false);
     } catch (error) {

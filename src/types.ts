@@ -16,7 +16,7 @@ export type LinkData = {
 export type Notification = {
     id: string;
     userId: string;
-    type: 'payout_requested' | 'payout_completed' | 'payout_rejected' | 'link_suspension' | 'link_deleted' | 'milestone' | 'ticket_answered' | 'ticket_completed';
+    type: 'payout_requested' | 'payout_completed' | 'payout_rejected' | 'link_suspension' | 'link_deleted' | 'milestone' | 'ticket_answered' | 'ticket_completed' | 'custom_cpm_set';
     message: string;
     createdAt: any; // Firestore Timestamp
     isRead: boolean;

@@ -6,7 +6,7 @@ import { useUser } from '@/hooks/use-user';
 import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Bell, CheckCircle2, XCircle, Clock, Trophy, ShieldAlert, Trash2, MessageSquare } from 'lucide-react';
+import { Bell, CheckCircle2, XCircle, Clock, Trophy, ShieldAlert, Trash2, MessageSquare, Star } from 'lucide-react';
 import type { PayoutRequest } from '@/hooks/use-user';
 import type { Notification } from '@/types';
 import { cn } from '@/lib/utils';
@@ -121,6 +121,19 @@ export const getNotificationDetails = (notification: Notification): FormattedNot
                 isUnread: notification.isRead === false,
                 type: notification.type,
             };
+        case 'custom_cpm_set':
+            return {
+                id: notification.id,
+                icon: Star,
+                color: 'text-yellow-400',
+                title: 'CPM Rate Updated!',
+                description: notification.message,
+                date,
+                timestamp,
+                href: '/dashboard/analytics',
+                isUnread: notification.isRead === false,
+                type: notification.type,
+            };
         case 'milestone':
         default:
             return {
@@ -210,10 +223,10 @@ export default function NotificationsPage() {
                                 <div className="flex items-start gap-4 p-4 border rounded-lg">
                                     <div className="relative">
                                        <notification.icon className={cn('h-6 w-6 shrink-0', notification.color)} />
-                                       {notification.type === 'link_suspension' && (
+                                       {notification.isUnread && (
                                             <span className="absolute top-0 right-0 block h-2 w-2">
-                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
-                                                <span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-500"></span>
+                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                                                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
                                             </span>
                                        )}
                                     </div>
