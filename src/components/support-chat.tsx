@@ -118,7 +118,7 @@ export default function SupportChat() {
   const openChat = async (ticket: SupportTicket) => {
     setSelectedTicket(ticket);
     setView('chat');
-    if (!ticket.isReadByUser) {
+    if (!ticket.isReadByUser && user) {
         const batch = writeBatch(db);
         
         // 1. Mark ticket as read
@@ -128,6 +128,7 @@ export default function SupportChat() {
         // 2. Find and mark corresponding notification as read
         const notifQuery = query(
             collection(db, 'notifications'), 
+            where('userId', '==', user.uid), // Check ownership
             where('ticketId', '==', ticket.id),
             where('isRead', '==', false)
         );
@@ -348,5 +349,3 @@ export default function SupportChat() {
     </Button>
   );
 }
-
-    
