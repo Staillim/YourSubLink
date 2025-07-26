@@ -3,83 +3,113 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function isAuth() {
+    // ================================
+    // Funciones Helpers
+    // ================================
+    function isAuthenticated() {
       return request.auth != null;
     }
 
     function isAdmin() {
-      return isAuth() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return isAuthenticated() &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
     function isOwner(userId) {
-      return isAuth() && request.auth.uid == userId;
+      return request.auth != null && request.auth.uid == userId;
     }
-
-    // Rules for 'links' collection
+    
+    // ================================
+    // LINKS
+    // ================================
     match /links/{linkId} {
-      // Allow reading a link document by its ID.
-      // Necessary for the client to get link details (rules, original URL).
+      // Cualquiera puede leer un link si conoce su ID.
       allow get: if true;
       
-      // Allow anonymous users to query for a link using its shortId.
-      // This is the entry point for a visitor.
-      allow list: if request.query.get('where') == [['shortId', '==', request.query.get('value')[0]]];
+      // Un usuario autenticado puede listar y crear sus propios enlaces.
+      allow list, create: if isOwner(request.resource.data.userId);
 
-      // Only the owner can create, update, or delete their own links.
-      allow create, update, delete: if isOwner(request.resource.data.userId);
+      // El dueño puede actualizar o borrar su enlace.
+      allow update, delete: if isOwner(resource.data.userId);
     }
     
-    // Rules for 'users' collection
-    match /users/{userId} {
-      // Allow anyone to get a user's document.
-      // This is crucial for the ClientComponent to check if a link owner is suspended.
-      allow get: if true;
-
-      // Only the owner can modify their own profile.
-      allow update: if isOwner(userId);
-
-      // Only admins can create or delete users (implicitly, via other flows)
-      allow create, delete: if isAdmin();
-      
-      // Only admins can list all users.
-      allow list: if isAdmin();
-    }
-
-    // Rules for 'clicks' collection
+    // ================================
+    // CLICKS (Visitas)
+    // ================================
     match /clicks/{clickId} {
-      // Allow anyone to create a click document.
-      // The security is enforced by checking the link owner's status on the server-side
-      // within the 'get()' function call. This is secure.
-      allow create: if get(/databases/$(database)/documents/links/$(request.resource.data.linkId)).data.userId != null;
+        // Cualquiera puede crear un click si el enlace existe y su dueño no está suspendido.
+        allow create: if get(/databases/$(database)/documents/links/$(request.resource.data.linkId)).data.userId == get(/databases/$(database)/documents/users/$(get(/databases/$(database)/documents/links/$(request.resource.data.linkId)).data.userId)).uid
+                       && get(/databases/$(database)/documents/users/$(get(/databases/|database|/documents/links/$(request.resource.data.linkId)).data.userId)).data.accountStatus != 'suspended';
 
-      // No one can read or modify click logs directly.
-      // This will be handled by a backend process in the future.
-      allow read, update, delete: if false;
+        // Nadie puede leer, actualizar o borrar clicks directamente.
+        allow read, update, delete: if false;
     }
 
-    // Admins can list any collection for their dashboard panels.
-    match /payoutRequests/{docId} {
-        allow list, read: if isAdmin() || isOwner(resource.data.userId);
-        allow create: if isOwner(request.resource.data.userId);
-        allow update: if isAdmin();
+    // ================================
+    // USERS
+    // ================================
+    match /users/{userId} {
+      // Cualquiera puede leer los datos de un usuario para verificar su estado.
+      allow get: if true;
+      
+      // Un usuario puede actualizar su propio perfil.
+      allow update: if isOwner(userId);
+      
+      // Solo un administrador puede listar todos los usuarios o crear/borrar perfiles.
+      allow list, create, delete: if isAdmin();
+    }
+
+    // ================================
+    // NOTIFICACIONES
+    // ================================
+    match /notifications/{notificationId} {
+        // El dueño de la notificación puede leerla, crearla y actualizarla.
+        allow read, create, update: if isOwner(resource.data.userId) || isOwner(request.resource.data.userId);
+        
+        // Un usuario puede listar sus propias notificaciones.
+        allow list: if isOwner(request.query.filters[0].value);
+    }
+
+    // ================================
+    // HISTORIAL DE CPM
+    // ================================
+    match /cpmHistory/{historyId} {
+      // Solo usuarios autenticados pueden leer el historial.
+      allow read, list: if isAuthenticated();
+      // Solo admins pueden escribir en el historial.
+      allow write: if isAdmin();
+    }
+
+    // ================================
+    // SOLICITUDES DE PAGO
+    // ================================
+    match /payoutRequests/{requestId} {
+      // El dueño o un admin pueden leer. Un usuario puede listar sus propias solicitudes.
+      allow get: if isOwner(resource.data.userId) || isAdmin();
+      allow list: if isOwner(request.query.filters[0].value) || isAdmin();
+
+      // El dueño puede crear, un admin puede actualizar.
+      allow create: if isOwner(request.resource.data.userId);
+      allow update: if isAdmin();
     }
     
-    match /notifications/{docId} {
-        allow list, read, update: if isOwner(resource.data.userId);
-    }
-
-    match /cpmHistory/{docId} {
-      allow list, read: if isAuth();
-      allow create, update: if isAdmin();
-    }
-
+    // ================================
+    // TICKETS DE SOPORTE
+    // ================================
     match /supportTickets/{ticketId} {
-      allow read, create, update: if isOwner(resource.data.userId) || isAdmin();
-      allow list: if isAdmin();
+      // El dueño o un admin pueden leer o listar tickets.
+      allow get, list: if isOwner(resource.data.userId) || isAdmin();
+
+      // Cualquiera autenticado puede crear un ticket.
+      allow create: if isAuthenticated();
       
+      // El dueño o un admin pueden actualizar.
+      allow update: if isOwner(resource.data.userId) || isAdmin();
+
+      // Subcolección de mensajes
       match /messages/{messageId} {
-        allow read, create: if isOwner(get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId) || isAdmin();
-        allow list: if isOwner(get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId) || isAdmin();
+        // El dueño del ticket o un admin pueden leer/escribir mensajes.
+        allow read, write: if isOwner(get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId) || isAdmin();
       }
     }
   }
