@@ -1,4 +1,5 @@
 
+
 /**
  * !! ANTES DE EDITAR ESTE ARCHIVO, REVISA LAS DIRECTRICES EN LOS SIGUIENTES DOCUMENTOS: !!
  * - /README.md
@@ -56,7 +57,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Rule, RuleEditor } from '@/components/rule-editor';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import type { MonetizationPeriod } from '@/types';
+import { useUser } from '@/hooks/use-user';
 
 
 export type LinkItem = {
@@ -71,7 +72,6 @@ export type LinkItem = {
   description?: string;
   rules: Rule[];
   generatedEarnings: number;
-  monetizationHistory: MonetizationPeriod[];
 };
 
 const TABS = [
@@ -81,18 +81,9 @@ const TABS = [
     { id: 'suspended', label: 'Suspended', icon: ShieldQuestion }
 ];
 
-const getCurrentStatus = (link: LinkItem) => {
-    if (!link.monetizationHistory || link.monetizationHistory.length === 0) {
-        return { status: 'suspended', isMonetizable: false };
-    }
-    const currentPeriod = link.monetizationHistory[link.monetizationHistory.length - 1];
-    const isMonetizable = currentPeriod.status === 'active' && link.rules.length >= 3;
-    return { status: currentPeriod.status, isMonetizable };
-}
-
 
 function DashboardPageComponent() {
-  const [user, loading] = useAuthState(auth);
+  const { user, loading, profile } = useUser();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -137,7 +128,6 @@ function DashboardPageComponent() {
                 description: data.description,
                 rules: data.rules || [],
                 generatedEarnings: data.generatedEarnings || 0,
-                monetizationHistory: data.monetizationHistory || [],
             });
         }
         setLinks(linksData.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
@@ -149,18 +139,18 @@ function DashboardPageComponent() {
   }, [user]);
 
   const { monetizableLinks, notMonetizableLinks, suspendedLinks } = useMemo(() => {
-    const monetizable = links.filter(link => {
-        const { status, isMonetizable } = getCurrentStatus(link);
-        return status === 'active' && isMonetizable;
-    });
-    const notMonetizable = links.filter(link => {
-        const { status, isMonetizable } = getCurrentStatus(link);
-        return status === 'active' && !isMonetizable;
-    });
-    const suspended = links.filter(link => getCurrentStatus(link).status === 'suspended');
+    if (!profile) {
+        return { monetizableLinks: [], notMonetizableLinks: [], suspendedLinks: [] };
+    }
+    
+    const isSuspendedAccount = profile.accountStatus === 'suspended';
+
+    const monetizable = links.filter(link => !isSuspendedAccount && link.rules.length >= 3);
+    const notMonetizable = links.filter(link => !isSuspendedAccount && link.rules.length < 3);
+    const suspended = isSuspendedAccount ? links : [];
 
     return { monetizableLinks: monetizable, notMonetizableLinks: notMonetizable, suspendedLinks: suspended };
-  }, [links]);
+  }, [links, profile]);
 
 
   const handleCopy = (text: string) => {
@@ -205,9 +195,6 @@ function DashboardPageComponent() {
     startTransition(async () => {
         try {
             const linkRef = doc(db, "links", editingLink.id);
-            // This logic is simplified. A real implementation would need to handle
-            // the transition from not-monetizable to monetizable by updating the history.
-            // For now, we only update text fields and rules.
             await updateDoc(linkRef, {
                 title: editTitle,
                 description: editDescription,
@@ -230,6 +217,8 @@ function DashboardPageComponent() {
   }
 
   const renderLinksTable = (linksToRender: LinkItem[], category: string) => {
+    const isSuspendedAccount = profile?.accountStatus === 'suspended';
+
     if (linksToRender.length === 0) {
         return (
             <div className="text-center text-muted-foreground py-12">
@@ -252,7 +241,7 @@ function DashboardPageComponent() {
                 </TableHeader>
                 <TableBody>
                 {linksToRender.map((link) => {
-                    const { status, isMonetizable } = getCurrentStatus(link);
+                    const isMonetizable = link.rules.length >= 3;
                     return (
                         <TableRow key={link.id} className="hover:bg-muted/50">
                         <TableCell className="font-medium">
@@ -262,18 +251,19 @@ function DashboardPageComponent() {
                                     <a href={link.short} target="_blank" rel="noopener noreferrer" className="font-mono text-sm text-primary hover:underline block truncate max-w-[200px] sm:max-w-xs">{link.short.replace('https://','')}</a>
                                 </div>
                             </div>
+                            {/* Mobile-only details */}
                             <div className="md:hidden mt-2 space-y-2 text-xs">
                                 <div className="flex items-center gap-2">
                                     <span className="font-medium">Status:</span>
                                     <div className="flex items-center gap-1">
-                                        {status === 'suspended' ? (
+                                        {isSuspendedAccount ? (
                                             <Badge variant="secondary" className="h-5 bg-yellow-500 text-black">Suspended</Badge>
                                         ) : (
                                             <Badge variant={isMonetizable ? 'default' : 'secondary'} className={`h-5 ${isMonetizable ? 'bg-green-600' : ''}`}>
                                                 {isMonetizable ? 'Monetizable' : 'Not Monetizable'}
                                             </Badge>
                                         )}
-                                        {status === 'suspended' && (
+                                        {isSuspendedAccount && (
                                               <Tooltip>
                                                   <TooltipTrigger asChild>
                                                       <button>
@@ -281,7 +271,7 @@ function DashboardPageComponent() {
                                                       </button>
                                                   </TooltipTrigger>
                                                   <TooltipContent>
-                                                      <p>Monetization for this link has been suspended. <br/> If you believe this is an error, please contact support.</p>
+                                                      <p>Monetization for all links is paused because your account is suspended.</p>
                                                   </TooltipContent>
                                               </Tooltip>
                                         )}
@@ -305,36 +295,26 @@ function DashboardPageComponent() {
                         </TableCell>
                         <TableCell className="hidden md:table-cell">
                             <div className="flex items-center gap-1.5">
-                                {status === 'suspended' ? (
+                                {isSuspendedAccount ? (
                                     <Badge variant="secondary" className="bg-yellow-500 text-black">Suspended</Badge>
                                 ) : (
                                     <Badge variant={isMonetizable ? 'default' : 'secondary'} className={isMonetizable ? 'bg-green-600' : ''}>
                                         {isMonetizable ? 'Monetizable' : 'Not Monetizable'}
                                     </Badge>
                                 )}
-                                {status === 'suspended' ? (
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                              <button>
-                                                  <BadgeHelp className="h-4 w-4 text-muted-foreground"/>
-                                              </button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>
-                                            <p className="max-w-xs">Monetization for this link has been suspended. If you believe this is an error, please contact support.</p>
-                                        </TooltipContent>
-                                    </Tooltip>
-                                ) : (
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                           <button>
-                                              <BadgeHelp className="h-4 w-4 text-muted-foreground"/>
-                                           </button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>
-                                            <p>{isMonetizable ? 'This link is eligible for monetization.' : `This link needs at least ${3 - link.rules.length} more rule(s) to be monetizable.`}</p>
-                                        </TooltipContent>
-                                    </Tooltip>
-                                )}
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                       <button>
+                                          <BadgeHelp className="h-4 w-4 text-muted-foreground"/>
+                                       </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        {isSuspendedAccount 
+                                            ? <p>Monetization is paused because your account is suspended.</p>
+                                            : <p>{isMonetizable ? 'This link is eligible for monetization.' : `This link needs at least ${3 - link.rules.length} more rule(s) to be monetizable.`}</p>
+                                        }
+                                    </TooltipContent>
+                                </Tooltip>
                             </div>
                         </TableCell>
                         <TableCell className="hidden sm:table-cell">{link.clicks}</TableCell>
@@ -383,7 +363,7 @@ function DashboardPageComponent() {
     router.push(`/dashboard?tab=${tabId}`);
   };
 
-  if (loading || linksLoading) {
+  if (loading || linksLoading || !profile) {
     return (
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
@@ -479,7 +459,7 @@ function DashboardPageComponent() {
                         <CardHeader>
                             <CardTitle>Suspended Links</CardTitle>
                             <CardDescription>
-                                Monetization for these links has been paused due to suspicious activity.
+                                Monetization for these links is paused because your account is suspended.
                             </CardDescription>
                         </CardHeader>
                         <CardContent>

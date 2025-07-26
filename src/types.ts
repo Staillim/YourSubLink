@@ -1,12 +1,5 @@
 import type { Rule } from '@/components/rule-editor';
 
-export type MonetizationPeriod = {
-  status: 'active' | 'suspended';
-  cpm: number;
-  from: any; // Firestore Timestamp
-  to: any; // Firestore Timestamp, null if current
-};
-
 export type LinkData = {
   id: string;
   original: string;
@@ -17,7 +10,6 @@ export type LinkData = {
   userId: string;
   clicks: number;
   generatedEarnings: number;
-  monetizationHistory: MonetizationPeriod[];
 };
 
 export type Notification = {

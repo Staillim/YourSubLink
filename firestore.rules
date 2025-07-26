@@ -1,120 +1,91 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ===================================
     // Helper Functions
-    // ===================================
     function isAuthenticated() {
       return request.auth != null;
-    }
-
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
     }
 
     function isAdmin() {
       return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // ===================================
-    // Collection: links
-    // ===================================
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Check if the link owner's account is active
+    function linkOwnerIsActive(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data.accountStatus == 'active';
+    }
+
+    // LINKS
     match /links/{linkId} {
-      // ANYONE can get a link if they know its full ID.
+      // Anyone can read a link by its ID
       allow get: if true;
+      // Anyone can query for a link by its shortId, which is crucial for the link page to work.
+      allow list: if request.query.where.size() == 1 &&
+                     'shortId' in request.query.where &&
+                     request.query.limit <= 1;
 
-      // ANYONE can query the links collection ONLY if they are looking for a specific shortId.
-      // This is crucial for the /link/{shortId} page to work for anonymous visitors.
-      allow list: if request.query.keys().hasOnly(['where', 'limit']) &&
-                   string(request.query.where[0][0]) == 'shortId' &&
-                   string(request.query.where[0][1]) == '==' &&
-                   request.query.limit <= 1;
-
-      // ONLY the owner can create, update, or delete their own link.
+      // Only the owner can create, update, or delete their own links
       allow create, update, delete: if isOwner(request.resource.data.userId);
     }
 
-    // ===================================
-    // Collection: clicks
-    // ===================================
+    // CLICKS (Visits)
     match /clicks/{clickId} {
-      // ANYONE can create a click document IF:
-      // 1. The userId field in the new click document is not null.
-      // 2. The user account corresponding to that userId is NOT suspended.
-      allow create: if request.resource.data.userId != null &&
-                     get(/databases/$(database)/documents/users/$(request.resource.data.userId)).data.accountStatus != 'suspended';
+      // Any visitor can register their visit IF the owner of the link is not suspended.
+      allow create: if linkOwnerIsActive(request.resource.data.userId);
 
-      // NO ONE can read, update, or delete click documents directly.
+      // Nobody can read, edit, or delete individual click documents directly.
       allow read, update, delete: if false;
     }
 
-    // ===================================
-    // Collection: users
-    // ===================================
+    // USERS
     match /users/{userId} {
-      // ANYONE can read a user's profile. This is needed to check the accountStatus.
-      // Sensitive information should not be stored here.
+      // Anyone can read a user's profile to check their status.
       allow get: if true;
-
-      // ONLY the owner can write to their own profile.
-      allow write: if isOwner(userId);
+      
+      // Only the owner or an admin can write/update a user profile.
+      allow write: if isOwner(userId) || isAdmin();
     }
 
-    // ===================================
-    // Collection: notifications
-    // ===================================
+    // NOTIFICATIONS
     match /notifications/{notificationId} {
-      allow read, write: if isOwner(resource.data.userId);
-      // Let authenticated users list their own notifications.
-      allow list: if isAuthenticated() && request.query.where[0][2] == request.auth.uid;
+      allow read, write, list: if isOwner(resource.data.userId);
     }
 
-    // ===================================
-    // Collection: cpmHistory
-    // ===================================
+    // CPM HISTORY
     match /cpmHistory/{historyId} {
       allow read: if isAuthenticated();
       allow write: if isAdmin();
     }
 
-    // ===================================
-    // Collection: payoutRequests
-    // ===================================
+    // PAYOUT REQUESTS
     match /payoutRequests/{requestId} {
-      allow read: if isOwner(resource.data.userId) || isAdmin();
       allow create: if isOwner(request.resource.data.userId);
+      allow list, read: if isOwner(resource.data.userId) || isAdmin();
       allow update: if isAdmin();
-      // Let authenticated users list their own payout requests.
-      allow list: if isAuthenticated() && request.query.where[0][2] == request.auth.uid;
     }
-    
-    // ===================================
-    // Collection: supportTickets
-    // ===================================
+
+    // SUPPORT TICKETS
     match /supportTickets/{ticketId} {
-      allow read, create, update: if isOwner(resource.data.userId) || isAdmin();
-      allow list: if isAuthenticated() && (request.query.where[0][2] == request.auth.uid || isAdmin());
+      allow read, create, update, list: if isOwner(resource.data.userId) || isAdmin();
 
       match /messages/{messageId} {
         allow read, create: if isOwner(get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId) || isAdmin();
-        allow list: if isOwner(get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId) || isAdmin();
       }
     }
-
-    // ===================================
-    // Admin list permissions for all other collections
-    // ===================================
-    match /{path=**}/users/{userId} {
+    
+    // ADMIN LIST PERMISSIONS
+    match /users/{userId} {
       allow list: if isAdmin();
     }
-    match /{path=**}/links/{linkId} {
-       allow list: if isAdmin();
+    match /links/{linkId} {
+        allow list: if isAdmin();
     }
-     match /{path=**}/payoutRequests/{requestId} {
-       allow list: if isAdmin();
-    }
+
   }
 }
