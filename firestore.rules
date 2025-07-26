@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -16,67 +17,47 @@ service cloud.firestore {
     }
 
     function isOwner(userId) {
-      return request.auth != null && request.auth.uid == userId;
+      return isAuthenticated() && request.auth.uid == userId;
     }
-    
+
     // ================================
     // LINKS
     // ================================
     match /links/{linkId} {
-      // Cualquiera puede leer un link si conoce su ID.
       allow get: if true;
-      
-      // Un usuario autenticado puede listar y crear sus propios enlaces.
-      allow list, create: if isOwner(request.resource.data.userId);
-
-      // El dueño puede actualizar o borrar su enlace.
-      allow update, delete: if isOwner(resource.data.userId);
+      allow list: if true;
+      allow create, update, delete: if isOwner(request.resource.data.userId);
     }
-    
+
     // ================================
-    // CLICKS (Visitas)
+    // CLICKS (visitas)
     // ================================
     match /clicks/{clickId} {
-        // Cualquiera puede crear un click si el enlace existe y su dueño no está suspendido.
-        allow create: if get(/databases/$(database)/documents/links/$(request.resource.data.linkId)).data.userId == get(/databases/$(database)/documents/users/$(get(/databases/$(database)/documents/links/$(request.resource.data.linkId)).data.userId)).uid
-                       && get(/databases/$(database)/documents/users/$(get(/databases/|database|/documents/links/$(request.resource.data.linkId)).data.userId)).data.accountStatus != 'suspended';
-
-        // Nadie puede leer, actualizar o borrar clicks directamente.
-        allow read, update, delete: if false;
+      allow create: if get(/databases/$(database)/documents/users/$(get(/databases/$(database)/documents/links/$(request.resource.data.linkId)).data.userId)).data.accountStatus != 'suspended';
+      allow read, update, delete: if false;
     }
 
     // ================================
     // USERS
     // ================================
     match /users/{userId} {
-      // Cualquiera puede leer los datos de un usuario para verificar su estado.
       allow get: if true;
-      
-      // Un usuario puede actualizar su propio perfil.
-      allow update: if isOwner(userId);
-      
-      // Solo un administrador puede listar todos los usuarios o crear/borrar perfiles.
-      allow list, create, delete: if isAdmin();
+      allow list: if isAdmin();
+      allow write: if isOwner(userId) || isAdmin();
     }
 
     // ================================
     // NOTIFICACIONES
     // ================================
     match /notifications/{notificationId} {
-        // El dueño de la notificación puede leerla, crearla y actualizarla.
-        allow read, create, update: if isOwner(resource.data.userId) || isOwner(request.resource.data.userId);
-        
-        // Un usuario puede listar sus propias notificaciones.
-        allow list: if isOwner(request.query.filters[0].value);
+      allow list, read, write: if isOwner(request.resource.data.userId);
     }
 
     // ================================
     // HISTORIAL DE CPM
     // ================================
     match /cpmHistory/{historyId} {
-      // Solo usuarios autenticados pueden leer el historial.
-      allow read, list: if isAuthenticated();
-      // Solo admins pueden escribir en el historial.
+      allow list, read: if isAuthenticated();
       allow write: if isAdmin();
     }
 
@@ -84,32 +65,19 @@ service cloud.firestore {
     // SOLICITUDES DE PAGO
     // ================================
     match /payoutRequests/{requestId} {
-      // El dueño o un admin pueden leer. Un usuario puede listar sus propias solicitudes.
-      allow get: if isOwner(resource.data.userId) || isAdmin();
-      allow list: if isOwner(request.query.filters[0].value) || isAdmin();
-
-      // El dueño puede crear, un admin puede actualizar.
+      allow list, read: if isOwner(request.resource.data.userId) || isAdmin();
       allow create: if isOwner(request.resource.data.userId);
       allow update: if isAdmin();
     }
-    
+
     // ================================
     // TICKETS DE SOPORTE
     // ================================
     match /supportTickets/{ticketId} {
-      // El dueño o un admin pueden leer o listar tickets.
-      allow get, list: if isOwner(resource.data.userId) || isAdmin();
+      allow list, read, create, update: if isOwner(request.resource.data.userId) || isAdmin();
 
-      // Cualquiera autenticado puede crear un ticket.
-      allow create: if isAuthenticated();
-      
-      // El dueño o un admin pueden actualizar.
-      allow update: if isOwner(resource.data.userId) || isAdmin();
-
-      // Subcolección de mensajes
       match /messages/{messageId} {
-        // El dueño del ticket o un admin pueden leer/escribir mensajes.
-        allow read, write: if isOwner(get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId) || isAdmin();
+        allow list, read, create: if isOwner(get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId) || isAdmin();
       }
     }
   }
