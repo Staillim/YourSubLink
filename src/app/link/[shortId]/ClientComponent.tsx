@@ -16,11 +16,39 @@ import { Loader2 } from 'lucide-react';
 import LinkGate from '@/components/link-gate'; 
 import type { LinkData } from '@/types'; 
 import { db, auth } from '@/lib/firebase';
-import { collection, doc, writeBatch, increment, serverTimestamp, getDoc, query, where, getDocs, limit } from 'firebase/firestore';
+import { collection, doc, writeBatch, increment, serverTimestamp, getDoc } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 
-// Helper function to manage visitor cookie
-const getOrCreateVisitorCookie = (linkId: string): string => {
+// --- Funciones Helper para Cookies ---
+
+/**
+ * Comprueba si existe una cookie de visitante para un link específico.
+ * @param linkId - El ID del enlace.
+ * @returns {boolean} - True si la cookie existe, false en caso contrario.
+ */
+const hasVisitorCookie = (linkId: string): boolean => {
+    const cookieName = `clipview-${linkId}`;
+    return document.cookie.split(';').some((item) => item.trim().startsWith(`${cookieName}=`));
+};
+
+/**
+ * Establece una cookie de visitante para un link específico con una duración de 1 hora.
+ * @param linkId - El ID del enlace.
+ */
+const setVisitorCookie = (linkId: string): void => {
+    const cookieName = `clipview-${linkId}`;
+    const expires = new Date();
+    expires.setTime(expires.getTime() + (60 * 60 * 1000)); // 1 hora de duración
+    document.cookie = `${cookieName}=true;expires=${expires.toUTCString()};path=/;SameSite=Lax;Secure`;
+};
+
+/**
+ * Genera o recupera un ID único para el visitante que se persiste por 1 año.
+ * Se utiliza para análisis de duplicados más robusto en el backend.
+ * @param linkId - El ID del enlace (usado para la clave de la cookie).
+ * @returns {string} - El ID único del visitante.
+ */
+const getOrCreatePersistentCookieId = (linkId: string): string => {
     const cookieName = `visitor-id-${linkId}`;
     let visitorId = document.cookie
         .split('; ')
@@ -30,7 +58,7 @@ const getOrCreateVisitorCookie = (linkId: string): string => {
     if (!visitorId) {
         visitorId = `${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
         const expires = new Date();
-        expires.setFullYear(expires.getFullYear() + 1); // Set cookie for 1 year
+        expires.setFullYear(expires.getFullYear() + 1); // Persistencia de 1 año
         document.cookie = `${cookieName}=${visitorId};expires=${expires.toUTCString()};path=/;SameSite=Lax;Secure`;
     }
     return visitorId;
@@ -61,18 +89,17 @@ export default function ClientComponent({ shortId, linkId }: { shortId: string, 
         const data = linkDoc.data() as Omit<LinkData, 'id'>;
         const link: LinkData = { id: linkDoc.id, ...data };
 
-        // Check if creator account or link itself is suspended
-        const userRef = doc(db, 'users', link.userId);
-        const userSnap = await getDoc(userRef);
-        
-        if (!userSnap.exists()) {
-            // If the user who created the link doesn't exist, treat the link as invalid.
-            setStatus('invalid');
+        // ✅ PASO 2: Validación de visita única por cookie
+        if (hasVisitorCookie(link.id)) {
+            // Si la cookie existe, redirige directamente sin contar la visita.
+            window.location.href = link.original;
             return;
         }
         
-        const userData = userSnap.data();
-        if (userData?.accountStatus === 'suspended' || link.monetizationStatus === 'suspended') {
+        const userRef = doc(db, 'users', link.userId);
+        const userSnap = await getDoc(userRef);
+        
+        if (!userSnap.exists() || userSnap.data()?.accountStatus === 'suspended') {
             setStatus('invalid');
             return;
         }
@@ -104,7 +131,6 @@ export default function ClientComponent({ shortId, linkId }: { shortId: string, 
     if (gateStartTime) {
         const completionTime = Date.now();
         const durationInSeconds = (completionTime - gateStartTime) / 1000;
-        // If it took less than 10 seconds, it's likely a bot. Don't count the click.
         if (durationInSeconds < 10) {
             console.warn(`Invalid click detected: completed too fast (${durationInSeconds}s). Redirecting without counting.`);
             window.location.href = dataToUse.original;
@@ -115,21 +141,25 @@ export default function ClientComponent({ shortId, linkId }: { shortId: string, 
     setStatus('redirecting');
 
     try {
+        // ✅ PASO 2: Establecer la cookie antes de registrar la visita.
+        setVisitorCookie(dataToUse.id);
+
         const linkRef = doc(db, 'links', dataToUse.id);
         const batch = writeBatch(db);
         
-        // 1. Increment the raw click counter on the link document.
+        // 1. Incrementa el contador de visitas brutas en el documento del enlace.
         batch.update(linkRef, { clicks: increment(1) });
         
-        // 2. Create a detailed log of the visit in the 'clicks' collection.
+        // 2. Crea un registro detallado de la visita en la colección 'clicks'.
         const clickLogRef = doc(collection(db, 'clicks'));
         batch.set(clickLogRef, {
             linkId: dataToUse.id,
             timestamp: serverTimestamp(),
-            userId: user ? user.uid : null, // Store userId if available
-            ip: null, // IP cannot be reliably collected from the client-side
+            userId: user ? user.uid : null,
+            ip: null, // La IP no se puede obtener de forma fiable desde el cliente.
             userAgent: navigator.userAgent,
-            cookie: getOrCreateVisitorCookie(dataToUse.id),
+            // 🧠 Opción extra: Guardar el ID persistente del visitante.
+            cookie: getOrCreatePersistentCookieId(dataToUse.id),
         });
 
         await batch.commit();
