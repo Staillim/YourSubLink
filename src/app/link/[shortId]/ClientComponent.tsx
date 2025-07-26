@@ -16,38 +16,42 @@ import { Loader2 } from 'lucide-react';
 import LinkGate from '@/components/link-gate'; 
 import type { LinkData } from '@/types'; 
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, writeBatch, increment, serverTimestamp, getDoc, limit } from 'firebase/firestore';
+import { collection, doc, writeBatch, increment, serverTimestamp, getDoc } from 'firebase/firestore';
 
-export default function ClientComponent({ shortId }: { shortId: string }) {
+export default function ClientComponent({ shortId, linkId }: { shortId: string, linkId: string }) {
   const [status, setStatus] = useState<'loading' | 'gate' | 'redirecting' | 'not-found' | 'invalid'>('loading');
   const [linkData, setLinkData] = useState<LinkData | null>(null);
   const [gateStartTime, setGateStartTime] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!shortId) {
+    if (!linkId) {
       setStatus('not-found');
       return;
     }
 
     const processLinkVisit = async () => {
-        const linksRef = collection(db, 'links');
-        const q = query(linksRef, where('shortId', '==', shortId), limit(1));
-        const querySnapshot = await getDocs(q);
+        const linkRef = doc(db, 'links', linkId);
+        const linkDoc = await getDoc(linkRef);
 
-        if (querySnapshot.empty) {
+        if (!linkDoc.exists()) {
             setStatus('not-found');
             return;
         }
 
-        const linkDoc = querySnapshot.docs[0];
         const data = linkDoc.data() as Omit<LinkData, 'id'>;
         const link: LinkData = { id: linkDoc.id, ...data };
 
         // Check if creator account or link itself is suspended
         const userRef = doc(db, 'users', link.userId);
         const userSnap = await getDoc(userRef);
+        
+        if (!userSnap.exists()) {
+            // If the user who created the link doesn't exist, treat the link as invalid.
+            setStatus('invalid');
+            return;
+        }
+        
         const userData = userSnap.data();
-
         if (userData?.accountStatus === 'suspended' || link.monetizationStatus === 'suspended') {
             setStatus('invalid');
             return;
@@ -70,15 +74,17 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
         console.error("Error processing link visit:", err);
         setStatus('not-found');
     });
-  }, [shortId]);
+  }, [linkId]);
   
   const handleAllStepsCompleted = async (finalLinkData?: LinkData) => {
     const dataToUse = finalLinkData || linkData;
     if (!dataToUse) return;
 
+    // Security check: Interaction Speed
     if (gateStartTime) {
         const completionTime = Date.now();
         const durationInSeconds = (completionTime - gateStartTime) / 1000;
+        // If it took less than 10 seconds, it's likely a bot. Don't count the click.
         if (durationInSeconds < 10) {
             console.warn(`Invalid click detected: completed too fast (${durationInSeconds}s). Redirecting without counting.`);
             window.location.href = dataToUse.original;
@@ -90,40 +96,47 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
 
     try {
         const linkRef = doc(db, 'links', dataToUse.id);
-        const clickLogRef = doc(collection(db, 'clicks'));
         const batch = writeBatch(db);
+        
+        // 1. Increment the click counter
+        batch.update(linkRef, { clicks: increment(1) });
         
         let earningsGenerated = 0;
 
+        // 2. If monetizable, calculate and increment earnings
         if (dataToUse.monetizable) {
-             const userRef = doc(db, 'users', dataToUse.userId);
+            // The user document was already fetched, so we can assume it exists here
+            const userRef = doc(db, 'users', dataToUse.userId);
             const userSnap = await getDoc(userRef);
             const userData = userSnap.data();
             const customCpm = userData?.customCpm;
 
             let cpmUsed = 0;
-            if (customCpm && customCpm > 0) {
+            if (customCpm != null && customCpm > 0) {
                 cpmUsed = customCpm;
             } else {
-                const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
+                // If no custom CPM, fetch the global one (already secured by rules)
+                const cpmHistoryRef = collection(db, 'cpmHistory');
+                const cpmQuery = query(cpmHistoryRef, where('endDate', '==', null), limit(1));
                 const cpmSnapshot = await getDocs(cpmQuery);
-                let activeCpm = 3.00;
+                let activeCpm = 3.00; // Default fallback CPM
                 if (!cpmSnapshot.empty) {
                     activeCpm = cpmSnapshot.docs[0].data().rate;
                 }
                 cpmUsed = activeCpm;
             }
+            
             earningsGenerated = cpmUsed / 1000;
             batch.update(linkRef, { generatedEarnings: increment(earningsGenerated) });
         }
-
-        // Increment clicks for all links, regardless of monetization
-        batch.update(linkRef, { clicks: increment(1) });
         
+        // 3. Create a log of the click
+        const clickLogRef = doc(collection(db, 'clicks'));
         batch.set(clickLogRef, {
             linkId: dataToUse.id,
+            userId: dataToUse.userId,
             timestamp: serverTimestamp(),
-            earningsGenerated: earningsGenerated, // Will be 0 if not monetizable
+            earningsGenerated: earningsGenerated,
         });
 
         await batch.commit();
