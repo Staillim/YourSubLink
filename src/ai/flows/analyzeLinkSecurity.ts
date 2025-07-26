@@ -11,7 +11,7 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, limit, Timestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit, Timestamp, orderBy } from 'firebase/firestore';
 
 const AnalyzeLinkSecurityInputSchema = z.object({
   linkId: z.string().describe("The ID of the link to analyze."),
@@ -68,10 +68,11 @@ const analyzeLinkSecurityFlow = ai.defineFlow(
     outputSchema: AnalyzeLinkSecurityOutputSchema,
   },
   async (input) => {
-    // 1. Fetch the last 200 clicks for the given linkId
+    // 1. Fetch the last 200 clicks for the given linkId, ordered by timestamp
     const clicksQuery = query(
       collection(db, 'clicks'),
       where('linkId', '==', input.linkId),
+      orderBy('timestamp', 'desc'),
       limit(200)
     );
     const clicksSnapshot = await getDocs(clicksQuery);
@@ -85,19 +86,10 @@ const analyzeLinkSecurityFlow = ai.defineFlow(
       };
     }
     
-    // 2. Sort the clicks by timestamp descending in code
-    const sortedDocs = clicksSnapshot.docs.sort((a, b) => {
-        const timestampA = a.data().timestamp as Timestamp;
-        const timestampB = b.data().timestamp as Timestamp;
-        // Handle cases where timestamp might be null or undefined
-        if (!timestampA) return 1;
-        if (!timestampB) return -1;
-        return timestampB.seconds - timestampA.seconds;
-    });
-
-    const clickTimestamps = sortedDocs.map(doc => {
-        const timestamp = doc.data().timestamp as Timestamp;
-        return timestamp ? new Date(timestamp.seconds * 1000).toISOString() : '';
+    // 2. Extract timestamps. Firestore SDK converts Timestamps to Date objects.
+    const clickTimestamps = clicksSnapshot.docs.map(doc => {
+        const timestamp = doc.data().timestamp; // This is a Date object
+        return timestamp ? (timestamp as Date).toISOString() : '';
     }).filter(Boolean);
 
     // 3. Call the AI prompt with the correct data structure
