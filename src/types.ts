@@ -11,7 +11,6 @@ export type LinkData = {
   monetizable: boolean;
   clicks: number;
   monetizationStatus: 'active' | 'suspended';
-  accountStatus?: 'active' | 'suspended';
 };
 
 export type Notification = {
@@ -48,3 +47,4 @@ export type ChatMessage = {
   isPredefined?: boolean;
 }
 
+    

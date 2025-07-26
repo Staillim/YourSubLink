@@ -16,11 +16,12 @@ import { Loader2 } from 'lucide-react';
 import LinkGate from '@/components/link-gate'; 
 import type { LinkData } from '@/types'; 
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, writeBatch, increment, serverTimestamp, getDoc } from 'firebase/firestore';
 
 export default function ClientComponent({ shortId }: { shortId: string }) {
   const [status, setStatus] = useState<'loading' | 'gate' | 'redirecting' | 'not-found' | 'invalid'>('loading');
   const [linkData, setLinkData] = useState<LinkData | null>(null);
+  const [gateStartTime, setGateStartTime] = useState<number | null>(null);
 
   useEffect(() => {
     if (!shortId) {
@@ -40,28 +41,19 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
 
         const linkDoc = querySnapshot.docs[0];
         const data = linkDoc.data() as Omit<LinkData, 'id'>;
-        
-        // Check if the link creator's account is suspended
-        const userRef = doc(db, 'users', data.userId);
-        const userSnap = await getDoc(userRef);
-        const accountStatus = userSnap.exists() ? userSnap.data().accountStatus : 'active';
-
-        // A link is invalid if the link itself is suspended or the creator's account is suspended.
-        if (accountStatus === 'suspended' || data.monetizationStatus === 'suspended') {
-            setStatus('invalid');
-            return;
-        }
-
         const link: LinkData = { id: linkDoc.id, ...data };
+        
         setLinkData(link);
 
         const hasRules = link.rules && link.rules.length > 0;
 
         if (hasRules) {
+            setGateStartTime(Date.now());
             setStatus('gate');
         } else {
-            // If no rules, redirect immediately.
-            handleAllStepsCompleted(link);
+            // If no rules, count the click and redirect immediately.
+            setStatus('redirecting');
+            await handleAllStepsCompleted(link);
         }
 
     };
@@ -72,33 +64,84 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
     });
   }, [shortId]);
   
-  /**
-   * NOTE: The click counting system has been completely disabled.
-   * This function now only handles the final redirection to the original URL.
-   * No database writes are performed here.
-   */
-  const handleAllStepsCompleted = (finalLinkData?: LinkData) => {
+  const handleAllStepsCompleted = async (finalLinkData?: LinkData) => {
     const dataToUse = finalLinkData || linkData;
     if (!dataToUse) return;
-    
+
+    // Security check: Interaction Speed
+    if (gateStartTime) {
+        const completionTime = Date.now();
+        const durationInSeconds = (completionTime - gateStartTime) / 1000;
+        // If it took less than 10 seconds, it's likely a bot. Don't count the click.
+        if (durationInSeconds < 10) {
+            console.warn(`Invalid click detected: completed too fast (${durationInSeconds}s). Redirecting without counting.`);
+            window.location.href = dataToUse.original;
+            return;
+        }
+    }
+
     setStatus('redirecting');
-    
-    // Redirect to the final destination. No database writes are performed.
-    window.location.href = dataToUse.original;
+
+    try {
+        const linkRef = doc(db, 'links', dataToUse.id);
+        const batch = writeBatch(db);
+
+        // 1. Increment the click counter
+        batch.update(linkRef, { clicks: increment(1) });
+        
+        let cpmUsed = 0;
+        let earningsGenerated = 0;
+
+        // 2. If monetizable AND not suspended, calculate and increment earnings
+        if (dataToUse.monetizable && dataToUse.monetizationStatus !== 'suspended') {
+            // Check for a custom CPM on the user's profile
+            const userRef = doc(db, 'users', dataToUse.userId);
+            const userSnap = await getDoc(userRef);
+            const userData = userSnap.data();
+            const customCpm = userData?.customCpm;
+
+            if (customCpm && customCpm > 0) {
+                // Use custom CPM because it's defined and greater than 0
+                cpmUsed = customCpm;
+            } else {
+                // Use global CPM if custom is null, undefined, or 0
+                const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
+                const cpmSnapshot = await getDocs(cpmQuery);
+                let activeCpm = 3.00; // Default fallback CPM
+                if (!cpmSnapshot.empty) {
+                    activeCpm = cpmSnapshot.docs[0].data().rate;
+                }
+                cpmUsed = activeCpm;
+            }
+            
+            earningsGenerated = cpmUsed / 1000;
+            batch.update(linkRef, { generatedEarnings: increment(earningsGenerated) });
+        }
+        
+        // 3. Create a log of the click with earnings info
+        const clickLogRef = doc(collection(db, 'clicks'));
+        batch.set(clickLogRef, {
+            linkId: dataToUse.id,
+            userId: dataToUse.userId,
+            timestamp: serverTimestamp(),
+            cpmUsed,
+            earningsGenerated,
+        });
+
+        // Commit all operations atomically
+        await batch.commit();
+
+    } catch(error) {
+        console.error("Failed to count click:", error);
+    } finally {
+        // Redirect to the final destination
+        window.location.href = dataToUse.original;
+    }
   }
 
 
   if (status === 'not-found') {
     return notFound();
-  }
-
-  if (status === 'invalid') {
-    return (
-        <div className="flex h-screen w-full flex-col items-center justify-center bg-background text-foreground p-4 text-center">
-            <h1 className="text-2xl font-bold text-destructive">Enlace no disponible</h1>
-            <p className="mt-2 text-muted-foreground">Este enlace no está disponible actualmente.</p>
-        </div>
-    )
   }
 
   if (status === 'loading' || status === 'redirecting') {
