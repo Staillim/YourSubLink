@@ -129,10 +129,10 @@ export default function AnalyticsPage() {
             const month = getMonth(new Date(link.date));
             const key = `${currentYear}-${month}`;
             
-            if (monthlyEarnings[monthKey]) {
-                monthlyEarnings[monthKey] += link.generatedEarnings;
+            if (monthlyEarnings[key]) {
+                monthlyEarnings[key] += link.generatedEarnings;
             } else {
-                monthlyEarnings[monthKey] = link.generatedEarnings;
+                monthlyEarnings[key] = link.generatedEarnings;
             }
         }
     });
