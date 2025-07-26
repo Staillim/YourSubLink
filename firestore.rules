@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -5,7 +6,9 @@ service cloud.firestore {
     
     // --- Helpers ---
     function isAdmin() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return get(
+        /databases/$(database)/documents/users/$(request.auth.uid)
+      ).data.role == 'admin';
     }
     function isOwner(userId) {
       return request.auth != null && request.auth.uid == userId;
@@ -20,28 +23,21 @@ service cloud.firestore {
 
     // --- links ---
     match /links/{linkId} {
-      // lectura para todos
+      // Anyone can read a link's data
       allow read:   if true;
-      // creación y borrado sólo dueño o admin
-      allow create: if isOwner(request.resource.data.userId) || isAdmin();
-      allow delete: if isOwner(resource.data.userId)             || isAdmin();
-
-      // actualización: dueño/admin o cualquiera que incremente los contadores
-      allow update: if isOwner(resource.data.userId) || isAdmin()
-        || (
-          request.resource.data.diff(resource.data)
-            .affectedKeys()
-            .hasOnly(['clicks','generatedEarnings'])
-          && request.resource.data.clicks == resource.data.clicks + 1
-          // La validación de generatedEarnings es compleja con esta regla
-          // y se elimina para simplificar, confiando en la validación de los campos.
-        );
+      // Only the owner or an admin can create, update, or delete a link.
+      // The client no longer updates clicks directly, this is handled by a backend process.
+      allow create, update, delete: if isOwner(request.resource.data.userId) || isAdmin();
     }
 
-    // --- clicks (registro separado) ---
+    // --- clicks ---
     match /clicks/{clickId} {
+      // Anyone can create a click document. This is critical for the counting logic.
       allow create: if true;
+      // Only admins can read the list of clicks for analysis.
       allow read, list: if isAdmin();
+       // Backend processes will update this field, not users.
+      allow update: if false;
     }
 
     // --- payoutRequests ---
@@ -49,7 +45,11 @@ service cloud.firestore {
       allow create: if isOwner(request.resource.data.userId);
       allow read:   if isOwner(resource.data.userId) || isAdmin();
       allow update: if isAdmin();
-      allow list:   if (request.query.where.path == 'userId' && request.query.where.value == request.auth.uid) || isAdmin();
+      allow list:   if (
+                        request.query.where.path == 'userId'
+                        && request.query.where.value == request.auth.uid
+                      )
+                      || isAdmin();
     }
 
     // --- cpmHistory ---
@@ -60,10 +60,10 @@ service cloud.firestore {
 
     // --- notifications ---
     match /notifications/{notificationId} {
-        allow read, list, update: if isOwner(resource.data.userId) || isAdmin();
-        allow create: if isAdmin() || request.resource.data.type == 'payout_requested';
+      allow read, list, update: if isOwner(resource.data.userId) || isAdmin();
+      allow create: if isAdmin();
     }
-    
+
     // --- supportTickets y mensajes ---
     match /supportTickets/{ticketId} {
       allow create: if isOwner(request.resource.data.userId);
@@ -81,18 +81,29 @@ service cloud.firestore {
                             'status'
                           ])
                    );
-      allow list:   if (request.query.where.path == 'userId' && request.query.where.value == request.auth.uid) || isAdmin();
+      allow list:   if (
+                        request.query.where.path == 'userId'
+                        && request.query.where.value == request.auth.uid
+                      )
+                    || isAdmin();
       
       match /messages/{messageId} {
         allow read, list: if isAdmin()
-                         || get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId == request.auth.uid;
+                         || get(
+                              /databases/$(database)/documents/supportTickets/$(ticketId)
+                            ).data.userId == request.auth.uid;
         allow create: if isAdmin() || request.resource.data.senderId == request.auth.uid;
         allow update: if isAdmin()
                      || (
-                       get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.status != 'completed'
-                       && get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId == request.auth.uid
+                       get(
+                         /databases/$(database)/documents/supportTickets/$(ticketId)
+                       ).data.status != 'completed'
+                       && get(
+                            /databases/$(database)/documents/supportTickets/$(ticketId)
+                          ).data.userId == request.auth.uid
                      );
       }
     }
+
   }
 }
