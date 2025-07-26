@@ -86,7 +86,7 @@ const analyzeLinkSecurityFlow = ai.defineFlow(
       };
     }
     
-    // 2. Extract timestamps. Firestore SDK converts Timestamps to Date objects.
+    // 2. Extract timestamps. This is the corrected logic.
     const clickTimestamps = clicksSnapshot.docs.map(doc => {
         const timestamp = doc.data().timestamp;
         // The timestamp field from Firestore can be a Date object or a Firestore Timestamp object.
@@ -97,8 +97,9 @@ const analyzeLinkSecurityFlow = ai.defineFlow(
         if (timestamp instanceof Date) {
             return timestamp.toISOString();
         }
-        return '';
-    }).filter(Boolean); // Filter out any empty strings from invalid timestamps
+        // Return null for invalid formats to be filtered out later.
+        return null;
+    }).filter((ts): ts is string => ts !== null); // Filter out any nulls and ensure type safety.
 
     // 3. Call the AI prompt with the correct data structure
     const { output } = await prompt({ 
