@@ -11,7 +11,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, doc, writeBatch, Timestamp, getDoc, serverTimestamp, increment } from 'firebase/firestore';
-import type { MonetizationPeriod, LinkData } from '@/types';
+import type { LinkData } from '@/types';
 
 const CalculateEarningsOutputSchema = z.object({
   processedClicks: z.number().describe("The number of clicks that were processed."),
@@ -34,7 +34,8 @@ const calculateEarningsFlow = ai.defineFlow(
     // 1. Fetch all unprocessed clicks
     const clicksQuery = query(
       collection(db, 'clicks'),
-      where('processed', '==', false)
+      where('processed', '==', false),
+      limit(100) // Process in batches to avoid timeouts
     );
     const clicksSnapshot = await getDocs(clicksQuery);
 
@@ -49,12 +50,10 @@ const calculateEarningsFlow = ai.defineFlow(
     for (const clickDoc of clicksSnapshot.docs) {
       const clickData = clickDoc.data();
       const linkId = clickData.linkId;
-      const clickTimestamp = clickData.timestamp as Timestamp;
       const userId = clickData.userId;
 
-      if (!linkId || !clickTimestamp || !userId) {
-        // Mark as processed to avoid re-querying invalid data
-        batch.update(clickDoc.ref, { processed: true, earningsGenerated: 0, reason: "Missing linkId, userId, or timestamp" });
+      if (!linkId || !userId) {
+        batch.update(clickDoc.ref, { processed: true, earningsGenerated: 0, reason: "Missing linkId or userId" });
         continue;
       }
       
@@ -77,11 +76,13 @@ const calculateEarningsFlow = ai.defineFlow(
       const linkData = linkSnap.data() as LinkData;
       const userData = userSnap.data();
 
+      // Check if link is monetizable
+      const isMonetizable = (linkData.rules?.length || 0) >= 3 && linkData.monetizationStatus === 'active';
+      
       let earningsForThisClick = 0;
-      const hasEnoughRules = linkData.rules && linkData.rules.length >= 3;
+      let cpmUsed = 0;
 
-      if (hasEnoughRules) {
-        let cpmUsed = 0;
+      if (isMonetizable) {
         const customCpm = userData?.customCpm;
 
         if (customCpm && customCpm > 0) {
@@ -98,14 +99,22 @@ const calculateEarningsFlow = ai.defineFlow(
         
         earningsForThisClick = cpmUsed / 1000;
         totalEarnings += earningsForThisClick;
-        batch.update(linkRef, { generatedEarnings: increment(earningsForThisClick) });
+
+        // Increment both clicks and earnings on the link document
+        batch.update(linkRef, { 
+          clicks: increment(1),
+          generatedEarnings: increment(earningsForThisClick) 
+        });
+      } else {
+        // If not monetizable, just increment the clicks
+        batch.update(linkRef, { clicks: increment(1) });
       }
 
       batch.update(clickDoc.ref, { 
         processed: true, 
         earningsGenerated: earningsForThisClick,
+        cpmUsed: cpmUsed,
         processedAt: serverTimestamp(),
-        cpmUsed: hasEnoughRules ? (userData?.customCpm || (await getDocs(query(collection(db, 'cpmHistory'), where('endDate', '==', null)))).docs[0]?.data().rate || 3.00) : 0,
       });
       processedClicks++;
     }

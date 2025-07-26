@@ -57,7 +57,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Rule, RuleEditor } from '@/components/rule-editor';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useUser } from '@/hooks/use-user';
 
 
 export type LinkItem = {
@@ -72,6 +71,7 @@ export type LinkItem = {
   description?: string;
   rules: Rule[];
   generatedEarnings: number;
+  monetizationStatus: 'active' | 'suspended';
 };
 
 const TABS = [
@@ -83,7 +83,7 @@ const TABS = [
 
 
 function DashboardPageComponent() {
-  const { user, loading, profile } = useUser();
+  const [user, loading] = useAuthState(auth);
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -128,6 +128,7 @@ function DashboardPageComponent() {
                 description: data.description,
                 rules: data.rules || [],
                 generatedEarnings: data.generatedEarnings || 0,
+                monetizationStatus: data.monetizationStatus || 'active',
             });
         }
         setLinks(linksData.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
@@ -139,18 +140,11 @@ function DashboardPageComponent() {
   }, [user]);
 
   const { monetizableLinks, notMonetizableLinks, suspendedLinks } = useMemo(() => {
-    if (!profile) {
-        return { monetizableLinks: [], notMonetizableLinks: [], suspendedLinks: [] };
-    }
-    
-    const isSuspendedAccount = profile.accountStatus === 'suspended';
-
-    const monetizable = links.filter(link => !isSuspendedAccount && link.rules.length >= 3);
-    const notMonetizable = links.filter(link => !isSuspendedAccount && link.rules.length < 3);
-    const suspended = isSuspendedAccount ? links : [];
-
+    const monetizable = links.filter(link => (link.rules?.length || 0) >= 3 && link.monetizationStatus === 'active');
+    const notMonetizable = links.filter(link => (link.rules?.length || 0) < 3 && link.monetizationStatus === 'active');
+    const suspended = links.filter(link => link.monetizationStatus === 'suspended');
     return { monetizableLinks: monetizable, notMonetizableLinks: notMonetizable, suspendedLinks: suspended };
-  }, [links, profile]);
+  }, [links]);
 
 
   const handleCopy = (text: string) => {
@@ -199,6 +193,7 @@ function DashboardPageComponent() {
                 title: editTitle,
                 description: editDescription,
                 rules: editRules,
+                monetizationStatus: editRules.length >= 3 && editingLink.monetizationStatus !== 'suspended' ? 'active' : editingLink.monetizationStatus,
             });
             setIsEditDialogOpen(false);
             setEditingLink(null);
@@ -217,8 +212,6 @@ function DashboardPageComponent() {
   }
 
   const renderLinksTable = (linksToRender: LinkItem[], category: string) => {
-    const isSuspendedAccount = profile?.accountStatus === 'suspended';
-
     if (linksToRender.length === 0) {
         return (
             <div className="text-center text-muted-foreground py-12">
@@ -241,7 +234,7 @@ function DashboardPageComponent() {
                 </TableHeader>
                 <TableBody>
                 {linksToRender.map((link) => {
-                    const isMonetizable = link.rules.length >= 3;
+                    const isMonetizable = (link.rules?.length || 0) >= 3;
                     return (
                         <TableRow key={link.id} className="hover:bg-muted/50">
                         <TableCell className="font-medium">
@@ -256,14 +249,14 @@ function DashboardPageComponent() {
                                 <div className="flex items-center gap-2">
                                     <span className="font-medium">Status:</span>
                                     <div className="flex items-center gap-1">
-                                        {isSuspendedAccount ? (
+                                        {link.monetizationStatus === 'suspended' ? (
                                             <Badge variant="secondary" className="h-5 bg-yellow-500 text-black">Suspended</Badge>
                                         ) : (
                                             <Badge variant={isMonetizable ? 'default' : 'secondary'} className={`h-5 ${isMonetizable ? 'bg-green-600' : ''}`}>
                                                 {isMonetizable ? 'Monetizable' : 'Not Monetizable'}
                                             </Badge>
                                         )}
-                                        {isSuspendedAccount && (
+                                        {link.monetizationStatus === 'suspended' && (
                                               <Tooltip>
                                                   <TooltipTrigger asChild>
                                                       <button>
@@ -271,7 +264,7 @@ function DashboardPageComponent() {
                                                       </button>
                                                   </TooltipTrigger>
                                                   <TooltipContent>
-                                                      <p>Monetization for all links is paused because your account is suspended.</p>
+                                                      <p>Monetization for this link has been suspended due to suspicious activity. <br/> If you believe this is an error, please contact support.</p>
                                                   </TooltipContent>
                                               </Tooltip>
                                         )}
@@ -295,7 +288,7 @@ function DashboardPageComponent() {
                         </TableCell>
                         <TableCell className="hidden md:table-cell">
                             <div className="flex items-center gap-1.5">
-                                {isSuspendedAccount ? (
+                                {link.monetizationStatus === 'suspended' ? (
                                     <Badge variant="secondary" className="bg-yellow-500 text-black">Suspended</Badge>
                                 ) : (
                                     <Badge variant={isMonetizable ? 'default' : 'secondary'} className={isMonetizable ? 'bg-green-600' : ''}>
@@ -309,10 +302,7 @@ function DashboardPageComponent() {
                                        </button>
                                     </TooltipTrigger>
                                     <TooltipContent>
-                                        {isSuspendedAccount 
-                                            ? <p>Monetization is paused because your account is suspended.</p>
-                                            : <p>{isMonetizable ? 'This link is eligible for monetization.' : `This link needs at least ${3 - link.rules.length} more rule(s) to be monetizable.`}</p>
-                                        }
+                                        <p>{link.monetizationStatus === 'suspended' ? 'Monetization for this link is suspended.' : (isMonetizable ? 'This link is eligible for monetization.' : `This link needs at least ${3 - (link.rules?.length || 0)} more rule(s) to be monetizable.`)}</p>
                                     </TooltipContent>
                                 </Tooltip>
                             </div>
@@ -363,7 +353,7 @@ function DashboardPageComponent() {
     router.push(`/dashboard?tab=${tabId}`);
   };
 
-  if (loading || linksLoading || !profile) {
+  if (loading || linksLoading) {
     return (
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
@@ -459,7 +449,7 @@ function DashboardPageComponent() {
                         <CardHeader>
                             <CardTitle>Suspended Links</CardTitle>
                             <CardDescription>
-                                Monetization for these links is paused because your account is suspended.
+                                Monetization for these links has been paused due to suspicious activity.
                             </CardDescription>
                         </CardHeader>
                         <CardContent>

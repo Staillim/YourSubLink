@@ -1,10 +1,11 @@
 
+
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, doc, deleteDoc, getDoc, updateDoc, addDoc, serverTimestamp, writeBatch, query, where } from 'firebase/firestore';
+import { collection, onSnapshot, doc, deleteDoc, getDoc, updateDoc, addDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import {
   Table,
   TableBody,
@@ -28,7 +29,6 @@ import {
   } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { analyzeLinkSecurity } from '@/ai/flows/analyzeLinkSecurity';
-import type { MonetizationPeriod } from '@/types';
 
 
 type Link = {
@@ -38,21 +38,13 @@ type Link = {
   shortId: string;
   short: string;
   clicks: number;
-  monetizationHistory: MonetizationPeriod[];
+  rules: any[];
+  monetizationStatus: 'active' | 'suspended';
   createdAt: any;
   userId: string;
   userName?: string;
   userEmail?: string;
 };
-
-const getCurrentStatus = (history: MonetizationPeriod[]) => {
-    if (!history || history.length === 0) {
-        return { status: 'suspended', isMonetizable: false };
-    }
-    const currentPeriod = history[history.length - 1];
-    const isMonetizable = currentPeriod.status === 'active' && currentPeriod.cpm > 0;
-    return { status: currentPeriod.status, isMonetizable };
-}
 
 export default function AdminLinksPage() {
   const [links, setLinks] = useState<Link[]>([]);
@@ -83,6 +75,7 @@ export default function AdminLinksPage() {
           id: linkDoc.id,
           ...data,
           short: `${window.location.origin}/link/${data.shortId}`,
+          monetizationStatus: data.monetizationStatus || 'active',
         } as Link);
       }
       setLinks(linksData.sort((a,b) => b.createdAt.seconds - a.createdAt.seconds));
@@ -96,6 +89,8 @@ export default function AdminLinksPage() {
     if(!confirm('Are you sure you want to delete this link permanently? This will notify the user.')) return;
     try {
         const batch = writeBatch(db);
+
+        // First, create a notification for the user
         const notificationRef = doc(collection(db, 'notifications'));
         batch.set(notificationRef, {
             userId: userId,
@@ -105,6 +100,7 @@ export default function AdminLinksPage() {
             isRead: false,
         });
 
+        // Then, delete the link
         const linkRef = doc(db, "links", id);
         batch.delete(linkRef);
         
@@ -125,43 +121,12 @@ export default function AdminLinksPage() {
   };
   
   const handleToggleMonetization = async (link: Link) => {
-    const history = [...link.monetizationHistory];
-    const currentPeriod = history[history.length - 1];
-    const newStatus = currentPeriod.status === 'active' ? 'suspended' : 'active';
-    
+    const newStatus = link.monetizationStatus === 'active' ? 'suspended' : 'active';
+
     try {
         const batch = writeBatch(db);
         const linkRef = doc(db, 'links', link.id);
-
-        // End the current period
-        currentPeriod.to = serverTimestamp();
-
-        let cpmForNewPeriod = 0;
-        if (newStatus === 'active') {
-            const userRef = doc(db, 'users', link.userId);
-            const userSnap = await getDoc(userRef);
-            if (userSnap.exists() && userSnap.data().customCpm) {
-                cpmForNewPeriod = userSnap.data().customCpm;
-            } else {
-                const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
-                const cpmSnapshot = await getDocs(cpmQuery);
-                 if (!cpmSnapshot.empty) {
-                    cpmForNewPeriod = cpmSnapshot.docs[0].data().rate;
-                } else {
-                    cpmForNewPeriod = 3.00; // Fallback
-                }
-            }
-        }
-
-        const newPeriod: MonetizationPeriod = {
-            status: newStatus,
-            cpm: cpmForNewPeriod,
-            from: serverTimestamp(),
-            to: null
-        };
-        
-        history.push(newPeriod);
-        batch.update(linkRef, { monetizationHistory: history });
+        batch.update(linkRef, { monetizationStatus: newStatus });
 
         // Create a notification only when suspending
         if (newStatus === 'suspended') {
@@ -169,7 +134,7 @@ export default function AdminLinksPage() {
             batch.set(notificationRef, {
                 userId: link.userId,
                 type: 'link_suspension',
-                message: `Monetization for your link "${link.title}" has been suspended.`,
+                message: `Monetization for your link "${link.title}" has been suspended due to suspicious activity.`,
                 linkId: link.id,
                 createdAt: serverTimestamp(),
                 isRead: false,
@@ -199,19 +164,22 @@ export default function AdminLinksPage() {
         setAnalyzingLinkId(link.id);
         try {
             const result = await analyzeLinkSecurity({ linkId: link.id });
-            if (result.isSuspicious && result.riskLevel === 'high') {
-                await handleToggleMonetization(link);
-                toast({
-                    title: 'Analysis Complete: High Risk',
-                    description: `Monetization for "${link.title}" has been automatically suspended. Reason: ${result.reason}`,
-                    variant: 'destructive',
-                    duration: 8000
-                });
-            } else if (result.isSuspicious) {
-                 toast({
-                    title: 'Analysis Complete: Moderate Risk',
-                    description: `Link "${link.title}" shows suspicious activity. Reason: ${result.reason}`,
-                });
+            if (result.isSuspicious) {
+                if (result.riskLevel === 'high') {
+                    // Suspend and notify in one go
+                    await handleToggleMonetization(link);
+                    toast({
+                        title: 'Analysis Complete: High Risk',
+                        description: `Monetization for "${link.title}" has been automatically suspended. Reason: ${result.reason}`,
+                        variant: 'destructive',
+                        duration: 8000
+                    });
+                } else {
+                     toast({
+                        title: 'Analysis Complete: Moderate Risk',
+                        description: `Link "${link.title}" shows suspicious activity. Reason: ${result.reason}`,
+                    });
+                }
             } else {
                 toast({
                     title: 'Analysis Complete',
@@ -283,12 +251,13 @@ export default function AdminLinksPage() {
                 </TableHeader>
                 <TableBody>
                 {links.map((link) => {
-                    const { status, isMonetizable } = getCurrentStatus(link.monetizationHistory);
+                    const isMonetizable = (link.rules?.length || 0) >= 3;
                     return (
                         <TableRow key={link.id}>
                             <TableCell>
                                 <div className="font-semibold truncate max-w-[200px] sm:max-w-xs">{link.title}</div>
                                 <a href={link.short} target='_blank' rel='noopener noreferrer' className="text-xs text-muted-foreground hover:underline block truncate max-w-[200px] sm:max-w-xs">{link.short}</a>
+                                {/* Mobile-only details */}
                                 <div className="md:hidden mt-2 space-y-2 text-xs">
                                     <div className="flex items-center gap-2">
                                         <span className="font-medium">User:</span>
@@ -296,7 +265,7 @@ export default function AdminLinksPage() {
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <span className="font-medium">Status:</span>
-                                        {status === 'suspended' ? (
+                                        {link.monetizationStatus === 'suspended' ? (
                                             <Badge variant="secondary" className="bg-yellow-500 text-black">Suspended</Badge>
                                         ) : (
                                             <Badge variant={isMonetizable ? 'default' : 'secondary'} className={`h-5 ${isMonetizable ? 'bg-green-600' : ''}`}>
@@ -316,13 +285,13 @@ export default function AdminLinksPage() {
                                     </div>
                                 </div>
                             </TableCell>
-                            <TableCell className="hidden md:table-cell">
+                             <TableCell className="hidden md:table-cell">
                                 <div className="font-medium">{link.userName}</div>
                                 <div className="text-xs text-muted-foreground">{link.userEmail}</div>
                             </TableCell>
                             <TableCell className="hidden sm:table-cell">{link.clicks}</TableCell>
                             <TableCell className="hidden md:table-cell">
-                                {status === 'suspended' ? (
+                                {link.monetizationStatus === 'suspended' ? (
                                     <Badge variant="secondary" className="bg-yellow-500 text-black">Suspended</Badge>
                                 ) : (
                                     <Badge variant={isMonetizable ? 'default' : 'secondary'} className={isMonetizable ? 'bg-green-600' : ''}>
@@ -332,9 +301,9 @@ export default function AdminLinksPage() {
                             </TableCell>
                             <TableCell className="hidden lg:table-cell">{link.createdAt ? new Date(link.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}</TableCell>
                             <TableCell className="text-right">
-                                {isAnalyzing && analyzingLinkId === link.id ? (
+                                 {isAnalyzing && analyzingLinkId === link.id ? (
                                     <Loader2 className="h-4 w-4 animate-spin ml-auto" />
-                                ) : (
+                                 ) : (
                                     <DropdownMenu>
                                         <DropdownMenuTrigger asChild>
                                             <Button variant="ghost" size="icon">
@@ -355,7 +324,7 @@ export default function AdminLinksPage() {
                                                 <span>View Link</span>
                                             </DropdownMenuItem>
                                             <DropdownMenuSeparator />
-                                            {status === 'active' ? (
+                                            {link.monetizationStatus === 'active' ? (
                                                 <DropdownMenuItem onClick={() => handleToggleMonetization(link)}>
                                                     <ShieldBan className="mr-2 h-4 w-4 text-destructive" />
                                                     <span className="text-destructive">Suspend Monetization</span>
@@ -373,7 +342,7 @@ export default function AdminLinksPage() {
                                             </DropdownMenuItem>
                                         </DropdownMenuContent>
                                     </DropdownMenu>
-                                )}
+                                 )}
                             </TableCell>
                         </TableRow>
                     )

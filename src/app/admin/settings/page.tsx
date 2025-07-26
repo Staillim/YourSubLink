@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, writeBatch, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, writeBatch, serverTimestamp, addDoc } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,35 +51,49 @@ export default function AdminSettingsPage() {
         setIsSubmitting(true);
         try {
             const batch = writeBatch(db);
+
+            // End the current active CPM if it exists
             if (activeCpmId) {
                 const oldCpmRef = doc(db, 'cpmHistory', activeCpmId);
                 batch.update(oldCpmRef, { endDate: serverTimestamp() });
             }
+
+            // Create a new CPM entry
             const newCpmRef = doc(collection(db, 'cpmHistory'));
             batch.set(newCpmRef, {
                 rate: rate,
                 startDate: serverTimestamp(),
                 endDate: null
             });
+            
+            // --- NOTIFICATION LOGIC ---
+            // 1. Fetch all users
             const usersQuery = query(collection(db, 'users'));
             const usersSnapshot = await getDocs(usersQuery);
+
+            // 2. Create a notification for each user
             const notificationMessage = rate > 0
                 ? `The global CPM rate has been updated to $${rate.toFixed(4)}. Your earnings will now reflect this new rate.`
                 : 'The global CPM rate has been set to $0.00. Monetization is temporarily paused due to technical reasons or lack of ad inventory.';
+
             usersSnapshot.forEach(userDoc => {
                 const notificationRef = doc(collection(db, 'notifications'));
                 batch.set(notificationRef, {
                     userId: userDoc.id,
-                    type: 'custom_cpm_set',
+                    type: 'custom_cpm_set', // Re-using this type for a global announcement
                     message: notificationMessage,
                     createdAt: serverTimestamp(),
                     isRead: false,
                 });
             });
+
+
             await batch.commit();
+
             toast({ title: 'CPM Rate Updated', description: `The new CPM rate of $${rate.toFixed(4)} is now active. All users have been notified.` });
             setNewCpmRate('');
-            await fetchActiveCpm();
+            await fetchActiveCpm(); // Refresh active CPM data
+
         } catch (error: any) {
             console.error("Error updating CPM rate: ", error);
             toast({ title: 'Error', description: 'Could not update CPM rate.', variant: 'destructive'});
