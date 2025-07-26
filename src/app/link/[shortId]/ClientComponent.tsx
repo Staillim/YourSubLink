@@ -76,14 +76,6 @@ export default function ClientComponent({ shortId, linkId }: { shortId: string, 
 
         const data = linkDoc.data() as Omit<LinkData, 'id'>;
         const link: LinkData = { id: linkDoc.id, ...data };
-        const userRef = doc(db, 'users', link.userId);
-        const userSnap = await getDoc(userRef);
-
-        if (!userSnap.exists() || userSnap.data()?.accountStatus === 'suspended') {
-            setStatus('error');
-            setErrorMessage('This link has been disabled by its owner.');
-            return;
-        }
 
         if (hasVisitorCookie(link.id)) {
             window.location.href = link.original;

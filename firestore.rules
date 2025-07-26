@@ -1,67 +1,62 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions
-    function isOwner(userId) {
-      return request.auth.uid == userId;
+    function isUserAuthenticated(userId) {
+      return request.auth != null && request.auth.uid == userId;
     }
 
-    function isAdmin() {
-      // Check if the user is authenticated before trying to read their profile
+    function isUserAdmin() {
       return request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // PUBLIC: Anyone can read, but only admins can write.
-    match /cpmHistory/{docId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    // USERS: Users can read/update their own profile. Admins can read/update any profile.
     match /users/{userId} {
-      allow read: if true; // Public read for basic info
-      allow update: if isOwner(userId) || isAdmin();
-      allow create: if request.auth != null; // Allow creation on signup
+      allow read;
+      allow create: if isUserAuthenticated(userId);
+      allow update: if isUserAuthenticated(userId) || isUserAdmin();
     }
 
-    // LINKS: Users can manage their own links. Admins can manage any link. Public can read.
     match /links/{linkId} {
-      allow read: if true;
-      allow create: if request.auth != null && isOwner(request.resource.data.userId);
-      allow update: if (request.auth != null && isOwner(resource.data.userId)) || isAdmin();
-      allow delete: if (request.auth != null && isOwner(resource.data.userId)) || isAdmin();
+      allow read;
+      allow create: if isUserAuthenticated(request.resource.data.userId);
+      allow update: if isUserAuthenticated(resource.data.userId) || isUserAdmin();
+      allow delete: if isUserAuthenticated(resource.data.userId) || isUserAdmin();
     }
 
-    // CLICKS: Anyone can create a click log. Admins can update for processing.
     match /clicks/{clickId} {
-      allow create: if true; // Allows any visitor to log a click
-      allow update: if isAdmin(); // Only admins can update (e.g., mark as processed)
-    }
-
-    // PAYOUTS: Users can create their own requests. Admins can manage them.
-    match /payoutRequests/{requestId} {
-      allow read: if request.auth != null && (isOwner(resource.data.userId) || isAdmin());
-      allow create: if request.auth != null && isOwner(request.resource.data.userId);
-      allow update: if isAdmin();
+      // Any visitor can create a click log.
+      allow create: if get(/databases/$(database)/documents/links/$(request.resource.data.linkId)).data.userId != null &&
+                      get(/databases/$(database)/documents/users/$(get(/databases/$(database)/documents/links/$(request.resource.data.linkId)).data.userId)).data.accountStatus == 'active';
+      // Only admins should be able to update/delete click logs (e.g. for maintenance)
+      allow update, delete: if isUserAdmin();
+      allow read: if isUserAdmin();
     }
     
-    // NOTIFICATIONS: Users can only read their own notifications.
-    match /notifications/{notificationId} {
-        allow read, write, create: if request.auth != null && (isOwner(request.resource.data.userId) || isAdmin());
+    match /cpmHistory/{cpmId} {
+      allow read;
+      allow list;
+      allow create, update, delete: if isUserAdmin();
+    }
+    
+    match /payoutRequests/{payoutId} {
+      allow read: if isUserAuthenticated(resource.data.userId) || isUserAdmin();
+      allow list: if isUserAdmin();
+      allow create: if isUserAuthenticated(request.resource.data.userId);
+      allow update: if isUserAdmin();
     }
 
-    // SUPPORT TICKETS: Users manage their own, admins manage all.
-    match /supportTickets/{ticketId} {
-      allow read, update: if request.auth != null && (isOwner(resource.data.userId) || isAdmin());
-      allow create: if request.auth != null && isOwner(request.resource.data.userId);
+    match /notifications/{notificationId} {
+      allow read, update: if isUserAuthenticated(resource.data.userId);
+      allow create: if isUserAuthenticated(request.resource.data.userId) || isUserAdmin();
+    }
 
-      // Messages subcollection
-      match /messages/{messageId} {
-         allow read, create: if request.auth != null && (isOwner(get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId) || isAdmin());
-      }
+    match /supportTickets/{ticketId} {
+        allow read, create, update: if isUserAuthenticated(request.auth.uid) || isUserAdmin();
+        
+        match /messages/{messageId} {
+             allow read, create, update: if isUserAuthenticated(request.auth.uid) || isUserAdmin();
+        }
     }
   }
 }
