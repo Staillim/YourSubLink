@@ -16,7 +16,7 @@ import { Loader2 } from 'lucide-react';
 import LinkGate from '@/components/link-gate'; 
 import type { LinkData } from '@/types'; 
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, writeBatch, serverTimestamp, getDoc, limit } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, writeBatch, increment, serverTimestamp, getDoc, limit } from 'firebase/firestore';
 
 export default function ClientComponent({ shortId }: { shortId: string }) {
   const [status, setStatus] = useState<'loading' | 'gate' | 'redirecting' | 'not-found' | 'error'>('loading');
@@ -92,16 +92,22 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
 
     try {
         const batch = writeBatch(db);
-        const clickLogRef = doc(collection(db, 'clicks'));
         
+        // Use the link's ID to reference it, and add the owner's userId to the click data
+        const clickLogRef = doc(collection(db, 'clicks'));
         const clickPayload = {
             linkId: dataToUse.id,
-            userId: dataToUse.userId, // Send userId for the security rule
+            userId: dataToUse.userId, // This is crucial for the security rule
             timestamp: serverTimestamp(),
             processed: false,
         };
 
         batch.set(clickLogRef, clickPayload);
+        
+        // Increment the local click counter on the link document itself
+        const linkRef = doc(db, 'links', dataToUse.id);
+        batch.update(linkRef, { clicks: increment(1) });
+        
         await batch.commit();
 
     } catch(error) {
