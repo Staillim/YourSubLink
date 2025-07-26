@@ -1,3 +1,4 @@
+
 /**
  * !! ANTES DE EDITAR ESTE ARCHIVO, REVISA LAS DIRECTRICES EN LOS SIGUIENTES DOCUMENTOS: !!
  * - /README.md
@@ -52,7 +53,8 @@ const getOrCreatePersistentCookieId = (linkId: string): string => {
 
 
 export default function ClientComponent({ shortId, linkId }: { shortId: string, linkId: string }) {
-  const [status, setStatus] = useState<'loading' | 'gate' | 'redirecting' | 'not-found'>('loading');
+  const [status, setStatus] = useState<'loading' | 'gate' | 'redirecting' | 'not-found' | 'error'>('loading');
+  const [errorMessage, setErrorMessage] = useState('');
   const [linkData, setLinkData] = useState<LinkData | null>(null);
   const [gateStartTime, setGateStartTime] = useState<number | null>(null);
   const [user] = useAuthState(auth);
@@ -74,6 +76,14 @@ export default function ClientComponent({ shortId, linkId }: { shortId: string, 
 
         const data = linkDoc.data() as Omit<LinkData, 'id'>;
         const link: LinkData = { id: linkDoc.id, ...data };
+        const userRef = doc(db, 'users', link.userId);
+        const userSnap = await getDoc(userRef);
+
+        if (!userSnap.exists() || userSnap.data()?.accountStatus === 'suspended') {
+            setStatus('error');
+            setErrorMessage('This link has been disabled by its owner.');
+            return;
+        }
 
         if (hasVisitorCookie(link.id)) {
             window.location.href = link.original;
@@ -128,9 +138,9 @@ export default function ClientComponent({ shortId, linkId }: { shortId: string, 
             linkId: dataToUse.id,
             timestamp: serverTimestamp(),
             userId: user ? user.uid : null,
-            ip: null,
             userAgent: navigator.userAgent,
             cookie: getOrCreatePersistentCookieId(dataToUse.id),
+            processed: false, // Mark as unprocessed for the backend job
         });
 
         await batch.commit();
@@ -145,6 +155,15 @@ export default function ClientComponent({ shortId, linkId }: { shortId: string, 
 
   if (status === 'not-found') {
     return notFound();
+  }
+  
+  if (status === 'error') {
+     return (
+      <div className="flex h-screen w-full flex-col items-center justify-center bg-background text-foreground p-4 text-center">
+        <h1 className="text-2xl font-bold text-destructive">Link Not Available</h1>
+        <p className="mt-2 text-lg text-muted-foreground">{errorMessage}</p>
+      </div>
+    );
   }
 
   if (status === 'loading' || status === 'redirecting') {

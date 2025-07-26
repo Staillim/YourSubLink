@@ -4,7 +4,7 @@ export type MonetizationPeriod = {
   status: 'active' | 'suspended';
   cpm: number;
   from: any; // Firestore Timestamp
-  to?: any; // Firestore Timestamp, null if current
+  to: any; // Firestore Timestamp, null if current
 };
 
 export type LinkData = {
@@ -16,6 +16,7 @@ export type LinkData = {
   description?: string;
   userId: string;
   clicks: number;
+  generatedEarnings: number;
   monetizationHistory: MonetizationPeriod[];
 };
 
