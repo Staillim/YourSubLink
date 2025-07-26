@@ -28,7 +28,14 @@ export type AnalyzeLinkSecurityOutput = z.infer<typeof AnalyzeLinkSecurityOutput
 
 // Exported wrapper function to be called from the frontend.
 export async function analyzeLinkSecurity(input: AnalyzeLinkSecurityInput): Promise<AnalyzeLinkSecurityOutput> {
-  return analyzeLinkSecurityFlow(input);
+  // We wrap the main flow call in a try-catch block to handle any errors gracefully.
+  try {
+    return await analyzeLinkSecurityFlow(input);
+  } catch (error: any) {
+    console.error(`[Security Analysis Failed] for linkId ${input.linkId}:`, error);
+    // Re-throw the error with a more descriptive message to be caught by the client-side transition.
+    throw new Error(`Security analysis failed: ${error.message}`);
+  }
 }
 
 const PromptInputSchema = AnalyzeLinkSecurityInputSchema.extend({
@@ -37,13 +44,14 @@ const PromptInputSchema = AnalyzeLinkSecurityInputSchema.extend({
 
 /**
  * Converts various potential timestamp formats into a standard JavaScript Date object.
+ * This function is now more robust to handle different data types.
  * @param timestamp The timestamp data, which could be a Firestore Timestamp, a JS Date, a string, or a number.
  * @returns A Date object or null if the conversion fails.
  */
 const convertToDate = (timestamp: any): Date | null => {
     if (!timestamp) return null;
     
-    // Case 1: Firestore Timestamp object
+    // Case 1: Firestore Timestamp object (most common)
     if (timestamp.toDate && typeof timestamp.toDate === 'function') {
         return timestamp.toDate();
     }
@@ -52,14 +60,15 @@ const convertToDate = (timestamp: any): Date | null => {
         return timestamp;
     }
     // Case 3: String (ISO format) or Number (milliseconds)
+    // This is robust enough to handle various string formats and numeric timestamps.
     const date = new Date(timestamp);
     if (!isNaN(date.getTime())) {
         return date;
     }
 
+    // If all conversions fail, return null.
     return null;
 }
-
 
 const prompt = ai.definePrompt({
   name: 'analyzeLinkSecurityPrompt',
@@ -94,14 +103,19 @@ const analyzeLinkSecurityFlow = ai.defineFlow(
     outputSchema: AnalyzeLinkSecurityOutputSchema,
   },
   async (input) => {
-    // 1. Fetch the last 200 clicks for the given linkId, ordered by timestamp
-    const clicksQuery = query(
-      collection(db, 'clicks'),
-      where('linkId', '==', input.linkId),
-      orderBy('timestamp', 'desc'),
-      limit(200)
-    );
-    const clicksSnapshot = await getDocs(clicksQuery);
+    // Step 1: Fetch Clicks - with specific error handling
+    let clicksSnapshot;
+    try {
+        const clicksQuery = query(
+          collection(db, 'clicks'),
+          where('linkId', '==', input.linkId),
+          orderBy('timestamp', 'desc'),
+          limit(200)
+        );
+        clicksSnapshot = await getDocs(clicksQuery);
+    } catch (dbError) {
+        throw new Error("Failed to query clicks from Firestore.");
+    }
 
     if (clicksSnapshot.empty) {
       return {
@@ -112,25 +126,38 @@ const analyzeLinkSecurityFlow = ai.defineFlow(
       };
     }
     
-    // 2. Extract and robustly convert timestamps to ISO strings.
-    const clickTimestamps = clicksSnapshot.docs
-        .map(doc => {
-            const rawTimestamp = doc.data().timestamp;
-            const dateObject = convertToDate(rawTimestamp);
-            return dateObject ? dateObject.toISOString() : null;
-        })
-        .filter((ts): ts is string => ts !== null); // Filter out any nulls and ensure type safety.
+    // Step 2: Process Timestamps - with specific error handling
+    let clickTimestamps: string[];
+    try {
+        clickTimestamps = clicksSnapshot.docs
+            .map(doc => {
+                const rawTimestamp = doc.data().timestamp;
+                const dateObject = convertToDate(rawTimestamp);
+                return dateObject ? dateObject.toISOString() : null;
+            })
+            .filter((ts): ts is string => ts !== null);
+    } catch (processingError) {
+        throw new Error("Failed to process click timestamps.");
+    }
+    
+    // Step 3: Call AI Prompt - with specific error handling
+    let output;
+    try {
+        const promptResponse = await prompt({ 
+            ...input, 
+            clickTimestamps 
+        });
+        output = promptResponse.output;
+    } catch (aiError) {
+        throw new Error("AI model failed to respond.");
+    }
 
-    // 3. Call the AI prompt with the correct data structure
-    const { output } = await prompt({ 
-        ...input, 
-        clickTimestamps 
-    });
-
-    // 4. Return the AI's analysis, ensuring output is not null
+    // Step 4: Validate AI Output
     if (!output) {
       throw new Error("AI analysis did not return a valid output.");
     }
+
+    // Return the final, validated analysis.
     return { ...output, analyzedClicks: clickTimestamps.length };
   }
 );
