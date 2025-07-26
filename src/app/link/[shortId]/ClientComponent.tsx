@@ -43,6 +43,12 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
         const data = linkDoc.data() as Omit<LinkData, 'id'>;
         const link: LinkData = { id: linkDoc.id, ...data };
         
+        // Check for suspended links
+        if (link.accountStatus === 'suspended') {
+            setStatus('invalid');
+            return;
+        }
+
         setLinkData(link);
 
         const hasRules = link.rules && link.rules.length > 0;
@@ -83,14 +89,12 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
     setStatus('redirecting');
 
     try {
-        const currentVisitorUid = auth.currentUser ? auth.currentUser.uid : null;
-
-        await addDoc(collection(db, 'clicks'), {
+        const clickLog = {
             linkId: dataToUse.id,
-            userId: currentVisitorUid,
-            timestamp: Timestamp.fromDate(new Date()),
-        });
-        
+            timestamp: Timestamp.now(),
+            isProcessed: false,
+        };
+        await addDoc(collection(db, 'clicks'), clickLog);
     } catch(error) {
         console.error("Failed to count click:", error);
     } finally {
@@ -103,6 +107,15 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
 
   if (status === 'not-found') {
     return notFound();
+  }
+
+  if (status === 'invalid') {
+    return (
+        <div className="flex h-screen w-full flex-col items-center justify-center bg-background text-foreground p-4 text-center">
+            <h1 className="text-2xl font-bold text-destructive">Enlace no disponible</h1>
+            <p className="mt-2 text-muted-foreground">Este enlace no está disponible actualmente.</p>
+        </div>
+    )
   }
 
   if (status === 'loading' || status === 'redirecting') {
@@ -127,4 +140,3 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
     </div>
   );
 }
-
