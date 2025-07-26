@@ -16,7 +16,7 @@ import { Loader2 } from 'lucide-react';
 import LinkGate from '@/components/link-gate'; 
 import type { LinkData } from '@/types'; 
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, writeBatch, increment, serverTimestamp, getDoc, addDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, writeBatch, increment, serverTimestamp, getDoc, updateDoc } from 'firebase/firestore';
 
 export default function ClientComponent({ shortId }: { shortId: string }) {
   const [status, setStatus] = useState<'loading' | 'gate' | 'redirecting' | 'not-found' | 'invalid'>('loading');
@@ -86,13 +86,19 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
         const linkRef = doc(db, 'links', dataToUse.id);
         const batch = writeBatch(db);
 
-        // Increment the local click count for display purposes, but the source of truth is the 'clicks' collection.
-        batch.update(linkRef, { clicks: increment(1) });
-        
-        let cpmUsed = 0;
-        let earningsGenerated = 0;
+        // Fetch the latest link data to get current counts
+        const currentLinkSnap = await getDoc(linkRef);
+        if (!currentLinkSnap.exists()) {
+            throw new Error("Link document not found for update.");
+        }
+        const currentLinkData = currentLinkSnap.data();
 
-        // If monetizable AND not suspended, calculate earnings to log them.
+        const newClickCount = (currentLinkData.clicks || 0) + 1;
+        let newEarnings = currentLinkData.generatedEarnings || 0;
+        let earningsThisClick = 0;
+        let cpmUsed = 0;
+
+        // If monetizable AND not suspended, calculate and increment earnings
         if (dataToUse.monetizable && dataToUse.monetizationStatus !== 'suspended') {
             const userRef = doc(db, 'users', dataToUse.userId);
             const userSnap = await getDoc(userRef);
@@ -111,18 +117,24 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
                 cpmUsed = activeCpm;
             }
             
-            earningsGenerated = cpmUsed / 1000;
-            batch.update(linkRef, { generatedEarnings: increment(earningsGenerated) });
+            earningsThisClick = cpmUsed / 1000;
+            newEarnings += earningsThisClick;
         }
+
+        // 1. Update the link document with the new calculated values
+        batch.update(linkRef, { 
+            clicks: newClickCount,
+            generatedEarnings: newEarnings
+        });
         
-        // Create a log of the click. This is the primary record of a visit.
+        // 2. Create a log of the click with earnings info
         const clickLogRef = doc(collection(db, 'clicks'));
         batch.set(clickLogRef, {
             linkId: dataToUse.id,
             userId: dataToUse.userId,
             timestamp: serverTimestamp(),
-            cpmUsed,
-            earningsGenerated,
+            cpmUsed: cpmUsed,
+            earningsGenerated: earningsThisClick,
         });
 
         // Commit all operations atomically
