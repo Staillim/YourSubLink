@@ -35,6 +35,32 @@ const PromptInputSchema = AnalyzeLinkSecurityInputSchema.extend({
     clickTimestamps: z.array(z.string()).describe("A list of click timestamps in ISO 8601 format."),
 });
 
+/**
+ * Converts various potential timestamp formats into a standard JavaScript Date object.
+ * @param timestamp The timestamp data, which could be a Firestore Timestamp, a JS Date, a string, or a number.
+ * @returns A Date object or null if the conversion fails.
+ */
+const convertToDate = (timestamp: any): Date | null => {
+    if (!timestamp) return null;
+    
+    // Case 1: Firestore Timestamp object
+    if (timestamp.toDate && typeof timestamp.toDate === 'function') {
+        return timestamp.toDate();
+    }
+    // Case 2: JavaScript Date object
+    if (timestamp instanceof Date) {
+        return timestamp;
+    }
+    // Case 3: String (ISO format) or Number (milliseconds)
+    const date = new Date(timestamp);
+    if (!isNaN(date.getTime())) {
+        return date;
+    }
+
+    return null;
+}
+
+
 const prompt = ai.definePrompt({
   name: 'analyzeLinkSecurityPrompt',
   input: { schema: PromptInputSchema },
@@ -86,20 +112,14 @@ const analyzeLinkSecurityFlow = ai.defineFlow(
       };
     }
     
-    // 2. Extract timestamps. This is the corrected logic.
-    const clickTimestamps = clicksSnapshot.docs.map(doc => {
-        const timestamp = doc.data().timestamp;
-        // The timestamp field from Firestore can be a Date object or a Firestore Timestamp object.
-        // We handle both cases to ensure we get a Date object, then convert to ISO string.
-        if (timestamp && typeof timestamp.toDate === 'function') {
-            return (timestamp as Timestamp).toDate().toISOString();
-        }
-        if (timestamp instanceof Date) {
-            return timestamp.toISOString();
-        }
-        // Return null for invalid formats to be filtered out later.
-        return null;
-    }).filter((ts): ts is string => ts !== null); // Filter out any nulls and ensure type safety.
+    // 2. Extract and robustly convert timestamps to ISO strings.
+    const clickTimestamps = clicksSnapshot.docs
+        .map(doc => {
+            const rawTimestamp = doc.data().timestamp;
+            const dateObject = convertToDate(rawTimestamp);
+            return dateObject ? dateObject.toISOString() : null;
+        })
+        .filter((ts): ts is string => ts !== null); // Filter out any nulls and ensure type safety.
 
     // 3. Call the AI prompt with the correct data structure
     const { output } = await prompt({ 
