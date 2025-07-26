@@ -38,7 +38,7 @@ type Link = {
   shortId: string;
   short: string;
   clicks: number;
-  rules: any[];
+  monetizable: boolean;
   monetizationStatus: 'active' | 'suspended';
   createdAt: any;
   userId: string;
@@ -75,6 +75,9 @@ export default function AdminLinksPage() {
           id: linkDoc.id,
           ...data,
           short: `${window.location.origin}/link/${data.shortId}`,
+          createdAt: data.createdAt,
+          userName,
+          userEmail,
           monetizationStatus: data.monetizationStatus || 'active',
         } as Link);
       }
@@ -143,6 +146,7 @@ export default function AdminLinksPage() {
         
         await batch.commit();
         
+        // This toast is shown to the admin after the action is successful
         toast({
             title: 'Monetization Updated',
             description: `Monetization for "${link.title}" has been set to ${newStatus}.`,
@@ -250,103 +254,100 @@ export default function AdminLinksPage() {
                 </TableRow>
                 </TableHeader>
                 <TableBody>
-                {links.map((link) => {
-                    const isMonetizable = (link.rules?.length || 0) >= 3;
-                    return (
-                        <TableRow key={link.id}>
-                            <TableCell>
-                                <div className="font-semibold truncate max-w-[200px] sm:max-w-xs">{link.title}</div>
-                                <a href={link.short} target='_blank' rel='noopener noreferrer' className="text-xs text-muted-foreground hover:underline block truncate max-w-[200px] sm:max-w-xs">{link.short}</a>
-                                {/* Mobile-only details */}
-                                <div className="md:hidden mt-2 space-y-2 text-xs">
-                                    <div className="flex items-center gap-2">
-                                        <span className="font-medium">User:</span>
-                                        <div className="text-muted-foreground">{link.userName}</div>
+                {links.map((link) => (
+                    <TableRow key={link.id}>
+                        <TableCell>
+                            <div className="font-semibold truncate max-w-[200px] sm:max-w-xs">{link.title}</div>
+                            <a href={link.short} target='_blank' rel='noopener noreferrer' className="text-xs text-muted-foreground hover:underline block truncate max-w-[200px] sm:max-w-xs">{link.short}</a>
+                            {/* Mobile-only details */}
+                            <div className="md:hidden mt-2 space-y-2 text-xs">
+                                <div className="flex items-center gap-2">
+                                    <span className="font-medium">User:</span>
+                                    <div className="text-muted-foreground">{link.userName}</div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="font-medium">Status:</span>
+                                    {link.monetizationStatus === 'suspended' ? (
+                                        <Badge variant="secondary" className="bg-yellow-500 text-black">Suspended</Badge>
+                                    ) : (
+                                        <Badge variant={link.monetizable ? 'default' : 'secondary'} className={`h-5 ${link.monetizable ? 'bg-green-600' : ''}`}>
+                                            {link.monetizable ? 'Monetizable' : 'Not Monetizable'}
+                                        </Badge>
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-4 text-xs">
+                                    <div className="flex items-center gap-1 text-muted-foreground">
+                                        <Eye className="h-3 w-3" />
+                                        <span>{link.clicks} Clicks</span>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        <span className="font-medium">Status:</span>
-                                        {link.monetizationStatus === 'suspended' ? (
-                                            <Badge variant="secondary" className="bg-yellow-500 text-black">Suspended</Badge>
-                                        ) : (
-                                            <Badge variant={isMonetizable ? 'default' : 'secondary'} className={`h-5 ${isMonetizable ? 'bg-green-600' : ''}`}>
-                                                {isMonetizable ? 'Monetizable' : 'Not Monetizable'}
-                                            </Badge>
-                                        )}
-                                    </div>
-                                    <div className="flex items-center gap-4 text-xs">
-                                        <div className="flex items-center gap-1 text-muted-foreground">
-                                            <Eye className="h-3 w-3" />
-                                            <span>{link.clicks} Clicks</span>
-                                        </div>
-                                        <div className="flex items-center gap-1 text-muted-foreground">
-                                            <Calendar className="h-3 w-3" />
-                                            <span>{link.createdAt ? new Date(link.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}</span>
-                                        </div>
+                                    <div className="flex items-center gap-1 text-muted-foreground">
+                                        <Calendar className="h-3 w-3" />
+                                        <span>{link.createdAt ? new Date(link.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}</span>
                                     </div>
                                 </div>
-                            </TableCell>
-                             <TableCell className="hidden md:table-cell">
-                                <div className="font-medium">{link.userName}</div>
-                                <div className="text-xs text-muted-foreground">{link.userEmail}</div>
-                            </TableCell>
-                            <TableCell className="hidden sm:table-cell">{link.clicks}</TableCell>
-                            <TableCell className="hidden md:table-cell">
-                                {link.monetizationStatus === 'suspended' ? (
-                                    <Badge variant="secondary" className="bg-yellow-500 text-black">Suspended</Badge>
-                                ) : (
-                                    <Badge variant={isMonetizable ? 'default' : 'secondary'} className={isMonetizable ? 'bg-green-600' : ''}>
-                                        {isMonetizable ? 'Monetizable' : 'Not Monetizable'}
-                                    </Badge>
-                                )}
-                            </TableCell>
-                            <TableCell className="hidden lg:table-cell">{link.createdAt ? new Date(link.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}</TableCell>
-                            <TableCell className="text-right">
-                                 {isAnalyzing && analyzingLinkId === link.id ? (
-                                    <Loader2 className="h-4 w-4 animate-spin ml-auto" />
-                                 ) : (
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                            <Button variant="ghost" size="icon">
-                                                <MoreVertical className="h-4 w-4" />
-                                            </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end">
-                                            <DropdownMenuItem onClick={() => router.push(`/admin/links/${link.id}`)}>
-                                                <BarChart3 className="mr-2 h-4 w-4" />
-                                                <span>View Stats</span>
+                            </div>
+                        </TableCell>
+                         <TableCell className="hidden md:table-cell">
+                            <div className="font-medium">{link.userName}</div>
+                            <div className="text-xs text-muted-foreground">{link.userEmail}</div>
+                        </TableCell>
+                        <TableCell className="hidden sm:table-cell">{link.clicks}</TableCell>
+                        <TableCell className="hidden md:table-cell">
+                            {link.monetizationStatus === 'suspended' ? (
+                                <Badge variant="secondary" className="bg-yellow-500 text-black">Suspended</Badge>
+                            ) : (
+                                <Badge variant={link.monetizable ? 'default' : 'secondary'} className={link.monetizable ? 'bg-green-600' : ''}>
+                                    {link.monetizable ? 'Monetizable' : 'Not Monetizable'}
+                                </Badge>
+                            )}
+                        </TableCell>
+                        <TableCell className="hidden lg:table-cell">{link.createdAt ? new Date(link.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}</TableCell>
+                        <TableCell className="text-right">
+                             {isAnalyzing && analyzingLinkId === link.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin ml-auto" />
+                             ) : (
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" size="icon">
+                                            <MoreVertical className="h-4 w-4" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                        <DropdownMenuItem onClick={() => router.push(`/admin/links/${link.id}`)}>
+                                            <BarChart3 className="mr-2 h-4 w-4" />
+                                            <span>View Stats</span>
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => handleAnalyzeLink(link)}>
+                                            <ShieldCheck className="mr-2 h-4 w-4" />
+                                            <span>Analyze Link</span>
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => window.open(link.short, '_blank')}>
+                                            <ExternalLink className="mr-2 h-4 w-4" />
+                                            <span>View Link</span>
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        {link.monetizationStatus === 'active' ? (
+                                            <DropdownMenuItem onClick={() => handleToggleMonetization(link)}>
+                                                <ShieldBan className="mr-2 h-4 w-4 text-destructive" />
+                                                <span className="text-destructive">Suspend Monetization</span>
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem onClick={() => handleAnalyzeLink(link)}>
-                                                <ShieldCheck className="mr-2 h-4 w-4" />
-                                                <span>Analyze Link</span>
+                                        ) : (
+                                            <DropdownMenuItem onClick={() => handleToggleMonetization(link)}>
+                                                <DollarSign className="mr-2 h-4 w-4 text-green-500" />
+                                                <span className="text-green-500">Re-enable Monetization</span>
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem onClick={() => window.open(link.short, '_blank')}>
-                                                <ExternalLink className="mr-2 h-4 w-4" />
-                                                <span>View Link</span>
-                                            </DropdownMenuItem>
-                                            <DropdownMenuSeparator />
-                                            {link.monetizationStatus === 'active' ? (
-                                                <DropdownMenuItem onClick={() => handleToggleMonetization(link)}>
-                                                    <ShieldBan className="mr-2 h-4 w-4 text-destructive" />
-                                                    <span className="text-destructive">Suspend Monetization</span>
-                                                </DropdownMenuItem>
-                                            ) : (
-                                                <DropdownMenuItem onClick={() => handleToggleMonetization(link)}>
-                                                    <DollarSign className="mr-2 h-4 w-4 text-green-500" />
-                                                    <span className="text-green-500">Re-enable Monetization</span>
-                                                </DropdownMenuItem>
-                                            )}
-                                            <DropdownMenuSeparator />
-                                            <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(link.id, link.userId, link.title)}>
-                                                <Trash2 className="mr-2 h-4 w-4" />
-                                                <span>Delete</span>
-                                            </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
-                                 )}
-                            </TableCell>
-                        </TableRow>
-                    )
-                })}
+                                        )}
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(link.id, link.userId, link.title)}>
+                                            <Trash2 className="mr-2 h-4 w-4" />
+                                            <span>Delete</span>
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                             )}
+                        </TableCell>
+                    </TableRow>
+                ))}
                  {links.length === 0 && (
                 <TableRow>
                     <TableCell colSpan={6} className="h-24 text-center">

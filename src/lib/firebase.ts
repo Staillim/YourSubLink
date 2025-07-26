@@ -44,6 +44,7 @@ const createUserProfile = async (user: User) => {
                 photoURL: photoURL || `https://avatar.vercel.sh/${email}.png`,
                 role: 'user', // Always assign 'user' role on creation
                 createdAt: serverTimestamp(),
+                generatedEarnings: 0,
                 paidEarnings: 0,
                 accountStatus: 'active',
                 customCpm: null,

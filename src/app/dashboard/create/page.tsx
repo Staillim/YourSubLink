@@ -3,6 +3,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
@@ -20,10 +21,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Rule, RuleEditor } from '@/components/rule-editor';
-import { useUser } from '@/hooks/use-user';
 
 export default function CreateLinkPage() {
-  const { user } = useUser();
+  const [user] = useAuthState(auth);
   const router = useRouter();
   const { toast } = useToast();
 
@@ -51,7 +51,6 @@ export default function CreateLinkPage() {
       setShortenedUrl(null);
       try {
         const shortId = Math.random().toString(36).substring(2, 8);
-        
         const newLink = {
           userId: user.uid,
           original: longUrl,
@@ -61,13 +60,14 @@ export default function CreateLinkPage() {
           title,
           description,
           rules,
-          monetizationStatus: 'active', // All links start as active, suspension is manual
+          monetizable: rules.length >= 3,
           generatedEarnings: 0,
         };
         await addDoc(collection(db, "links"), newLink);
         const url = `${window.location.origin}/link/${shortId}`;
         setShortenedUrl(url);
 
+        // Automatically copy to clipboard and show toast
         navigator.clipboard.writeText(url);
         toast({
             title: "Link Copied!",

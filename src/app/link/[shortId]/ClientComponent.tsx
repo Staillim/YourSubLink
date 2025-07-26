@@ -16,59 +16,57 @@ import { Loader2 } from 'lucide-react';
 import LinkGate from '@/components/link-gate'; 
 import type { LinkData } from '@/types'; 
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, writeBatch, increment, serverTimestamp, getDoc, limit } from 'firebase/firestore';
+import { collection, doc, writeBatch, increment, serverTimestamp, getDoc } from 'firebase/firestore';
 
-export default function ClientComponent({ shortId }: { shortId: string }) {
-  const [status, setStatus] = useState<'loading' | 'gate' | 'redirecting' | 'not-found' | 'error'>('loading');
-  const [errorMessage, setErrorMessage] = useState('');
+export default function ClientComponent({ shortId, linkId }: { shortId: string, linkId: string }) {
+  const [status, setStatus] = useState<'loading' | 'gate' | 'redirecting' | 'not-found' | 'invalid'>('loading');
   const [linkData, setLinkData] = useState<LinkData | null>(null);
+  const [gateStartTime, setGateStartTime] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!shortId) {
+    if (!linkId) {
       setStatus('not-found');
       return;
     }
 
     const processLinkVisit = async () => {
-        const linksRef = collection(db, 'links');
-        const q = query(linksRef, where('shortId', '==', shortId), limit(1));
-        const querySnapshot = await getDocs(q);
+        const linkRef = doc(db, 'links', linkId);
+        const linkDoc = await getDoc(linkRef);
 
-        if (querySnapshot.empty) {
+        if (!linkDoc.exists()) {
             setStatus('not-found');
             return;
         }
 
-        const linkDoc = querySnapshot.docs[0];
         const data = linkDoc.data() as Omit<LinkData, 'id'>;
-        const link = { id: linkDoc.id, ...data };
-        
-        const userRef = doc(db, 'users', link.userId);
-        const userDoc = await getDoc(userRef);
+        const link: LinkData = { id: linkDoc.id, ...data };
 
-        if (!userDoc.exists() || userDoc.data().accountStatus === 'suspended') {
-            setErrorMessage('This link is not available because the owner\'s account is suspended.');
-            setStatus('error');
+        // Check if creator account or link itself is suspended
+        const userRef = doc(db, 'users', link.userId);
+        const userSnap = await getDoc(userRef);
+        
+        if (!userSnap.exists()) {
+            // If the user who created the link doesn't exist, treat the link as invalid.
+            setStatus('invalid');
             return;
         }
         
-        if (link.monetizationStatus === 'suspended') {
-             setErrorMessage('Monetization for this link has been suspended by an administrator.');
-             setStatus('error');
-             return;
+        const userData = userSnap.data();
+        if (userData?.accountStatus === 'suspended' || link.monetizationStatus === 'suspended') {
+            setStatus('invalid');
+            return;
         }
-
+        
         setLinkData(link);
 
         const hasRules = link.rules && link.rules.length > 0;
 
         if (hasRules) {
+            setGateStartTime(Date.now());
             setStatus('gate');
         } else {
             setStatus('redirecting');
-            // For links without rules, redirect immediately without counting.
-            // Clicks are only counted after passing the gate.
-            window.location.href = link.original;
+            await handleAllStepsCompleted(link);
         }
     };
 
@@ -76,45 +74,91 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
         console.error("Error processing link visit:", err);
         setStatus('not-found');
     });
-  }, [shortId]);
+  }, [linkId]);
   
-  const handleAllStepsCompleted = async () => {
-    if (!linkData) return;
+  const handleAllStepsCompleted = async (finalLinkData?: LinkData) => {
+    const dataToUse = finalLinkData || linkData;
+    if (!dataToUse) return;
+
+    // Security check: Interaction Speed
+    if (gateStartTime) {
+        const completionTime = Date.now();
+        const durationInSeconds = (completionTime - gateStartTime) / 1000;
+        // If it took less than 10 seconds, it's likely a bot. Don't count the click.
+        if (durationInSeconds < 10) {
+            console.warn(`Invalid click detected: completed too fast (${durationInSeconds}s). Redirecting without counting.`);
+            window.location.href = dataToUse.original;
+            return;
+        }
+    }
 
     setStatus('redirecting');
 
     try {
+        const linkRef = doc(db, 'links', dataToUse.id);
         const batch = writeBatch(db);
         
-        const clickLogRef = doc(collection(db, 'clicks'));
-        const clickPayload = {
-            linkId: linkData.id,
-            userId: linkData.userId,
-            timestamp: serverTimestamp(),
-            processed: false,
-        };
-        batch.set(clickLogRef, clickPayload);
+        // 1. Increment the click counter
+        batch.update(linkRef, { clicks: increment(1) });
         
+        let earningsGenerated = 0;
+
+        // 2. If monetizable, calculate and increment earnings
+        if (dataToUse.monetizable) {
+            // The user document was already fetched, so we can assume it exists here
+            const userRef = doc(db, 'users', dataToUse.userId);
+            const userSnap = await getDoc(userRef);
+            const userData = userSnap.data();
+            const customCpm = userData?.customCpm;
+
+            let cpmUsed = 0;
+            if (customCpm != null && customCpm > 0) {
+                cpmUsed = customCpm;
+            } else {
+                // If no custom CPM, fetch the global one (already secured by rules)
+                const cpmHistoryRef = collection(db, 'cpmHistory');
+                const cpmQuery = query(cpmHistoryRef, where('endDate', '==', null), limit(1));
+                const cpmSnapshot = await getDocs(cpmQuery);
+                let activeCpm = 3.00; // Default fallback CPM
+                if (!cpmSnapshot.empty) {
+                    activeCpm = cpmSnapshot.docs[0].data().rate;
+                }
+                cpmUsed = activeCpm;
+            }
+            
+            earningsGenerated = cpmUsed / 1000;
+            batch.update(linkRef, { generatedEarnings: increment(earningsGenerated) });
+        }
+        
+        // 3. Create a log of the click
+        const clickLogRef = doc(collection(db, 'clicks'));
+        batch.set(clickLogRef, {
+            linkId: dataToUse.id,
+            userId: dataToUse.userId,
+            timestamp: serverTimestamp(),
+            earningsGenerated: earningsGenerated,
+        });
+
         await batch.commit();
 
     } catch(error) {
-        console.error("Failed to register click:", error);
+        console.error("Failed to count click:", error);
     } finally {
-        window.location.href = linkData.original;
+        window.location.href = dataToUse.original;
     }
+  }
+
+  if (status === 'invalid') {
+    return (
+        <div className="flex h-screen w-full flex-col items-center justify-center bg-background text-foreground p-4">
+            <h1 className="text-2xl font-bold">Link Not Available</h1>
+            <p className="mt-2 text-muted-foreground">This link has been disabled by the creator or an administrator.</p>
+        </div>
+    )
   }
 
   if (status === 'not-found') {
     return notFound();
-  }
-  
-  if (status === 'error') {
-     return (
-      <div className="flex h-screen w-full flex-col items-center justify-center bg-background text-foreground p-4 text-center">
-        <h1 className="text-2xl font-bold text-destructive">Link Not Available</h1>
-        <p className="mt-2 text-lg text-muted-foreground">{errorMessage}</p>
-      </div>
-    );
   }
 
   if (status === 'loading' || status === 'redirecting') {
@@ -127,7 +171,7 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
   }
 
   if (status === 'gate' && linkData) {
-    return <LinkGate linkData={linkData} onAllStepsCompleted={handleAllStepsCompleted} />;
+    return <LinkGate linkData={linkData} onAllStepsCompleted={() => handleAllStepsCompleted()} />;
   }
   
   return (

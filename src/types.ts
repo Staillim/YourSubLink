@@ -1,12 +1,4 @@
 import type { Rule } from '@/components/rule-editor';
-import type { Timestamp } from 'firebase/firestore';
-
-export type MonetizationPeriod = {
-  status: 'active' | 'suspended';
-  cpm: number;
-  from: Timestamp | any; // Allow serverTimestamp
-  to: Timestamp | null | any; // Allow serverTimestamp
-};
 
 export type LinkData = {
   id: string;
@@ -16,9 +8,9 @@ export type LinkData = {
   title: string;
   description?: string;
   userId: string;
+  monetizable: boolean;
   clicks: number;
-  generatedEarnings: number;
-  monetizationStatus: 'active' | 'suspended'; 
+  monetizationStatus: 'active' | 'suspended';
 };
 
 export type Notification = {
@@ -54,3 +46,5 @@ export type ChatMessage = {
   timestamp: any;
   isPredefined?: boolean;
 }
+
+    

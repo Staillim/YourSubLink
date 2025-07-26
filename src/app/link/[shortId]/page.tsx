@@ -1,12 +1,16 @@
 
+import { collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import ClientComponent from './ClientComponent';
 import { notFound } from 'next/navigation';
 
 /**
  * This is the main Server Component for the short link page.
- * Its only job is to receive the `shortId` from the URL parameters
- * and render the corresponding ClientComponent, which handles all
- * interactive logic.
+ * Its primary job is to securely fetch the link's document ID using the `shortId` 
+ * from the URL parameters. It then passes this ID to the ClientComponent,
+ * which handles all client-side interactive logic. This approach ensures that
+ * complex queries are handled on the server, and the client only needs simple
+ * read permissions.
  */
 export default async function ShortLinkPage({ params }: { params: { shortId: string } }) {
   
@@ -14,6 +18,16 @@ export default async function ShortLinkPage({ params }: { params: { shortId: str
     notFound();
   }
 
-  // Pass the shortId to the client component to handle the data fetching.
-  return <ClientComponent shortId={params.shortId} />;
+  // Server-side query to find the document ID from the shortId
+  const linksRef = collection(db, 'links');
+  const q = query(linksRef, where('shortId', '==', params.shortId), limit(1));
+  const querySnapshot = await getDocs(q);
+
+  if (querySnapshot.empty) {
+    notFound();
+  }
+
+  const linkId = querySnapshot.docs[0].id;
+
+  return <ClientComponent shortId={params.shortId} linkId={linkId} />;
 }

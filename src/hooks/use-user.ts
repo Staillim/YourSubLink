@@ -1,3 +1,4 @@
+
 /**
  * !! ANTES DE EDITAR ESTE ARCHIVO, REVISA LAS DIRECTRICES EN LOS SIGUIENTES DOCUMENTOS: !!
  * - /README.md
@@ -21,6 +22,7 @@ export type UserProfile = {
   email: string;
   photoURL: string;
   role: 'user' | 'admin';
+  linksCount: number;
   generatedEarnings: number;
   paidEarnings: number;
   accountStatus: 'active' | 'suspended';
@@ -47,11 +49,13 @@ export function useUser() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Si la autenticación de Firebase aún está cargando, mantenemos el estado de carga general.
     if (authLoading) {
       setLoading(true);
       return;
     }
 
+    // Si no hay un usuario autenticado, terminamos la carga.
     if (!authUser) {
       setUserProfile(null);
       setPayouts([]);
@@ -59,12 +63,14 @@ export function useUser() {
       return;
     }
 
+    // El usuario está autenticado, pero necesitamos cargar sus datos. Mantenemos la carga activa.
     setLoading(true);
     let isSubscribed = true;
 
     const userDocRef = doc(db, 'users', authUser.uid);
     const payoutsQuery = query(collection(db, "payoutRequests"), where("userId", "==", authUser.uid));
 
+    // Variable para controlar si ambas subscripciones han cargado sus datos iniciales
     let profileLoaded = false;
     let payoutsLoaded = false;
 
@@ -79,12 +85,10 @@ export function useUser() {
 
       if (userDoc.exists()) {
         const userData = userDoc.data();
-        
-        // This query now runs inside the user snapshot to ensure consistency
         const linksQuery = query(collection(db, 'links'), where('userId', '==', authUser.uid));
         const linksSnapshot = await getDocs(linksQuery);
-        const totalGeneratedEarnings = linksSnapshot.docs.reduce((acc, linkDoc) => {
-            return acc + (linkDoc.data().generatedEarnings || 0);
+        const totalGeneratedEarnings = linksSnapshot.docs.reduce((acc, doc) => {
+            return acc + (doc.data().generatedEarnings || 0);
         }, 0);
 
         setUserProfile({
@@ -97,8 +101,8 @@ export function useUser() {
             paidEarnings: userData.paidEarnings || 0,
             customCpm: userData.customCpm,
             accountStatus: userData.accountStatus || 'active',
+            linksCount: 0, // This will be updated below
         });
-
       } else {
         await createUserProfile(authUser);
       }
@@ -125,6 +129,7 @@ export function useUser() {
     };
   }, [authUser, authLoading]);
   
+  // Derived state for balance calculation
   const generatedEarnings = userProfile?.generatedEarnings ?? 0;
   const paidEarnings = userProfile?.paidEarnings ?? 0;
   const payoutsPending = payouts
@@ -135,6 +140,7 @@ export function useUser() {
   
   const finalProfile: UserProfile | null = userProfile ? {
       ...userProfile,
+      // Treat customCpm of 0 as null so the UI can correctly show global CPM
       customCpm: userProfile.customCpm === 0 ? null : userProfile.customCpm,
   } : null;
 
