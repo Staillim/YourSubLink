@@ -16,7 +16,7 @@ import { Loader2 } from 'lucide-react';
 import LinkGate from '@/components/link-gate'; 
 import type { LinkData } from '@/types'; 
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, writeBatch, increment, serverTimestamp, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, writeBatch, increment, serverTimestamp, getDoc, limit } from 'firebase/firestore';
 
 const hasVisitorCookie = (linkId: string): boolean => {
     if (typeof document === 'undefined') return false;
@@ -132,11 +132,10 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
 
         const batch = writeBatch(db);
         
-        // We only create a click document. We do not update the link document here
-        // as that is handled by the backend flow now.
         const clickLogRef = doc(collection(db, 'clicks'));
         batch.set(clickLogRef, {
             linkId: dataToUse.id,
+            userId: dataToUse.userId,
             timestamp: serverTimestamp(),
             userAgent: navigator.userAgent,
             cookie: getOrCreatePersistentCookieId(),
@@ -146,8 +145,6 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
         await batch.commit();
 
     } catch(error) {
-        // This catch block is important. If firestore rules reject the write,
-        // we will still redirect the user. The visit just won't be counted.
         console.error("Failed to count click:", error);
     } finally {
         window.location.href = dataToUse.original;

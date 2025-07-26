@@ -13,5 +13,6 @@ export default async function ShortLinkPage({ params }: { params: { shortId: str
     notFound();
   }
 
+  // Pass the shortId to the client component to handle the data fetching.
   return <ClientComponent shortId={params.shortId} />;
 }
