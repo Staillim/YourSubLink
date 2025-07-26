@@ -16,7 +16,7 @@ import { Loader2 } from 'lucide-react';
 import LinkGate from '@/components/link-gate'; 
 import type { LinkData } from '@/types'; 
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, writeBatch, increment, serverTimestamp, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, writeBatch, increment, serverTimestamp, getDoc, addDoc } from 'firebase/firestore';
 
 export default function ClientComponent({ shortId }: { shortId: string }) {
   const [status, setStatus] = useState<'loading' | 'gate' | 'redirecting' | 'not-found' | 'invalid'>('loading');
@@ -86,25 +86,22 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
         const linkRef = doc(db, 'links', dataToUse.id);
         const batch = writeBatch(db);
 
-        // 1. Increment the click counter
+        // Increment the local click count for display purposes, but the source of truth is the 'clicks' collection.
         batch.update(linkRef, { clicks: increment(1) });
         
         let cpmUsed = 0;
         let earningsGenerated = 0;
 
-        // 2. If monetizable AND not suspended, calculate and increment earnings
+        // If monetizable AND not suspended, calculate earnings to log them.
         if (dataToUse.monetizable && dataToUse.monetizationStatus !== 'suspended') {
-            // Check for a custom CPM on the user's profile
             const userRef = doc(db, 'users', dataToUse.userId);
             const userSnap = await getDoc(userRef);
             const userData = userSnap.data();
             const customCpm = userData?.customCpm;
 
             if (customCpm && customCpm > 0) {
-                // Use custom CPM because it's defined and greater than 0
                 cpmUsed = customCpm;
             } else {
-                // Use global CPM if custom is null, undefined, or 0
                 const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
                 const cpmSnapshot = await getDocs(cpmQuery);
                 let activeCpm = 3.00; // Default fallback CPM
@@ -118,7 +115,7 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
             batch.update(linkRef, { generatedEarnings: increment(earningsGenerated) });
         }
         
-        // 3. Create a log of the click with earnings info
+        // Create a log of the click. This is the primary record of a visit.
         const clickLogRef = doc(collection(db, 'clicks'));
         batch.set(clickLogRef, {
             linkId: dataToUse.id,
