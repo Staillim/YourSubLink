@@ -1,8 +1,12 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ===================================
+    // Helper Functions
+    // ===================================
     function isAuthenticated() {
       return request.auth != null;
     }
@@ -15,74 +19,102 @@ service cloud.firestore {
       return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
+    // ===================================
+    // Collection: links
+    // ===================================
     match /links/{linkId} {
-      // Allow anyone to read a link if they know the ID.
+      // ANYONE can get a link if they know its full ID.
       allow get: if true;
-      // Allow anyone to query for a link by its shortId. This is public.
-      allow list: if request.query.get('where')[0][1] == 'shortId';
 
-      // Only the owner can create, update, or delete their own links.
+      // ANYONE can query the links collection ONLY if they are looking for a specific shortId.
+      // This is crucial for the /link/{shortId} page to work for anonymous visitors.
+      allow list: if request.query.keys().hasOnly(['where', 'limit']) &&
+                   string(request.query.where[0][0]) == 'shortId' &&
+                   string(request.query.where[0][1]) == '==' &&
+                   request.query.limit <= 1;
+
+      // ONLY the owner can create, update, or delete their own link.
       allow create, update, delete: if isOwner(request.resource.data.userId);
     }
 
+    // ===================================
+    // Collection: clicks
+    // ===================================
     match /clicks/{clickId} {
-      // Allow anyone to create a click if the owner's account is active.
-      // This is the security checkpoint for monetization.
-      allow create: if get(/databases/$(database)/documents/users/$(request.resource.data.userId)).data.accountStatus == 'active';
-      
-      // No one can read or modify clicks directly after creation.
+      // ANYONE can create a click document IF:
+      // 1. The userId field in the new click document is not null.
+      // 2. The user account corresponding to that userId is NOT suspended.
+      allow create: if request.resource.data.userId != null &&
+                     get(/databases/$(database)/documents/users/$(request.resource.data.userId)).data.accountStatus != 'suspended';
+
+      // NO ONE can read, update, or delete click documents directly.
       allow read, update, delete: if false;
     }
 
+    // ===================================
+    // Collection: users
+    // ===================================
     match /users/{userId} {
-      // Allow anyone to get a user profile (e.g., to check suspension status).
+      // ANYONE can read a user's profile. This is needed to check the accountStatus.
+      // Sensitive information should not be stored here.
       allow get: if true;
-      
-      // An admin can manage any user. A user can only manage their own profile.
-      allow write: if isOwner(userId) || isAdmin();
-      
-      // Admins can list all users.
-      allow list: if isAdmin();
+
+      // ONLY the owner can write to their own profile.
+      allow write: if isOwner(userId);
     }
 
+    // ===================================
+    // Collection: notifications
+    // ===================================
     match /notifications/{notificationId} {
-      // A user can manage their own notifications.
       allow read, write: if isOwner(resource.data.userId);
-      // A user can list their own notifications.
-      allow list: if isOwner(request.query.get('where')[0][2]);
+      // Let authenticated users list their own notifications.
+      allow list: if isAuthenticated() && request.query.where[0][2] == request.auth.uid;
+    }
+
+    // ===================================
+    // Collection: cpmHistory
+    // ===================================
+    match /cpmHistory/{historyId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // ===================================
+    // Collection: payoutRequests
+    // ===================================
+    match /payoutRequests/{requestId} {
+      allow read: if isOwner(resource.data.userId) || isAdmin();
+      allow create: if isOwner(request.resource.data.userId);
+      allow update: if isAdmin();
+      // Let authenticated users list their own payout requests.
+      allow list: if isAuthenticated() && request.query.where[0][2] == request.auth.uid;
     }
     
-    match /cpmHistory/{historyId} {
-        // Authenticated users can see the CPM history. Admins can write it.
-        allow read: if isAuthenticated();
-        allow write: if isAdmin();
-        // Admins can list the full history.
-        allow list: if isAdmin();
-    }
-
-    match /payoutRequests/{requestId} {
-      // The owner or an admin can read a payout request.
-      allow read: if isOwner(resource.data.userId) || isAdmin();
-      // The owner can create a request.
-      allow create: if isOwner(request.resource.data.userId);
-      // Only an admin can update (approve/reject) a request.
-      allow update: if isAdmin();
-      // Users can list their own requests, admins can list all.
-      allow list: if isAdmin() || isOwner(request.query.get('where')[0][2]);
-    }
-
+    // ===================================
+    // Collection: supportTickets
+    // ===================================
     match /supportTickets/{ticketId} {
-      // The owner or an admin can access a support ticket.
       allow read, create, update: if isOwner(resource.data.userId) || isAdmin();
-      // Users can list their own tickets, admins can list all.
-      allow list: if isAdmin() || isOwner(request.query.get('where')[0][2]);
+      allow list: if isAuthenticated() && (request.query.where[0][2] == request.auth.uid || isAdmin());
 
       match /messages/{messageId} {
-        // The owner or an admin can read/create messages in a ticket.
         allow read, create: if isOwner(get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId) || isAdmin();
-        // Users can list messages in their own tickets, admins can list messages in any.
         allow list: if isOwner(get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId) || isAdmin();
       }
+    }
+
+    // ===================================
+    // Admin list permissions for all other collections
+    // ===================================
+    match /{path=**}/users/{userId} {
+      allow list: if isAdmin();
+    }
+    match /{path=**}/links/{linkId} {
+       allow list: if isAdmin();
+    }
+     match /{path=**}/payoutRequests/{requestId} {
+       allow list: if isAdmin();
     }
   }
 }
