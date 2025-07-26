@@ -2,67 +2,97 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    function isAdmin() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
-    
-    function isOwner(userId) {
-      return request.auth != null && request.auth.uid == userId;
-    }
-
+  
+    // Reglas para la colección 'users'
     match /users/{userId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth.uid == userId;
-      allow update: if isOwner(userId) || isAdmin();
+      // Cualquier usuario autenticado puede leer su propio perfil.
+      allow read: if request.auth != null && request.auth.uid == userId;
+      // Los administradores pueden leer el perfil de cualquier usuario.
+      allow get: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      allow list: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      // Un usuario solo puede crear su propio perfil.
+      allow create: if request.auth != null && request.auth.uid == userId;
+      // Un usuario puede actualizar su propio perfil, pero no cambiar su rol.
+      // Un administrador puede actualizar cualquier perfil.
+      allow update: if (request.auth != null && request.auth.uid == userId && !("role" in request.resource.data)) || (request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
     }
-    
+
+    // Reglas para la colección 'links'
     match /links/{linkId} {
-      allow create: if isOwner(request.resource.data.userId) || isAdmin();
-      allow read: if true;
-      allow update: if (isOwner(resource.data.userId) || isAdmin()) ||
-                      (request.auth == null && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks', 'generatedEarnings']));
-      allow delete: if isOwner(resource.data.userId) || isAdmin();
+      // Cualquiera puede leer la información de un enlace para la redirección.
+      allow get: if true;
+      // Solo los administradores pueden listar todos los enlaces.
+      allow list: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      // Solo el propietario puede crear un enlace.
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+      // Solo el propietario o un admin pueden actualizar/borrar.
+      allow update, delete: if (request.auth != null && resource.data.userId == request.auth.uid) || (request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
     }
     
+    // Reglas para la colección 'clicks'
     match /clicks/{clickId} {
-      allow create: if true;
-      allow read, list: if isAdmin();
+      // Cualquiera puede crear un registro de clic (esto es necesario para el conteo de visitas públicas).
+      // Se añade una validación para asegurar que solo se creen documentos con los campos esperados.
+      allow create: if request.resource.data.keys().hasAll(['linkId', 'userId', 'timestamp', 'cpmUsed', 'earningsGenerated']);
+      // Nadie puede leer, actualizar o borrar registros de clics individuales directamente para mantener la integridad.
+      allow read, update, delete: if false;
     }
-
+    
+    // Reglas para la colección 'payoutRequests'
     match /payoutRequests/{requestId} {
-        allow create: if isOwner(request.resource.data.userId);
-        allow read: if isOwner(resource.data.userId) || isAdmin();
-        allow update: if isAdmin();
-        allow list: if (request.query.where.path == 'userId' && request.query.where.value == request.auth.uid) || isAdmin();
+       // El propietario puede crear su solicitud. Los administradores pueden listar todas.
+       allow list: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+       // Un usuario puede leer sus propias solicitudes.
+       allow get: if request.auth != null && (resource.data.userId == request.auth.uid || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+       // Un usuario puede crear una solicitud para sí mismo.
+       allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+       // Solo un admin puede actualizar (aprobar/rechazar) una solicitud.
+       allow update: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+       // Nadie puede borrar solicitudes para mantener el historial.
+       allow delete: if false;
+    }
+    
+    // Reglas para la colección 'cpmHistory'
+    match /cpmHistory/{historyId} {
+        // Solo los administradores pueden leer, crear o actualizar el historial de CPM.
+        allow read, write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    match /cpmHistory/{cpmId} {
-        allow read, list: if request.auth != null;
-        allow create, update: if isAdmin();
-    }
-    
+    // Reglas para la colección 'notifications'
     match /notifications/{notificationId} {
-        allow read, list, update: if isOwner(resource.data.userId) || isAdmin();
-        allow create: if isAdmin();
+        // Un usuario puede leer las notificaciones dirigidas a él.
+        allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+        // Solo el sistema (a través de reglas de admin o funciones de backend) debe crear notificaciones.
+        // Permitir a los admins crearlas directamente puede ser útil para anuncios.
+        allow create: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+        // Un usuario puede actualizar sus propias notificaciones (ej. para marcarlas como leídas).
+        allow update: if request.auth != null && resource.data.userId == request.auth.uid;
     }
-    
+
+    // Reglas para los tickets de soporte
     match /supportTickets/{ticketId} {
-      allow create: if isOwner(request.resource.data.userId);
-      allow read: if isOwner(resource.data.userId) || isAdmin();
-      allow update: if isAdmin() || (isOwner(resource.data.userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastMessage', 'lastMessageTimestamp', 'isReadByAdmin', 'isReadByUser', 'status']));
-      allow list: if (request.query.where.path == 'userId' && request.query.where.value == request.auth.uid) || isAdmin();
-      
+      // El usuario propietario o un admin pueden leer el ticket.
+      allow get: if request.auth != null && (resource.data.userId == request.auth.uid || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+      // El usuario puede crear tickets para sí mismo. Admins pueden listar todos.
+      allow list: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      // El usuario propietario o un admin pueden actualizar el ticket (ej. para cambiar el estado).
+      allow update: if request.auth != null && (resource.data.userId == request.auth.uid || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+
+      // Reglas para los mensajes dentro de un ticket
       match /messages/{messageId} {
-        // Parent must exist for read/list. This is safe.
-        allow read, list: if isAdmin() || get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId == request.auth.uid;
-        
-        // On create (in a batch), parent does not exist yet. Check incoming data.
-        allow create: if isAdmin() || request.resource.data.senderId == request.auth.uid;
-        
-        // Update must check the parent doc status.
-        allow update: if isAdmin() || (get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.status != 'completed' && get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId == request.auth.uid);
+        // El propietario del ticket o un admin pueden leer los mensajes.
+        allow read: if request.auth != null && (get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId == request.auth.uid || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+        // El propietario del ticket o un admin pueden escribir mensajes.
+        allow create: if request.auth != null && (get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId == request.auth.uid || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
       }
     }
+    
+    // REGLA AÑADIDA: Permite a los administradores gestionar la configuración global
+    match /config/{docId} {
+        // Solo los administradores pueden leer y escribir en los documentos de configuración.
+        allow read, write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
   }
 }
