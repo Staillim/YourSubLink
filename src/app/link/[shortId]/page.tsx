@@ -1,3 +1,4 @@
+
 import ClientComponent from './ClientComponent';
 import { notFound } from 'next/navigation';
 

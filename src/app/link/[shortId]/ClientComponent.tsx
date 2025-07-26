@@ -18,38 +18,6 @@ import type { LinkData } from '@/types';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, doc, writeBatch, serverTimestamp, getDoc, limit } from 'firebase/firestore';
 
-const hasVisitorCookie = (linkId: string): boolean => {
-    if (typeof document === 'undefined') return false;
-    const cookieName = `clipview-${linkId}`;
-    return document.cookie.split(';').some((item) => item.trim().startsWith(`${cookieName}=`));
-};
-
-const setVisitorCookie = (linkId: string): void => {
-    if (typeof document === 'undefined') return;
-    const cookieName = `clipview-${linkId}`;
-    const expires = new Date();
-    expires.setTime(expires.getTime() + (24 * 60 * 60 * 1000)); // 24 horas de duración
-    document.cookie = `${cookieName}=true;expires=${expires.toUTCString()};path=/;SameSite=Lax;Secure`;
-};
-
-const getOrCreatePersistentCookieId = (): string => {
-    if (typeof document === 'undefined') return 'server-side-visitor';
-    const cookieName = `visitor-id`;
-    let visitorId = document.cookie
-        .split('; ')
-        .find(row => row.startsWith(`${cookieName}=`))
-        ?.split('=')[1];
-    
-    if (!visitorId) {
-        visitorId = `${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
-        const expires = new Date();
-        expires.setFullYear(expires.getFullYear() + 1); // Persistencia de 1 año
-        document.cookie = `${cookieName}=${visitorId};expires=${expires.toUTCString()};path=/;SameSite=Lax;Secure`;
-    }
-    return visitorId;
-}
-
-
 export default function ClientComponent({ shortId }: { shortId: string }) {
   const [status, setStatus] = useState<'loading' | 'gate' | 'redirecting' | 'not-found' | 'error'>('loading');
   const [errorMessage, setErrorMessage] = useState('');
@@ -84,11 +52,6 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
         if (!userDoc.exists() || userDoc.data().accountStatus === 'suspended') {
             setErrorMessage('This link is not available because the owner\'s account is suspended.');
             setStatus('error');
-            return;
-        }
-
-        if (hasVisitorCookie(link.id)) {
-            window.location.href = link.original;
             return;
         }
         
@@ -128,23 +91,17 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
     setStatus('redirecting');
 
     try {
-        setVisitorCookie(dataToUse.id);
-
         const batch = writeBatch(db);
-        
         const clickLogRef = doc(collection(db, 'clicks'));
         
         const clickPayload = {
             linkId: dataToUse.id,
             userId: dataToUse.userId, // Send userId for the security rule
             timestamp: serverTimestamp(),
-            userAgent: navigator.userAgent,
-            cookie: getOrCreatePersistentCookieId(),
             processed: false,
         };
-        
-        batch.set(clickLogRef, clickPayload);
 
+        batch.set(clickLogRef, clickPayload);
         await batch.commit();
 
     } catch(error) {
@@ -153,7 +110,6 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
         window.location.href = dataToUse.original;
     }
   }
-
 
   if (status === 'not-found') {
     return notFound();
