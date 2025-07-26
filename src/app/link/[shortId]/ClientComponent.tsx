@@ -1,4 +1,3 @@
-
 /**
  * !! ANTES DE EDITAR ESTE ARCHIVO, REVISA LAS DIRECTRICES EN LOS SIGUIENTES DOCUMENTOS: !!
  * - /README.md
@@ -76,6 +75,15 @@ export default function ClientComponent({ shortId, linkId }: { shortId: string, 
 
         const data = linkDoc.data() as Omit<LinkData, 'id'>;
         const link: LinkData = { id: linkDoc.id, ...data };
+
+        // **CRITICAL CHECK**: Verify owner's account status *before* proceeding.
+        const ownerRef = doc(db, 'users', link.userId);
+        const ownerDoc = await getDoc(ownerRef);
+        if (!ownerDoc.exists() || ownerDoc.data().accountStatus === 'suspended') {
+            setErrorMessage('This link is not available because the owner\'s account is suspended.');
+            setStatus('error');
+            return;
+        }
 
         if (hasVisitorCookie(link.id)) {
             window.location.href = link.original;
