@@ -50,10 +50,11 @@ const calculateEarningsFlow = ai.defineFlow(
       const clickData = clickDoc.data();
       const linkId = clickData.linkId;
       const clickTimestamp = clickData.timestamp as Timestamp;
+      const userId = clickData.userId;
 
-      if (!linkId || !clickTimestamp) {
+      if (!linkId || !clickTimestamp || !userId) {
         // Mark as processed to avoid re-querying invalid data
-        batch.update(clickDoc.ref, { processed: true, earningsGenerated: 0, reason: "Missing linkId or timestamp" });
+        batch.update(clickDoc.ref, { processed: true, earningsGenerated: 0, reason: "Missing linkId, userId, or timestamp" });
         continue;
       }
       
@@ -64,25 +65,38 @@ const calculateEarningsFlow = ai.defineFlow(
         batch.update(clickDoc.ref, { processed: true, earningsGenerated: 0, reason: "Link not found" });
         continue;
       }
+      
+      const userRef = doc(db, 'users', userId);
+      const userSnap = await getDoc(userRef);
+
+      if (!userSnap.exists() || userSnap.data().accountStatus === 'suspended') {
+        batch.update(clickDoc.ref, { processed: true, earningsGenerated: 0, reason: "User not found or suspended" });
+        continue;
+      }
 
       const linkData = linkSnap.data() as LinkData;
-      const history = linkData.monetizationHistory || [];
-      
-      const relevantPeriod = history.find(period => {
-        const from = (period.from as Timestamp)?.seconds;
-        const to = (period.to as Timestamp)?.seconds;
-        const clickTime = clickTimestamp.seconds;
-
-        if (to) { // Period has ended
-          return clickTime >= from && clickTime < to;
-        }
-        // Current, active period
-        return clickTime >= from;
-      });
+      const userData = userSnap.data();
 
       let earningsForThisClick = 0;
-      if (relevantPeriod && relevantPeriod.status === 'active' && relevantPeriod.cpm > 0) {
-        earningsForThisClick = relevantPeriod.cpm / 1000;
+      const hasEnoughRules = linkData.rules && linkData.rules.length >= 3;
+
+      if (hasEnoughRules) {
+        let cpmUsed = 0;
+        const customCpm = userData?.customCpm;
+
+        if (customCpm && customCpm > 0) {
+            cpmUsed = customCpm;
+        } else {
+            const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
+            const cpmSnapshot = await getDocs(cpmQuery);
+            if (!cpmSnapshot.empty) {
+                cpmUsed = cpmSnapshot.docs[0].data().rate;
+            } else {
+                cpmUsed = 3.00; // Default fallback CPM
+            }
+        }
+        
+        earningsForThisClick = cpmUsed / 1000;
         totalEarnings += earningsForThisClick;
         batch.update(linkRef, { generatedEarnings: increment(earningsForThisClick) });
       }
@@ -91,6 +105,7 @@ const calculateEarningsFlow = ai.defineFlow(
         processed: true, 
         earningsGenerated: earningsForThisClick,
         processedAt: serverTimestamp(),
+        cpmUsed: hasEnoughRules ? (userData?.customCpm || (await getDocs(query(collection(db, 'cpmHistory'), where('endDate', '==', null)))).docs[0]?.data().rate || 3.00) : 0,
       });
       processedClicks++;
     }

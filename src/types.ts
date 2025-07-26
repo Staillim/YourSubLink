@@ -18,7 +18,9 @@ export type LinkData = {
   userId: string;
   clicks: number;
   generatedEarnings: number;
-  monetizationHistory: MonetizationPeriod[];
+  // This field is being deprecated in favor of a backend calculation process.
+  // It may still exist on older documents.
+  monetizationStatus?: 'active' | 'suspended'; 
 };
 
 export type Notification = {
