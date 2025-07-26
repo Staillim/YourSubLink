@@ -15,7 +15,7 @@ import { notFound } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import LinkGate from '@/components/link-gate'; 
 import type { LinkData } from '@/types'; 
-import { db } from '@/lib/firebase';
+import { db, auth } from '@/lib/firebase';
 import { collection, query, where, getDocs, doc, writeBatch, serverTimestamp, getDoc, addDoc } from 'firebase/firestore';
 
 export default function ClientComponent({ shortId }: { shortId: string }) {
@@ -83,21 +83,20 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
     setStatus('redirecting');
 
     try {
-        // **Lógica de Conteo Simplificada**
-        // La única responsabilidad del cliente es registrar el clic.
-        // Se guarda solo la información esencial, y un proceso de backend se encargará
-        // del resto (actualizar contadores, calcular ganancias, etc.).
+        // Get the current visitor's UID, which will be null if they are not logged in.
+        const currentVisitorUid = auth.currentUser ? auth.currentUser.uid : null;
+
         await addDoc(collection(db, 'clicks'), {
             linkId: dataToUse.id,
-            userId: dataToUse.userId,
+            userId: currentVisitorUid, // Use the current visitor's UID
             timestamp: serverTimestamp(),
         });
-
+        
     } catch(error) {
-        console.error("Failed to log click:", error);
+        console.error("Failed to count click:", error);
     } finally {
-        // Redirigir siempre al destino, incluso si el registro del clic falla,
-        // para no afectar la experiencia del usuario.
+        // Redirect to the final destination regardless of whether the click count succeeded.
+        // This prioritizes the user experience.
         window.location.href = dataToUse.original;
     }
   }
