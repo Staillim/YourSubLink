@@ -1,4 +1,3 @@
-
 /**
  * !! ANTES DE EDITAR ESTE ARCHIVO, REVISA LAS DIRECTRICES EN LOS SIGUIENTES DOCUMENTOS: !!
  * - /README.md
@@ -16,7 +15,7 @@ import { Loader2 } from 'lucide-react';
 import LinkGate from '@/components/link-gate'; 
 import type { LinkData } from '@/types'; 
 import { db } from '@/lib/firebase';
-import { collection, doc, writeBatch, increment, serverTimestamp, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, writeBatch, increment, serverTimestamp, getDoc } from 'firebase/firestore';
 
 const hasVisitorCookie = (linkId: string): boolean => {
     if (typeof document === 'undefined') return false;
@@ -50,34 +49,40 @@ const getOrCreatePersistentCookieId = (): string => {
 }
 
 
-export default function ClientComponent({ shortId, linkId }: { shortId: string, linkId: string }) {
+export default function ClientComponent({ shortId }: { shortId: string }) {
   const [status, setStatus] = useState<'loading' | 'gate' | 'redirecting' | 'not-found' | 'error'>('loading');
   const [errorMessage, setErrorMessage] = useState('');
   const [linkData, setLinkData] = useState<LinkData | null>(null);
   const [gateStartTime, setGateStartTime] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!linkId) {
+    if (!shortId) {
       setStatus('not-found');
       return;
     }
 
     const processLinkVisit = async () => {
-        const linkRef = doc(db, 'links', linkId);
-        const linkDoc = await getDoc(linkRef);
+        const linksRef = collection(db, 'links');
+        const q = query(linksRef, where('shortId', '==', shortId));
+        const querySnapshot = await getDocs(q);
 
-        if (!linkDoc.exists()) {
+        if (querySnapshot.empty) {
             setStatus('not-found');
             return;
         }
 
+        const linkDoc = querySnapshot.docs[0];
         const data = linkDoc.data() as Omit<LinkData, 'id'>;
-        const link: LinkData = { id: linkDoc.id, ...data };
+        const link = { id: linkDoc.id, ...data };
+        
+        const userRef = doc(db, 'users', link.userId);
+        const userDoc = await getDoc(userRef);
 
-        // No es necesario verificar el estado del usuario aquí. Las reglas de Firestore lo harán
-        // al momento de intentar escribir el click. Si el propietario está suspendido,
-        // la operación fallará y se registrará en la consola, pero no bloqueará
-        // la redirección para no penalizar al visitante.
+        if (!userDoc.exists() || userDoc.data().accountStatus === 'suspended') {
+            setErrorMessage('This link is not available because the owner\'s account is suspended.');
+            setStatus('error');
+            return;
+        }
 
         if (hasVisitorCookie(link.id)) {
             window.location.href = link.original;
@@ -101,7 +106,7 @@ export default function ClientComponent({ shortId, linkId }: { shortId: string, 
         console.error("Error processing link visit:", err);
         setStatus('not-found');
     });
-  }, [linkId]);
+  }, [shortId]);
   
   const handleAllStepsCompleted = async (finalLinkData?: LinkData) => {
     const dataToUse = finalLinkData || linkData;
@@ -130,7 +135,7 @@ export default function ClientComponent({ shortId, linkId }: { shortId: string, 
             timestamp: serverTimestamp(),
             userAgent: navigator.userAgent,
             cookie: getOrCreatePersistentCookieId(),
-            processed: false, // Mark as unprocessed for the backend job
+            processed: false,
         });
 
         await batch.commit();
