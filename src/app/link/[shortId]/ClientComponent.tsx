@@ -1,5 +1,4 @@
 
-
 /**
  * !! ANTES DE EDITAR ESTE ARCHIVO, REVISA LAS DIRECTRICES EN LOS SIGUIENTES DOCUMENTOS: !!
  * - /README.md
@@ -15,7 +14,7 @@ import { useEffect, useState } from 'react';
 import { notFound } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import LinkGate from '@/components/link-gate'; 
-import type { LinkData, Rule } from '@/types'; 
+import type { LinkData } from '@/types'; 
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, doc, writeBatch, increment, serverTimestamp, getDoc } from 'firebase/firestore';
 
@@ -23,7 +22,6 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
   const [status, setStatus] = useState<'loading' | 'gate' | 'redirecting' | 'not-found' | 'invalid'>('loading');
   const [linkData, setLinkData] = useState<LinkData | null>(null);
   const [gateStartTime, setGateStartTime] = useState<number | null>(null);
-  const [combinedRules, setCombinedRules] = useState<Rule[]>([]);
 
   useEffect(() => {
     if (!shortId) {
@@ -32,7 +30,6 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
     }
 
     const processLinkVisit = async () => {
-        // Fetch Link Data
         const linksRef = collection(db, 'links');
         const q = query(linksRef, where('shortId', '==', shortId));
         const querySnapshot = await getDocs(q);
@@ -48,21 +45,9 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
         
         setLinkData(link);
 
-        // Fetch Global Sponsored Rules
-        const configDocRef = doc(db, 'config', 'globalSponsoredRules');
-        const configDocSnap = await getDoc(configDocRef);
-        const globalRules = configDocSnap.exists() ? configDocSnap.data().rules : [];
+        const hasRules = link.rules && link.rules.length > 0;
 
-        // Combine all rules: user rules, link-specific sponsored rules, and global sponsored rules
-        const allRules = [
-            ...(globalRules || []),
-            ...(link.sponsoredRules || []),
-            ...(link.rules || [])
-        ];
-        
-        setCombinedRules(allRules);
-
-        if (allRules.length > 0) {
+        if (hasRules) {
             setGateStartTime(Date.now());
             setStatus('gate');
         } else {
@@ -170,9 +155,7 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
 
   // Render the gate, passing the handleAllStepsCompleted function to be called on button click.
   if (status === 'gate' && linkData) {
-    // We create a new linkData object with the combined rules to pass to the LinkGate
-    const gateLinkData = { ...linkData, rules: combinedRules };
-    return <LinkGate linkData={gateLinkData} onAllStepsCompleted={() => handleAllStepsCompleted()} />;
+    return <LinkGate linkData={linkData} onAllStepsCompleted={() => handleAllStepsCompleted()} />;
   }
   
   // Fallback loading state

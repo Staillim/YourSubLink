@@ -5,7 +5,6 @@ export type LinkData = {
   original: string;
   shortId: string;
   rules: Rule[];
-  sponsoredRules?: Rule[]; // Reglas inyectadas por el admin
   title: string;
   description?: string;
   userId: string;

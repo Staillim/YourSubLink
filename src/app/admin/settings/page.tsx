@@ -1,34 +1,26 @@
 
-
 'use client';
 
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, writeBatch, serverTimestamp, addDoc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { collection, query, where, getDocs, doc, writeBatch, serverTimestamp, addDoc } from 'firebase/firestore';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from '@/hooks/use-toast';
 import { Loader2, DollarSign } from 'lucide-react';
-import { Rule, RuleEditor } from '@/components/rule-editor';
-
-const GLOBAL_RULES_DOC_ID = 'globalSponsoredRules';
 
 export default function AdminSettingsPage() {
     const [activeCpm, setActiveCpm] = useState<number | null>(null);
     const [activeCpmId, setActiveCpmId] = useState<string | null>(null);
     const [newCpmRate, setNewCpmRate] = useState('');
-    const [loadingCpm, setLoadingCpm] = useState(true);
-    const [isSubmittingCpm, setIsSubmittingCpm] = useState(false);
-
-    const [globalRules, setGlobalRules] = useState<Rule[]>([]);
-    const [loadingRules, setLoadingRules] = useState(true);
-    const [isSubmittingRules, setIsSubmittingRules] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const fetchActiveCpm = async () => {
-        setLoadingCpm(true);
+        setLoading(true);
         const q = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
         const querySnapshot = await getDocs(q);
         if (!querySnapshot.empty) {
@@ -38,24 +30,11 @@ export default function AdminSettingsPage() {
         } else {
             setActiveCpm(null);
         }
-        setLoadingCpm(false);
-    }
-    
-    const fetchGlobalRules = async () => {
-        setLoadingRules(true);
-        const docRef = doc(db, 'config', GLOBAL_RULES_DOC_ID);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-            setGlobalRules(docSnap.data().rules || []);
-        } else {
-            setGlobalRules([]);
-        }
-        setLoadingRules(false);
+        setLoading(false);
     }
 
     useEffect(() => {
         fetchActiveCpm();
-        fetchGlobalRules();
     }, []);
 
     const handleUpdateCpm = async (e: React.FormEvent) => {
@@ -66,7 +45,7 @@ export default function AdminSettingsPage() {
             return;
         }
 
-        setIsSubmittingCpm(true);
+        setIsSubmitting(true);
         try {
             const batch = writeBatch(db);
 
@@ -116,21 +95,7 @@ export default function AdminSettingsPage() {
             console.error("Error updating CPM rate: ", error);
             toast({ title: 'Error', description: 'Could not update CPM rate.', variant: 'destructive'});
         } finally {
-            setIsSubmittingCpm(false);
-        }
-    }
-
-    const handleUpdateGlobalRules = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setIsSubmittingRules(true);
-        try {
-            const docRef = doc(db, 'config', GLOBAL_RULES_DOC_ID);
-            await setDoc(docRef, { rules: globalRules }, { merge: true });
-            toast({ title: 'Global Rules Updated', description: 'The global sponsored rules have been saved.'});
-        } catch (error) {
-            toast({ title: 'Error', description: 'Could not save global rules.', variant: 'destructive'});
-        } finally {
-            setIsSubmittingRules(false);
+            setIsSubmitting(false);
         }
     }
 
@@ -139,14 +104,14 @@ export default function AdminSettingsPage() {
         <div className="flex flex-col gap-6">
             <h1 className="text-2xl font-bold">System Settings</h1>
             
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <Card>
                     <CardHeader>
                         <CardTitle>Active CPM Rate</CardTitle>
                         <CardDescription>This is the current Cost Per Mille (1000 views) rate used for earnings calculation.</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        {loadingCpm ? (
+                        {loading ? (
                             <Skeleton className="h-12 w-1/2" />
                         ) : activeCpm !== null ? (
                             <div className="flex items-center gap-2">
@@ -178,8 +143,8 @@ export default function AdminSettingsPage() {
                                     required
                                 />
                             </div>
-                            <Button type="submit" disabled={isSubmittingCpm}>
-                                {isSubmittingCpm && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            <Button type="submit" disabled={isSubmitting}>
+                                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                 Update Rate & Notify Users
                             </Button>
                         </CardContent>
@@ -187,28 +152,6 @@ export default function AdminSettingsPage() {
                 </Card>
 
             </div>
-
-             <Card>
-                <form onSubmit={handleUpdateGlobalRules}>
-                    <CardHeader>
-                        <CardTitle>Global Sponsored Rules</CardTitle>
-                        <CardDescription>These rules are automatically added to ALL links in the system. Use this for site-wide promotions or requirements.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        {loadingRules ? (
-                            <Skeleton className="h-40 w-full" />
-                        ) : (
-                            <RuleEditor rules={globalRules} onRulesChange={setGlobalRules} />
-                        )}
-                    </CardContent>
-                    <CardFooter>
-                        <Button type="submit" disabled={isSubmittingRules}>
-                             {isSubmittingRules && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Save Global Rules
-                        </Button>
-                    </CardFooter>
-                </form>
-            </Card>
         </div>
     );
 }
