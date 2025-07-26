@@ -16,7 +16,7 @@ import { Loader2 } from 'lucide-react';
 import LinkGate from '@/components/link-gate'; 
 import type { LinkData } from '@/types'; 
 import { db, auth } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, writeBatch, serverTimestamp, getDoc, addDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, writeBatch, increment, serverTimestamp, getDoc, addDoc } from 'firebase/firestore';
 
 export default function ClientComponent({ shortId }: { shortId: string }) {
   const [status, setStatus] = useState<'loading' | 'gate' | 'redirecting' | 'not-found' | 'invalid'>('loading');
@@ -83,12 +83,11 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
     setStatus('redirecting');
 
     try {
-        // Get the current visitor's UID, which will be null if they are not logged in.
         const currentVisitorUid = auth.currentUser ? auth.currentUser.uid : null;
 
         await addDoc(collection(db, 'clicks'), {
             linkId: dataToUse.id,
-            userId: currentVisitorUid, // Use the current visitor's UID
+            userId: currentVisitorUid,
             timestamp: serverTimestamp(),
         });
         
