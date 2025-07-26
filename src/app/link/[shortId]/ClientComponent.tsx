@@ -27,6 +27,7 @@ import { useAuthState } from 'react-firebase-hooks/auth';
  * @returns {boolean} - True si la cookie existe, false en caso contrario.
  */
 const hasVisitorCookie = (linkId: string): boolean => {
+    if (typeof document === 'undefined') return false;
     const cookieName = `clipview-${linkId}`;
     return document.cookie.split(';').some((item) => item.trim().startsWith(`${cookieName}=`));
 };
@@ -36,6 +37,7 @@ const hasVisitorCookie = (linkId: string): boolean => {
  * @param linkId - El ID del enlace.
  */
 const setVisitorCookie = (linkId: string): void => {
+    if (typeof document === 'undefined') return;
     const cookieName = `clipview-${linkId}`;
     const expires = new Date();
     expires.setTime(expires.getTime() + (60 * 60 * 1000)); // 1 hora de duración
@@ -49,6 +51,7 @@ const setVisitorCookie = (linkId: string): void => {
  * @returns {string} - El ID único del visitante.
  */
 const getOrCreatePersistentCookieId = (linkId: string): string => {
+    if (typeof document === 'undefined') return 'server-side';
     const cookieName = `visitor-id-${linkId}`;
     let visitorId = document.cookie
         .split('; ')
