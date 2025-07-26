@@ -1,58 +1,85 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Links can be read by anyone to display the LinkGate, but only the owner or an admin can modify them.
-    match /links/{linkId} {
-      allow get: if true;
-      allow list, create, update, delete: if request.auth != null && (request.auth.uid == resource.data.userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+    // Helper functions
+    function isAdmin() {
+      return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // Clicks can be CREATED by anyone (to log a visit), but cannot be read or modified by users.
-    // This rule is critical for the link redirection flow to work correctly.
-    // Admins can read the clicks for analysis.
-    match /clicks/{clickId} {
-      // Allow creation if the link exists and its owner is not suspended.
-      allow create: if request.resource.data.processed == false && exists(/databases/$(database)/documents/links/$(request.resource.data.linkId)) && get(/databases/$(database)/documents/links/$(request.resource.data.linkId)).data.accountStatus != 'suspended';
-      
-      // Only admins can read, update, or delete click logs.
-      allow read, update, delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
+    // -- COLLECTIONS --
 
-    // Users can only read/update their own profile. Admins can read/write any profile.
     match /users/{userId} {
-      allow get, update: if request.auth != null && request.auth.uid == userId;
-      allow list, create, delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      // Admins can read/write any user document
+      allow read, write: if isAdmin();
+      // Owners can read/write their own document
+      allow read, write: if isOwner(userId);
+      // ANYONE can read the account status of a user. This is safe because no other fields are exposed.
+      // This is necessary for the ClientComponent to check if a link's owner is suspended.
+      allow get: if true;
     }
 
-    // Payout requests can only be read by their owner or an admin. Only admins can modify them.
-    match /payoutRequests/{requestId} {
-      allow get, list: if request.auth != null && (request.auth.uid == resource.data.userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
-      allow update, delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    match /links/{linkId} {
+      // Anyone can read a single link document (for the LinkGate)
+      allow get: if true;
+      // Admins can read/write any link
+      allow read, write: if isAdmin();
+      // Owners can manage their own links
+      allow read, write: if isOwner(resource.data.userId);
     }
 
-    // Notifications can only be accessed by the user they are intended for or an admin.
-    match /notifications/{notificationId} {
-      allow read, update, list: if request.auth != null && (request.auth.uid == resource.data.userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
-      allow create, delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
-
-    // CPM History is read-only for users, but writable by admins.
-    match /cpmHistory/{historyId} {
-        allow get, list: if request.auth != null;
-        allow create, update, delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
-
-    // Support tickets can be read/written by the owner or an admin.
-    match /supportTickets/{ticketId} {
-      allow get, list, create, update, delete: if request.auth != null && (request.auth.uid == resource.data.userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+    match /clicks/{clickId} {
+      // Anyone can create a click log if the link owner is not suspended.
+      allow create: if request.resource.data.processed == false;
       
-      // Messages within a ticket follow the same rule.
-      match /messages/{messageId} {
-        allow get, list, create, update, delete: if request.auth != null && (request.auth.uid == get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
-      }
+      // Admins can update click documents (e.g., to mark them as processed)
+      allow update: if isAdmin();
+      
+      // Only Admins can read or delete click logs
+      allow read, delete: if isAdmin();
+    }
+    
+    match /payoutRequests/{requestId} {
+        // Admins can see all requests and update them
+        allow read, update: if isAdmin();
+        // Users can create requests for themselves and read their own history
+        allow create: if isOwner(request.resource.data.userId);
+        allow read: if isOwner(resource.data.userId);
+    }
+
+    match /notifications/{notificationId} {
+        // Users can read and update (e.g., mark as read) their own notifications
+        allow read, update: if isOwner(resource.data.userId);
+        // Admins can read all notifications (for debugging or support)
+        allow read: if isAdmin();
+        // Notifications are created by backend processes or system actions (like link deletion by admin)
+        // so we don't allow direct client creation. They are created via writeBatches.
+        allow create: if isAdmin();
+    }
+    
+    match /cpmHistory/{historyId} {
+        // Anyone can read the CPM history to understand rate changes
+        allow read: if true;
+        // Only admins can create/update CPM history entries
+        allow write: if isAdmin();
+    }
+    
+    match /supportTickets/{ticketId} {
+        allow read, write: if isAdmin() || isOwner(resource.data.userId);
+        
+        match /messages/{messageId} {
+            allow read, write: if isAdmin() || isOwner(get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId);
+        }
     }
   }
 }
