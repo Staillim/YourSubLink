@@ -16,12 +16,11 @@ import { Loader2 } from 'lucide-react';
 import LinkGate from '@/components/link-gate'; 
 import type { LinkData } from '@/types'; 
 import { db, auth } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, writeBatch, increment, serverTimestamp, getDoc, addDoc, Timestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 
 export default function ClientComponent({ shortId }: { shortId: string }) {
   const [status, setStatus] = useState<'loading' | 'gate' | 'redirecting' | 'not-found' | 'invalid'>('loading');
   const [linkData, setLinkData] = useState<LinkData | null>(null);
-  const [gateStartTime, setGateStartTime] = useState<number | null>(null);
 
   useEffect(() => {
     if (!shortId) {
@@ -42,8 +41,11 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
         const linkDoc = querySnapshot.docs[0];
         const data = linkDoc.data() as Omit<LinkData, 'id'>;
         
-        // **Critical Check:** Verify if the link or the creator's account is suspended.
-        if (data.accountStatus === 'suspended' || data.monetizationStatus === 'suspended') {
+        const userRef = doc(db, 'users', data.userId);
+        const userSnap = await getDoc(userRef);
+        const accountStatus = userSnap.exists() ? userSnap.data().accountStatus : 'active';
+
+        if (accountStatus === 'suspended' || data.monetizationStatus === 'suspended') {
             setStatus('invalid');
             return;
         }
@@ -55,11 +57,9 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
         const hasRules = link.rules && link.rules.length > 0;
 
         if (hasRules) {
-            setGateStartTime(Date.now());
             setStatus('gate');
         } else {
-            // If no rules, count the click and redirect immediately.
-            setStatus('redirecting');
+            // If no rules, redirect immediately.
             await handleAllStepsCompleted(link);
         }
 
@@ -71,38 +71,18 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
     });
   }, [shortId]);
   
+  /**
+   * NOTE: The click counting system has been completely disabled as per user request.
+   * This function now only handles the final redirection.
+   */
   const handleAllStepsCompleted = async (finalLinkData?: LinkData) => {
     const dataToUse = finalLinkData || linkData;
     if (!dataToUse) return;
-
-    // Security check: Interaction Speed
-    if (gateStartTime) {
-        const completionTime = Date.now();
-        const durationInSeconds = (completionTime - gateStartTime) / 1000;
-        // If it took less than 10 seconds, it's likely a bot. Don't count the click.
-        if (durationInSeconds < 10) {
-            console.warn(`Invalid click detected: completed too fast (${durationInSeconds}s). Redirecting without counting.`);
-            window.location.href = dataToUse.original;
-            return;
-        }
-    }
-
+    
     setStatus('redirecting');
-
-    try {
-        // The only task is to create a simple click document.
-        // It contains only the link ID and a client-side timestamp.
-        await addDoc(collection(db, 'clicks'), {
-            linkId: dataToUse.id,
-            timestamp: new Date(),
-        });
-    } catch(error) {
-        console.error("Failed to count click:", error);
-    } finally {
-        // Redirect to the final destination regardless of whether the click count succeeded.
-        // This prioritizes the user experience.
-        window.location.href = dataToUse.original;
-    }
+    
+    // Redirect to the final destination. No database writes are performed.
+    window.location.href = dataToUse.original;
   }
 
 
