@@ -83,31 +83,6 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
     setStatus('redirecting');
 
     try {
-        let cpmUsed = 0;
-        let earningsGenerated = 0;
-
-        // If monetizable AND not suspended, determine the potential earnings for this click
-        if (dataToUse.monetizable && dataToUse.monetizationStatus !== 'suspended') {
-            const userRef = doc(db, 'users', dataToUse.userId);
-            const userSnap = await getDoc(userRef);
-            const userData = userSnap.data();
-            const customCpm = userData?.customCpm;
-
-            if (customCpm && customCpm > 0) {
-                cpmUsed = customCpm;
-            } else {
-                const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
-                const cpmSnapshot = await getDocs(cpmQuery);
-                let activeCpm = 3.00; // Default fallback CPM
-                if (!cpmSnapshot.empty) {
-                    activeCpm = cpmSnapshot.docs[0].data().rate;
-                }
-                cpmUsed = activeCpm;
-            }
-            
-            earningsGenerated = cpmUsed / 1000;
-        }
-        
         // **Simplified Logic**: ONLY create a click document.
         // A backend process (Cloud Function) will handle updating the main link counts.
         await addDoc(collection(db, 'clicks'), {
@@ -115,8 +90,8 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
             userId: dataToUse.userId,
             timestamp: serverTimestamp(),
             isProcessed: false, // Flag for backend processing
-            cpmUsed,
-            earningsGenerated,
+            monetizable: dataToUse.monetizable,
+            monetizationStatus: dataToUse.monetizationStatus,
         });
 
     } catch(error) {
