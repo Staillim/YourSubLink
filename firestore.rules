@@ -1,6 +1,5 @@
 
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
     
@@ -23,21 +22,18 @@ service cloud.firestore {
 
     // --- links ---
     match /links/{linkId} {
-      // Anyone can read a link's data
-      allow read:   if true;
-      // Only the owner or an admin can create, update, or delete a link.
-      // The client no longer updates clicks directly, this is handled by a backend process.
-      allow create, update, delete: if isOwner(request.resource.data.userId) || isAdmin();
+      allow read: if true;
+      allow create, delete, update: if isOwner(request.resource.data.userId) || isAdmin();
     }
 
     // --- clicks ---
     match /clicks/{clickId} {
-      // Anyone can create a click document. This is critical for the counting logic.
-      allow create: if true;
-      // Only admins can read the list of clicks for analysis.
-      allow read, list: if isAdmin();
-       // Backend processes will update this field, not users.
-      allow update: if false;
+      // ANYONE can create a click document. This is safe because they can't
+      // read or modify existing data. This is the key to fixing the visit counter.
+      allow create: if true; 
+      
+      // Only admins can read the raw click data.
+      allow read, list, update, delete: if isAdmin();
     }
 
     // --- payoutRequests ---
@@ -45,11 +41,7 @@ service cloud.firestore {
       allow create: if isOwner(request.resource.data.userId);
       allow read:   if isOwner(resource.data.userId) || isAdmin();
       allow update: if isAdmin();
-      allow list:   if (
-                        request.query.where.path == 'userId'
-                        && request.query.where.value == request.auth.uid
-                      )
-                      || isAdmin();
+      allow list:   if isAdmin();
     }
 
     // --- cpmHistory ---
@@ -61,7 +53,7 @@ service cloud.firestore {
     // --- notifications ---
     match /notifications/{notificationId} {
       allow read, list, update: if isOwner(resource.data.userId) || isAdmin();
-      allow create: if isAdmin();
+      allow create: if isAdmin() || isOwner(request.resource.data.userId);
     }
 
     // --- supportTickets y mensajes ---
@@ -81,11 +73,10 @@ service cloud.firestore {
                             'status'
                           ])
                    );
-      allow list:   if (
-                        request.query.where.path == 'userId'
-                        && request.query.where.value == request.auth.uid
-                      )
-                    || isAdmin();
+      allow list:   if isAdmin() || (
+                        'userId' in request.query.where 
+                        && request.query.where.userId == request.auth.uid
+                    );
       
       match /messages/{messageId} {
         allow read, list: if isAdmin()
@@ -93,15 +84,7 @@ service cloud.firestore {
                               /databases/$(database)/documents/supportTickets/$(ticketId)
                             ).data.userId == request.auth.uid;
         allow create: if isAdmin() || request.resource.data.senderId == request.auth.uid;
-        allow update: if isAdmin()
-                     || (
-                       get(
-                         /databases/$(database)/documents/supportTickets/$(ticketId)
-                       ).data.status != 'completed'
-                       && get(
-                            /databases/$(database)/documents/supportTickets/$(ticketId)
-                          ).data.userId == request.auth.uid
-                     );
+        allow update: if false; // Messages should be immutable
       }
     }
 
