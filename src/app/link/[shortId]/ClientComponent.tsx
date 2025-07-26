@@ -45,7 +45,7 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
         
         setLinkData(link);
 
-        const hasRules = (link.rules && link.rules.length > 0) || (link.sponsoredRules && link.sponsoredRules.length > 0);
+        const hasRules = link.rules && link.rules.length > 0;
 
         if (hasRules) {
             setGateStartTime(Date.now());

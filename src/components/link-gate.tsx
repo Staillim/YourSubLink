@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import type { LinkData } from '@/types';
-import { Loader2, ArrowRight, CheckCircle, ExternalLink, LogIn, UserPlus, Star } from 'lucide-react';
+import { Loader2, ArrowRight, CheckCircle, ExternalLink, LogIn, UserPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Facebook, Instagram, Youtube,Globe, MessageCircle, ThumbsUp } from 'lucide-react';
 import { Logo, TikTokIcon } from '@/components/icons';
@@ -16,7 +16,6 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
   } from '@/components/ui/dropdown-menu';
-import { Separator } from './ui/separator';
 
 
 function LoadingDots() {
@@ -82,43 +81,6 @@ const getRuleDetails = (rule: LinkData['rules'][0]) => {
     }
 };
 
-const RuleButton = ({ rule, onRuleClick, state }: { rule: any; onRuleClick: () => void; state: 'pending' | 'loading' | 'completed' }) => {
-    const isCompleted = state === 'completed';
-    const isLoading = state === 'loading';
-    const details = getRuleDetails(rule);
-    const RuleIcon = details.icon;
-
-    return (
-        <a 
-            href={rule.url} 
-            target="_blank" 
-            rel="noopener noreferrer"
-            onClick={onRuleClick}
-            className={cn(
-                "flex items-center justify-between p-3 rounded-lg transition-all text-left",
-                details.className,
-                isCompleted && "bg-green-600 hover:bg-green-600/90 ring-1 ring-green-400 !text-white",
-                isLoading && "cursor-wait bg-yellow-600 hover:bg-yellow-600/90 !text-white",
-                state !== 'pending' && "pointer-events-none"
-            )}
-        >
-            <div className="flex items-center gap-3">
-                {isCompleted ? (
-                    <CheckCircle className="h-5 w-5 shrink-0" />
-                ) : isLoading ? (
-                    <div className="h-5 w-5 shrink-0 flex items-center justify-center"><LoadingDots/></div>
-                ) : (
-                    <RuleIcon className="h-5 w-5 shrink-0" />
-                )}
-                <div className="flex flex-col">
-                    <span className="font-semibold text-sm">{details.text}</span>
-                </div>
-            </div>
-            {!isLoading && !isCompleted && <ExternalLink className="h-5 w-5 shrink-0" />}
-        </a>
-    );
-};
-
 
 export default function LinkGate({ linkData, onAllStepsCompleted }: { linkData: LinkData, onAllStepsCompleted: () => void }) {
   const [step, setStep] = useState<'rules' | 'countdown'>('rules');
@@ -126,12 +88,9 @@ export default function LinkGate({ linkData, onAllStepsCompleted }: { linkData: 
   const [isReady, setIsReady] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
   
-  const creatorRules = linkData.rules || [];
-  const sponsoredRules = linkData.sponsoredRules || [];
-  const totalRules = creatorRules.length + sponsoredRules.length;
-
+  // State to track rule status: pending, loading, or completed
   const [ruleStates, setRuleStates] = useState<('pending' | 'loading' | 'completed')[]>(
-    () => Array(totalRules).fill('pending')
+    () => Array((linkData.rules || []).length).fill('pending')
   );
 
   useEffect(() => {
@@ -157,19 +116,22 @@ export default function LinkGate({ linkData, onAllStepsCompleted }: { linkData: 
   }
 
   const handleRuleClick = (index: number) => {
+    // Prevent action if already loading or completed
     if (ruleStates[index] !== 'pending') return;
 
+    // Set state to loading
     const newRuleStates = [...ruleStates];
     newRuleStates[index] = 'loading';
     setRuleStates(newRuleStates);
 
+    // After 10 seconds, set to completed
     setTimeout(() => {
         setRuleStates(prevStates => {
             const updatedStates = [...prevStates];
             updatedStates[index] = 'completed';
             return updatedStates;
         });
-    }, 10000);
+    }, 10000); // 10 seconds
   };
   
   const allRulesCompleted = ruleStates.every(state => state === 'completed');
@@ -211,30 +173,44 @@ export default function LinkGate({ linkData, onAllStepsCompleted }: { linkData: 
                 </CardHeader>
                 <CardContent className="space-y-4 p-4 sm:p-6">
                     <div className="space-y-3">
-                        {sponsoredRules.length > 0 && (
-                            <>
-                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                    <Star className="h-4 w-4 text-yellow-500" />
-                                    <span>Sponsored Steps</span>
-                                </div>
-                                {sponsoredRules.map((rule, index) => (
-                                    <RuleButton key={`sponsored-${index}`} rule={rule} state={ruleStates[creatorRules.length + index]} onRuleClick={() => handleRuleClick(creatorRules.length + index)} />
-                                ))}
-                                <Separator className="my-4"/>
-                            </>
-                        )}
-                        {creatorRules.length > 0 && (
-                             <>
-                                {sponsoredRules.length > 0 && (
-                                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                        <span>Creator's Steps</span>
-                                    </div>
+                        {linkData.rules.map((rule, index) => {
+                          const state = ruleStates[index];
+                          const isCompleted = state === 'completed';
+                          const isLoading = state === 'loading';
+                          const details = getRuleDetails(rule);
+                          const RuleIcon = details.icon;
+                          
+                          return (
+                            <a 
+                                href={rule.url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                key={index}
+                                onClick={() => handleRuleClick(index)}
+                                className={cn(
+                                  "flex items-center justify-between p-3 rounded-lg transition-all text-left",
+                                  details.className,
+                                  isCompleted && "bg-green-600 hover:bg-green-600/90 ring-1 ring-green-400 !text-white",
+                                  isLoading && "cursor-wait bg-yellow-600 hover:bg-yellow-600/90 !text-white",
+                                  state !== 'pending' && "pointer-events-none"
                                 )}
-                                {creatorRules.map((rule, index) => (
-                                    <RuleButton key={`creator-${index}`} rule={rule} state={ruleStates[index]} onRuleClick={() => handleRuleClick(index)} />
-                                ))}
-                             </>
-                        )}
+                            >
+                                <div className="flex items-center gap-3">
+                                   {isCompleted ? (
+                                     <CheckCircle className="h-5 w-5 shrink-0" />
+                                   ) : isLoading ? (
+                                     <div className="h-5 w-5 shrink-0 flex items-center justify-center"><LoadingDots/></div>
+                                   ) : (
+                                     <RuleIcon className="h-5 w-5 shrink-0" />
+                                   )}
+                                   <div className="flex flex-col">
+                                      <span className="font-semibold text-sm">{details.text}</span>
+                                   </div>
+                                </div>
+                                {!isLoading && !isCompleted && <ExternalLink className="h-5 w-5 shrink-0" />}
+                            </a>
+                          )
+                        })}
                     </div>
 
                     <Button
