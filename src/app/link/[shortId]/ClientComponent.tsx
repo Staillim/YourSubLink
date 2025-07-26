@@ -83,19 +83,14 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
     setStatus('redirecting');
 
     try {
-        // **Desacoplamiento del Conteo y Ganancias**
-        // La única responsabilidad del cliente es registrar que el clic ocurrió.
-        // Un proceso de backend (Cloud Function) se encargará de procesar estos
-        // registros para actualizar los contadores y las ganancias de manera segura.
+        // **Lógica de Conteo Simplificada**
+        // La única responsabilidad del cliente es registrar el clic.
+        // Se guarda solo la información esencial, y un proceso de backend se encargará
+        // del resto (actualizar contadores, calcular ganancias, etc.).
         await addDoc(collection(db, 'clicks'), {
             linkId: dataToUse.id,
             userId: dataToUse.userId,
             timestamp: serverTimestamp(),
-            isProcessed: false, // Flag for the backend process
-            // Se guarda el estado de monetización en el momento del clic
-            // para que el backend sepa si debe generar ingresos para esta visita.
-            monetizable: dataToUse.monetizable,
-            monetizationStatus: dataToUse.monetizationStatus,
         });
 
     } catch(error) {
