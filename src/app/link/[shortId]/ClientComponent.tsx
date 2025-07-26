@@ -15,7 +15,7 @@ import { notFound } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import LinkGate from '@/components/link-gate'; 
 import type { LinkData } from '@/types'; 
-import { db, auth } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 
 export default function ClientComponent({ shortId }: { shortId: string }) {
@@ -41,17 +41,18 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
         const linkDoc = querySnapshot.docs[0];
         const data = linkDoc.data() as Omit<LinkData, 'id'>;
         
+        // Check if the link creator's account is suspended
         const userRef = doc(db, 'users', data.userId);
         const userSnap = await getDoc(userRef);
         const accountStatus = userSnap.exists() ? userSnap.data().accountStatus : 'active';
 
+        // A link is invalid if the link itself is suspended or the creator's account is suspended.
         if (accountStatus === 'suspended' || data.monetizationStatus === 'suspended') {
             setStatus('invalid');
             return;
         }
 
         const link: LinkData = { id: linkDoc.id, ...data };
-        
         setLinkData(link);
 
         const hasRules = link.rules && link.rules.length > 0;
@@ -60,7 +61,7 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
             setStatus('gate');
         } else {
             // If no rules, redirect immediately.
-            await handleAllStepsCompleted(link);
+            handleAllStepsCompleted(link);
         }
 
     };
@@ -72,10 +73,11 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
   }, [shortId]);
   
   /**
-   * NOTE: The click counting system has been completely disabled as per user request.
-   * This function now only handles the final redirection.
+   * NOTE: The click counting system has been completely disabled.
+   * This function now only handles the final redirection to the original URL.
+   * No database writes are performed here.
    */
-  const handleAllStepsCompleted = async (finalLinkData?: LinkData) => {
+  const handleAllStepsCompleted = (finalLinkData?: LinkData) => {
     const dataToUse = finalLinkData || linkData;
     if (!dataToUse) return;
     
