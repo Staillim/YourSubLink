@@ -1,4 +1,3 @@
-
 /**
  * !! ANTES DE EDITAR ESTE ARCHIVO, REVISA LAS DIRECTRICES EN LOS SIGUIENTES DOCUMENTOS: !!
  * - /README.md
@@ -70,7 +69,7 @@ const getOrCreatePersistentCookieId = (linkId: string): string => {
 
 
 export default function ClientComponent({ shortId, linkId }: { shortId: string, linkId: string }) {
-  const [status, setStatus] = useState<'loading' | 'gate' | 'redirecting' | 'not-found' | 'invalid'>('loading');
+  const [status, setStatus] = useState<'loading' | 'gate' | 'redirecting' | 'not-found'>('loading');
   const [linkData, setLinkData] = useState<LinkData | null>(null);
   const [gateStartTime, setGateStartTime] = useState<number | null>(null);
   const [user] = useAuthState(auth);
@@ -97,15 +96,6 @@ export default function ClientComponent({ shortId, linkId }: { shortId: string, 
         if (hasVisitorCookie(link.id)) {
             // Si la cookie existe, redirige directamente sin contar la visita.
             window.location.href = link.original;
-            return;
-        }
-        
-        // Comprobación de cuenta suspendida
-        const userRef = doc(db, 'users', link.userId);
-        const userSnap = await getDoc(userRef);
-        
-        if (!userSnap.exists() || userSnap.data()?.accountStatus === 'suspended') {
-            setStatus('invalid');
             return;
         }
         
@@ -172,15 +162,6 @@ export default function ClientComponent({ shortId, linkId }: { shortId: string, 
     }
   }
 
-
-  if (status === 'invalid') {
-    return (
-        <div className="flex h-screen w-full flex-col items-center justify-center bg-background text-foreground p-4">
-            <h1 className="text-2xl font-bold">Link Not Available</h1>
-            <p className="mt-2 text-muted-foreground">This link has been disabled by the creator or an administrator.</p>
-        </div>
-    )
-  }
 
   if (status === 'not-found') {
     return notFound();
