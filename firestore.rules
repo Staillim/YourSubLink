@@ -1,11 +1,10 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
     
     function isAdmin() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
     function isOwner(userId) {
@@ -14,79 +13,82 @@ service cloud.firestore {
 
     // USERS Collection
     match /users/{userId} {
-      // Allow anyone to read a single user document. This is required for the /clicks rule to check accountStatus.
+      // Allow anyone to get a single user doc (needed for link page to check suspension status)
       allow get: if true;
-      // Allow authenticated users to list their own data, and admins to list all users.
-      allow list: if isOwner(userId) || isAdmin();
-      // Only the owner or an admin can update a profile.
+      // Allow admins to list all users
+      allow list: if isAdmin();
+      // Allow owner to update their own doc, but allow admins to update any doc
       allow update: if isOwner(userId) || isAdmin();
-      // Only admins can create or delete users through the rules.
+      // Only admins can create or delete users
       allow create, delete: if isAdmin();
     }
 
     // LINKS Collection
     match /links/{linkId} {
-      // Allow anyone to read a link document. This is required for the link page to load.
+      // Anyone can read link documents
       allow read: if true;
-      // Only authenticated users can create their own links.
+      // Only authenticated users can create links
       allow create: if isOwner(request.resource.data.userId);
-      // Only the owner or an admin can update a link.
+      // Owner or admin can update
       allow update: if isOwner(get(/databases/$(database)/documents/links/$(linkId)).data.userId) || isAdmin();
-      // Only the owner or an admin can delete a link.
+      // Only the link owner or an admin can delete a link
       allow delete: if isOwner(get(/databases/$(database)/documents/links/$(linkId)).data.userId) || isAdmin();
     }
 
     // CLICKS Collection
     match /clicks/{clickId} {
-      // Anyone can create a click log, but only if the link's owner is not suspended.
-      // This rule requires `allow get: if true;` on the /users collection to work for anonymous users.
-      allow create: if get(/databases/$(database)/documents/users/$(request.resource.data.userId)).data.accountStatus != 'suspended';
-
-      // No one can read, update, or delete click logs from the client. Admins will use backend functions.
+      // Anyone can create a click log.
+      allow create: if true;
+      // No one can read, update, or delete click logs from the client. This is a write-only collection from the client.
+      // Processing happens on the backend.
       allow read, update, delete: if false;
     }
 
     // PAYOUT REQUESTS Collection
     match /payoutRequests/{payoutId} {
       // Users can list and read their own payout requests.
-      allow read, list: if isOwner(resource.data.userId);
+      allow read: if isOwner(resource.data.userId);
       // Users can create their own payout requests.
       allow create: if isOwner(request.resource.data.userId);
-      // Admins can read and update any payout request.
-      allow get, update: if isAdmin();
-      // No one can delete payout requests from the client.
-      allow delete: if false;
+      // Admins have full access
+      allow write, list: if isAdmin();
     }
 
     // NOTIFICATIONS Collection
     match /notifications/{notificationId} {
       // Users can read their own notifications.
-      allow read, list: if isOwner(resource.data.userId);
-      // Admins can manage all notifications.
-      allow get, write: if isAdmin();
-      // Users cannot create, update, or delete notifications directly.
-      allow create, update, delete: if false;
+      allow read, update: if isOwner(resource.data.userId);
+      // Admins can read all notifications.
+      allow list: if isAdmin();
+      // Notifications are created by the server (or admin actions)
+      allow create, delete: if isAdmin();
     }
 
     // SUPPORT TICKETS Collection
     match /supportTickets/{ticketId} {
-      // Users can manage their own tickets.
+      // Users can read and write to their own tickets.
       allow read, write: if isOwner(resource.data.userId);
-      // Admins can manage any ticket.
+      // Admins can read and write to any ticket.
       allow get, list, write: if isAdmin();
       
+      // Nested messages collection
       match /messages/{messageId} {
         // Users can write messages to their own tickets.
-        allow create: if isOwner(get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId) || isAdmin();
+        allow create: if isOwner(get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId);
         // Only ticket owner and admins can read messages.
         allow read: if isOwner(get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId) || isAdmin();
+        
+        // Admins can also create messages (replies).
+        allow write: if isAdmin();
       }
     }
     
     // CPM HISTORY Collection
     match /cpmHistory/{historyId} {
-      // Only admins can read or write to the CPM history.
-      allow read, write: if isAdmin();
+      // Anyone can read the CPM history.
+      allow read: if true;
+      // Only admins can create/update CPM history.
+      allow write: if isAdmin();
     }
   }
 }
