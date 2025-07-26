@@ -18,14 +18,10 @@ service cloud.firestore {
     }
     
     match /links/{linkId} {
-      allow create: if isOwner(request.resource.data.userId) || isAdmin();
       allow read: if true;
-      // Allow owners or admins to update any field
-      allow update: if isOwner(resource.data.userId) || isAdmin();
-      // Allow anyone to update ONLY the click and earnings count.
-      // This is safe because `hasOnly` ensures no other fields can be changed.
-      // This rule is necessary for the client-side click counting to work for all visitors.
-      allow write: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks', 'generatedEarnings']);
+      allow create: if isOwner(request.resource.data.userId) || isAdmin();
+      allow update: if (isOwner(resource.data.userId) || isAdmin()) ||
+                      (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks', 'generatedEarnings']));
       allow delete: if isOwner(resource.data.userId) || isAdmin();
     }
     
@@ -48,7 +44,7 @@ service cloud.firestore {
     
     match /notifications/{notificationId} {
         allow read, list, update: if isOwner(resource.data.userId) || isAdmin();
-        allow create: if isAdmin();
+        allow create: if isAdmin() || request.resource.data.type == 'payout_requested';
     }
     
     match /supportTickets/{ticketId} {
