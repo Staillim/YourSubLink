@@ -202,10 +202,10 @@ export default function AdminLinksPage() {
                     description: `No suspicious activity detected for "${link.title}".`,
                 });
             }
-        } catch (error) {
+        } catch (error: any) {
              toast({
                 title: "Error during analysis",
-                description: "Could not complete the security analysis.",
+                description: error.message || "Could not complete the security analysis.",
                 variant: "destructive"
             });
         } finally {
