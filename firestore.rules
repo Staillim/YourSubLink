@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -15,23 +16,21 @@ service cloud.firestore {
     }
     
     function isAdmin() {
-      // Check for role might fail if the user document doesn't exist yet during creation.
-      // Use this carefully, usually for existing resources.
-      return isAuth() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      // Check if the user making the request has the 'admin' role in their user document.
+      // Use get() to read a document from a different path.
+      return isAuth() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
     // ============================================================
     // USERS Collection
     // ============================================================
     match /users/{userId} {
-      // READ:
-      // - Admins can read any user profile.
-      // - Authenticated users can read their own profile.
-      // - Authenticated users can read ANY user profile. This is required for the client
-      //   to check the `accountStatus` of the link creator.
-      allow get: if isAuth();
+      // READ (get):
+      // - Any visitor can read a user profile. This is necessary for the client to check
+      //   for account suspension or custom CPMs when processing a link visit.
+      allow get: if true;
       
-      // LIST:
+      // READ (list):
       // - Only admins can list multiple users.
       allow list: if isAdmin();
       
@@ -41,9 +40,9 @@ service cloud.firestore {
       allow update: if isAdmin() || (isOwner(userId) && request.resource.data.role == resource.data.role);
 
       // CREATE:
-      // - A user document is created via a server-side process (Firebase Auth trigger/useUser hook), not directly.
-      // - We allow creation if the user is creating their own document.
-      allow create: if isOwner(userId);
+      // - Users are created via a server-side process (Firebase Auth trigger), not directly.
+      //   So direct creation is denied.
+      allow create: if false;
 
       // DELETE:
       // - No one can delete user profiles directly.
@@ -54,49 +53,54 @@ service cloud.firestore {
     // LINKS Collection
     // ============================================================
     match /links/{linkId} {
-      // READ:
-      // - ANYONE can read a single link document. This is necessary for the redirection logic
-      //   in /link/[shortId]/ClientComponent.tsx to function correctly.
+      // READ (get):
+      // - Anyone can read a single link document if they have its ID.
+      //   This is used by the ClientComponent after the server finds the ID.
       allow get: if true;
       
-      // LIST:
-      // - Admins can list all links.
-      // - Authenticated users can list their own links.
-      allow list: if isAdmin() || (isAuth() && request.query.userId == request.auth.uid);
+      // READ (list):
+      // - An admin can list all links.
+      // - An authenticated user can list their own links.
+      // - Anyone can find a link using its shortId, but only one at a time.
+      //   This is crucial for the server-side lookup on the link page.
+      allow list: if isAdmin() || 
+                     (isAuth() && request.query.where.userId == request.auth.uid) ||
+                     (request.query.where.shortId != null && request.query.limit == 1);
       
       // CREATE:
       // - Only authenticated users can create links for themselves.
       allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
       
       // UPDATE:
-      // - Admins can update any link.
-      // - The owner of a link can update it.
-      // - ANYONE can update a link ONLY to increment clicks and generatedEarnings.
+      // - Admins can update any field on any link.
+      // - The owner of a link can update any field on their own link.
+      // - Anyone (including anonymous users) can update ONLY the 'clicks' field, and
+      //   it must be a simple increment of 1. This is for the raw visit count.
       allow update: if isAdmin() || 
-                     (isAuth() && resource.data.userId == request.auth.uid) ||
-                     (
-                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks', 'generatedEarnings']) &&
-                        request.resource.data.clicks == resource.data.clicks + 1
-                     );
+                     (isOwner(get(/databases/$(database)/documents/links/$(linkId)).data.userId)) ||
+                     (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks']) &&
+                      request.resource.data.clicks == resource.data.clicks + 1);
 
       // DELETE:
       // - Admins can delete any link.
       // - Authenticated users can delete their own links.
-      allow delete: if isAdmin() || (isAuth() && resource.data.userId == request.auth.uid);
+      allow delete: if isAdmin() || (isAuth() && get(/databases/$(database)/documents/links/$(linkId)).data.userId == request.auth.uid);
     }
     
-    // ============================================================
+     // ============================================================
     // CLICKS Collection
     // ============================================================
+    // This collection logs every visit.
     match /clicks/{clickId} {
-      // CREATE:
-      // - ANYONE can create a click log. This is a public write operation.
-      // - We validate that the incoming data has the expected fields.
-      allow create: if request.resource.data.keys().hasAll(['linkId', 'userId', 'timestamp', 'earningsGenerated']);
-      
-      // READ/LIST:
-      // - Only admins can read the raw click logs for analysis.
+      // READ: Only admins should be able to read the raw click logs.
       allow read, list: if isAdmin();
+
+      // CREATE: Anyone can create a click document. This allows anonymous visitors
+      // to register their visit. The document must contain the required fields.
+      allow create: if request.resource.data.keys().hasAll(['linkId', 'timestamp', 'userId', 'ip', 'userAgent', 'cookie']);
+      
+      // WRITE/DELETE: No modifications or deletions are allowed to preserve the log's integrity.
+      allow update, delete: if false;
     }
     
     // ============================================================
@@ -104,8 +108,7 @@ service cloud.firestore {
     // ============================================================
     match /payoutRequests/{payoutId} {
         // READ/LIST: Admins can see all requests, users can see their own.
-        allow get: if isAdmin() || (isAuth() && resource.data.userId == request.auth.uid);
-        allow list: if isAdmin() || (isAuth() && request.query.userId == request.auth.uid);
+        allow get, list: if isAdmin() || (isOwner(resource.data.userId));
         
         // CREATE: Authenticated users can create requests for themselves.
         allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
@@ -121,7 +124,8 @@ service cloud.firestore {
     // CPM HISTORY Collection
     // ============================================================
     match /cpmHistory/{historyId} {
-      // READ/LIST: Anyone can read CPM history (it's public, non-sensitive data for calculations).
+      // READ/LIST: Anyone can read CPM history. This is needed if the client-side
+      // needs to display rates, although current logic doesn't require it.
       allow get, list: if true;
       
       // WRITE: Only admins can create or update CPM rates.
@@ -133,15 +137,13 @@ service cloud.firestore {
     // ============================================================
     match /notifications/{notificationId} {
       // READ/LIST: Users can only read their own notifications. Admins can read all.
-      allow get: if isAdmin() || (isAuth() && resource.data.userId == request.auth.uid);
-      allow list: if isAdmin() || (isAuth() && request.query.userId == request.auth.uid);
+      allow get, list: if isAdmin() || (isOwner(resource.data.userId));
 
-      // CREATE: Server-side logic (or admins) create notifications.
-      // This rule is left open as notifications are created via trusted batch writes initiated by admins or system processes.
-      allow create: if true;
+      // CREATE: Server-side logic (or admins) create notifications. Not client-creatable.
+      allow create: if isAdmin();
 
       // UPDATE: Users can mark their own notifications as read. Admins can too.
-      allow update: if isAdmin() || (isAuth() && resource.data.userId == request.auth.uid);
+      allow update: if isAdmin() || (isOwner(resource.data.userId));
 
       // DELETE: No direct deletion.
       allow delete: if false;
@@ -152,22 +154,21 @@ service cloud.firestore {
     // ============================================================
     match /supportTickets/{ticketId} {
       // READ/LIST: Admins can see all tickets. Users can only see their own.
-      allow get: if isAdmin() || (isAuth() && resource.data.userId == request.auth.uid);
-      allow list: if isAdmin() || (isAuth() && request.query.userId == request.auth.uid);
+      allow get, list: if isAdmin() || (isOwner(resource.data.userId));
       
       // CREATE: Authenticated users can create tickets for themselves.
       allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
       
       // UPDATE: Admins can update any ticket. Users can update their own tickets.
-      allow update: if isAdmin() || (isAuth() && resource.data.userId == request.auth.uid);
+      allow update: if isAdmin() || (isOwner(get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId));
       
       // Nested MESSAGES collection
       match /messages/{messageId} {
         // READ/LIST: Admins and the ticket owner can read messages.
-        allow get, list: if isAdmin() || (isAuth() && get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId == request.auth.uid);
+        allow get, list: if isAdmin() || (isOwner(get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId));
         
         // CREATE: Admins can send messages. The ticket owner can send messages.
-        allow create: if isAuth();
+        allow create: if isAdmin() || (isOwner(get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId));
       }
     }
   }

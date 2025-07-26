@@ -15,13 +15,33 @@ import { notFound } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import LinkGate from '@/components/link-gate'; 
 import type { LinkData } from '@/types'; 
-import { db } from '@/lib/firebase';
-import { collection, doc, writeBatch, increment, serverTimestamp, getDoc } from 'firebase/firestore';
+import { db, auth } from '@/lib/firebase';
+import { collection, doc, writeBatch, increment, serverTimestamp, getDoc, query, where, getDocs, limit } from 'firebase/firestore';
+import { useAuthState } from 'react-firebase-hooks/auth';
+
+// Helper function to manage visitor cookie
+const getOrCreateVisitorCookie = (linkId: string): string => {
+    const cookieName = `visitor-id-${linkId}`;
+    let visitorId = document.cookie
+        .split('; ')
+        .find(row => row.startsWith(`${cookieName}=`))
+        ?.split('=')[1];
+    
+    if (!visitorId) {
+        visitorId = `${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
+        const expires = new Date();
+        expires.setFullYear(expires.getFullYear() + 1); // Set cookie for 1 year
+        document.cookie = `${cookieName}=${visitorId};expires=${expires.toUTCString()};path=/;SameSite=Lax;Secure`;
+    }
+    return visitorId;
+}
+
 
 export default function ClientComponent({ shortId, linkId }: { shortId: string, linkId: string }) {
   const [status, setStatus] = useState<'loading' | 'gate' | 'redirecting' | 'not-found' | 'invalid'>('loading');
   const [linkData, setLinkData] = useState<LinkData | null>(null);
   const [gateStartTime, setGateStartTime] = useState<number | null>(null);
+  const [user] = useAuthState(auth);
 
   useEffect(() => {
     if (!linkId) {
@@ -98,45 +118,18 @@ export default function ClientComponent({ shortId, linkId }: { shortId: string, 
         const linkRef = doc(db, 'links', dataToUse.id);
         const batch = writeBatch(db);
         
-        // 1. Increment the click counter
+        // 1. Increment the raw click counter on the link document.
         batch.update(linkRef, { clicks: increment(1) });
         
-        let earningsGenerated = 0;
-
-        // 2. If monetizable, calculate and increment earnings
-        if (dataToUse.monetizable) {
-            // The user document was already fetched, so we can assume it exists here
-            const userRef = doc(db, 'users', dataToUse.userId);
-            const userSnap = await getDoc(userRef);
-            const userData = userSnap.data();
-            const customCpm = userData?.customCpm;
-
-            let cpmUsed = 0;
-            if (customCpm != null && customCpm > 0) {
-                cpmUsed = customCpm;
-            } else {
-                // If no custom CPM, fetch the global one (already secured by rules)
-                const cpmHistoryRef = collection(db, 'cpmHistory');
-                const cpmQuery = query(cpmHistoryRef, where('endDate', '==', null), limit(1));
-                const cpmSnapshot = await getDocs(cpmQuery);
-                let activeCpm = 3.00; // Default fallback CPM
-                if (!cpmSnapshot.empty) {
-                    activeCpm = cpmSnapshot.docs[0].data().rate;
-                }
-                cpmUsed = activeCpm;
-            }
-            
-            earningsGenerated = cpmUsed / 1000;
-            batch.update(linkRef, { generatedEarnings: increment(earningsGenerated) });
-        }
-        
-        // 3. Create a log of the click
+        // 2. Create a detailed log of the visit in the 'clicks' collection.
         const clickLogRef = doc(collection(db, 'clicks'));
         batch.set(clickLogRef, {
             linkId: dataToUse.id,
-            userId: dataToUse.userId,
             timestamp: serverTimestamp(),
-            earningsGenerated: earningsGenerated,
+            userId: user ? user.uid : null, // Store userId if available
+            ip: null, // IP cannot be reliably collected from the client-side
+            userAgent: navigator.userAgent,
+            cookie: getOrCreateVisitorCookie(dataToUse.id),
         });
 
         await batch.commit();
