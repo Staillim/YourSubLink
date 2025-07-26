@@ -83,13 +83,17 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
     setStatus('redirecting');
 
     try {
-        // **Simplified Logic**: ONLY create a click document.
-        // A backend process (Cloud Function) will handle updating the main link counts.
+        // **Desacoplamiento del Conteo y Ganancias**
+        // La única responsabilidad del cliente es registrar que el clic ocurrió.
+        // Un proceso de backend (Cloud Function) se encargará de procesar estos
+        // registros para actualizar los contadores y las ganancias de manera segura.
         await addDoc(collection(db, 'clicks'), {
             linkId: dataToUse.id,
             userId: dataToUse.userId,
             timestamp: serverTimestamp(),
-            isProcessed: false, // Flag for backend processing
+            isProcessed: false, // Flag for the backend process
+            // Se guarda el estado de monetización en el momento del clic
+            // para que el backend sepa si debe generar ingresos para esta visita.
             monetizable: dataToUse.monetizable,
             monetizationStatus: dataToUse.monetizationStatus,
         });
@@ -97,7 +101,8 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
     } catch(error) {
         console.error("Failed to log click:", error);
     } finally {
-        // Redirect to the final destination regardless of whether the log was successful
+        // Redirigir siempre al destino, incluso si el registro del clic falla,
+        // para no afectar la experiencia del usuario.
         window.location.href = dataToUse.original;
     }
   }
