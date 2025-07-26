@@ -16,7 +16,7 @@ import { Loader2 } from 'lucide-react';
 import LinkGate from '@/components/link-gate'; 
 import type { LinkData } from '@/types'; 
 import { db, auth } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, writeBatch, increment, getDoc, addDoc, Timestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, addDoc, Timestamp } from 'firebase/firestore';
 
 export default function ClientComponent({ shortId }: { shortId: string }) {
   const [status, setStatus] = useState<'loading' | 'gate' | 'redirecting' | 'not-found' | 'invalid'>('loading');
@@ -89,12 +89,13 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
     setStatus('redirecting');
 
     try {
-        const clickLog = {
+        // This is the simplest, most reliable way to record a click.
+        // It contains only the essential information for a backend process to later
+        // calculate earnings without requiring any extra permissions on the client.
+        await addDoc(collection(db, 'clicks'), {
             linkId: dataToUse.id,
             timestamp: Timestamp.now(),
-            isProcessed: false,
-        };
-        await addDoc(collection(db, 'clicks'), clickLog);
+        });
     } catch(error) {
         console.error("Failed to count click:", error);
     } finally {
