@@ -1,11 +1,10 @@
 
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -21,9 +20,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Rule, RuleEditor } from '@/components/rule-editor';
+import { useUser } from '@/hooks/use-user';
+import type { MonetizationPeriod } from '@/types';
 
 export default function CreateLinkPage() {
-  const [user] = useAuthState(auth);
+  const { user, profile } = useUser();
   const router = useRouter();
   const { toast } = useToast();
 
@@ -45,11 +46,34 @@ export default function CreateLinkPage() {
 
   const handleShorten = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!longUrl || !title || !user) return;
+    if (!longUrl || !title || !user || !profile) return;
 
     startTransition(async () => {
       setShortenedUrl(null);
       try {
+        // Determine initial CPM
+        let initialCpm = 0;
+        if (rules.length >= 3) {
+            if (profile.customCpm) {
+                initialCpm = profile.customCpm;
+            } else {
+                const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
+                const cpmSnapshot = await getDocs(cpmQuery);
+                if (!cpmSnapshot.empty) {
+                    initialCpm = cpmSnapshot.docs[0].data().rate;
+                } else {
+                    initialCpm = 3.00; // Fallback global CPM
+                }
+            }
+        }
+        
+        const initialMonetization: MonetizationPeriod = {
+            status: rules.length >= 3 ? 'active' : 'suspended', // Suspended if not enough rules
+            cpm: initialCpm,
+            from: serverTimestamp(),
+            to: null,
+        };
+
         const shortId = Math.random().toString(36).substring(2, 8);
         const newLink = {
           userId: user.uid,
@@ -60,14 +84,13 @@ export default function CreateLinkPage() {
           title,
           description,
           rules,
-          monetizable: rules.length >= 3,
+          monetizationHistory: [initialMonetization],
           generatedEarnings: 0,
         };
         await addDoc(collection(db, "links"), newLink);
         const url = `${window.location.origin}/link/${shortId}`;
         setShortenedUrl(url);
 
-        // Automatically copy to clipboard and show toast
         navigator.clipboard.writeText(url);
         toast({
             title: "Link Copied!",

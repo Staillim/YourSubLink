@@ -19,23 +19,12 @@ import { collection, doc, writeBatch, increment, serverTimestamp, getDoc } from 
 import { useAuthState } from 'react-firebase-hooks/auth';
 
 
-// --- Funciones Helper para Cookies ---
-
-/**
- * Comprueba si existe una cookie de visitante para un link específico.
- * @param linkId - El ID del enlace.
- * @returns {boolean} - True si la cookie existe, false en caso contrario.
- */
 const hasVisitorCookie = (linkId: string): boolean => {
     if (typeof document === 'undefined') return false;
     const cookieName = `clipview-${linkId}`;
     return document.cookie.split(';').some((item) => item.trim().startsWith(`${cookieName}=`));
 };
 
-/**
- * Establece una cookie de visitante para un link específico con una duración de 1 hora.
- * @param linkId - El ID del enlace.
- */
 const setVisitorCookie = (linkId: string): void => {
     if (typeof document === 'undefined') return;
     const cookieName = `clipview-${linkId}`;
@@ -44,12 +33,6 @@ const setVisitorCookie = (linkId: string): void => {
     document.cookie = `${cookieName}=true;expires=${expires.toUTCString()};path=/;SameSite=Lax;Secure`;
 };
 
-/**
- * Genera o recupera un ID único para el visitante que se persiste por 1 año.
- * Se utiliza para análisis de duplicados más robusto en el backend.
- * @param linkId - El ID del enlace (usado para la clave de la cookie).
- * @returns {string} - El ID único del visitante.
- */
 const getOrCreatePersistentCookieId = (linkId: string): string => {
     if (typeof document === 'undefined') return 'server-side';
     const cookieName = `visitor-id-${linkId}`;
@@ -92,9 +75,7 @@ export default function ClientComponent({ shortId, linkId }: { shortId: string, 
         const data = linkDoc.data() as Omit<LinkData, 'id'>;
         const link: LinkData = { id: linkDoc.id, ...data };
 
-        // ✅ PASO 2: Validación de visita única por cookie
         if (hasVisitorCookie(link.id)) {
-            // Si la cookie existe, redirige directamente sin contar la visita.
             window.location.href = link.original;
             return;
         }
@@ -122,7 +103,6 @@ export default function ClientComponent({ shortId, linkId }: { shortId: string, 
     const dataToUse = finalLinkData || linkData;
     if (!dataToUse) return;
 
-    // Security check: Interaction Speed
     if (gateStartTime) {
         const completionTime = Date.now();
         const durationInSeconds = (completionTime - gateStartTime) / 1000;
@@ -147,8 +127,8 @@ export default function ClientComponent({ shortId, linkId }: { shortId: string, 
         batch.set(clickLogRef, {
             linkId: dataToUse.id,
             timestamp: serverTimestamp(),
-            userId: user ? user.uid : null, // Guarda el ID del usuario si está logueado
-            ip: null, // No se puede obtener la IP desde el cliente
+            userId: user ? user.uid : null,
+            ip: null,
             userAgent: navigator.userAgent,
             cookie: getOrCreatePersistentCookieId(dataToUse.id),
         });
