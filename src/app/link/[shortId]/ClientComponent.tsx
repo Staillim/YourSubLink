@@ -16,7 +16,7 @@ import { Loader2 } from 'lucide-react';
 import LinkGate from '@/components/link-gate'; 
 import type { LinkData } from '@/types'; 
 import { db, auth } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, writeBatch, increment, serverTimestamp, getDoc, addDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, writeBatch, increment, serverTimestamp, getDoc, addDoc, Timestamp } from 'firebase/firestore';
 
 export default function ClientComponent({ shortId }: { shortId: string }) {
   const [status, setStatus] = useState<'loading' | 'gate' | 'redirecting' | 'not-found' | 'invalid'>('loading');
@@ -41,6 +41,13 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
 
         const linkDoc = querySnapshot.docs[0];
         const data = linkDoc.data() as Omit<LinkData, 'id'>;
+        
+        // **Critical Check:** Verify if the link or the creator's account is suspended.
+        if (data.accountStatus === 'suspended' || data.monetizationStatus === 'suspended') {
+            setStatus('invalid');
+            return;
+        }
+
         const link: LinkData = { id: linkDoc.id, ...data };
         
         setLinkData(link);
