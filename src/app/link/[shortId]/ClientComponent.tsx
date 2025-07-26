@@ -1,3 +1,4 @@
+
 /**
  * !! ANTES DE EDITAR ESTE ARCHIVO, REVISA LAS DIRECTRICES EN LOS SIGUIENTES DOCUMENTOS: !!
  * - /README.md
@@ -62,8 +63,9 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
     }
 
     const processLinkVisit = async () => {
+        // Query for the link using the shortId
         const linksRef = collection(db, 'links');
-        const q = query(linksRef, where('shortId', '==', shortId));
+        const q = query(linksRef, where('shortId', '==', shortId), limit(1));
         const querySnapshot = await getDocs(q);
 
         if (querySnapshot.empty) {
@@ -75,6 +77,7 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
         const data = linkDoc.data() as Omit<LinkData, 'id'>;
         const link = { id: linkDoc.id, ...data };
         
+        // After finding the link, check the owner's status
         const userRef = doc(db, 'users', link.userId);
         const userDoc = await getDoc(userRef);
 
@@ -129,6 +132,8 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
 
         const batch = writeBatch(db);
         
+        // We only create a click document. We do not update the link document here
+        // as that is handled by the backend flow now.
         const clickLogRef = doc(collection(db, 'clicks'));
         batch.set(clickLogRef, {
             linkId: dataToUse.id,
@@ -141,7 +146,9 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
         await batch.commit();
 
     } catch(error) {
-        console.error("Failed to count click (this is expected if owner is suspended):", error);
+        // This catch block is important. If firestore rules reject the write,
+        // we will still redirect the user. The visit just won't be counted.
+        console.error("Failed to count click:", error);
     } finally {
         window.location.href = dataToUse.original;
     }
