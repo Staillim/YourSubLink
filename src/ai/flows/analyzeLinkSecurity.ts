@@ -11,7 +11,7 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, limit, Timestamp, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit, Timestamp } from 'firebase/firestore';
 
 const AnalyzeLinkSecurityInputSchema = z.object({
   linkId: z.string().describe("The ID of the link to analyze."),
@@ -106,10 +106,10 @@ const analyzeLinkSecurityFlow = ai.defineFlow(
     // Step 1: Fetch Clicks - with specific error handling
     let clicksSnapshot;
     try {
+        // Query without 'orderBy' to avoid needing a composite index.
         const clicksQuery = query(
           collection(db, 'clicks'),
           where('linkId', '==', input.linkId),
-          orderBy('timestamp', 'desc'),
           limit(200)
         );
         clicksSnapshot = await getDocs(clicksQuery);
@@ -129,13 +129,19 @@ const analyzeLinkSecurityFlow = ai.defineFlow(
     // Step 2: Process Timestamps - with specific error handling
     let clickTimestamps: string[];
     try {
-        clickTimestamps = clicksSnapshot.docs
+        const convertedDates = clicksSnapshot.docs
             .map(doc => {
                 const rawTimestamp = doc.data().timestamp;
-                const dateObject = convertToDate(rawTimestamp);
-                return dateObject ? dateObject.toISOString() : null;
+                return convertToDate(rawTimestamp);
             })
-            .filter((ts): ts is string => ts !== null);
+            .filter((date): date is Date => date !== null);
+        
+        // Sort the dates in memory (descending, most recent first)
+        convertedDates.sort((a, b) => b.getTime() - a.getTime());
+
+        // Convert sorted dates to ISO strings
+        clickTimestamps = convertedDates.map(date => date.toISOString());
+
     } catch (processingError) {
         throw new Error("Failed to process click timestamps.");
     }
