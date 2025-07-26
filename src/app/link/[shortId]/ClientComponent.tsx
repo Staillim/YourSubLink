@@ -15,10 +15,8 @@ import { notFound } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import LinkGate from '@/components/link-gate'; 
 import type { LinkData } from '@/types'; 
-import { db, auth } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
 import { collection, doc, writeBatch, increment, serverTimestamp, getDoc } from 'firebase/firestore';
-import { useAuthState } from 'react-firebase-hooks/auth';
-
 
 const hasVisitorCookie = (linkId: string): boolean => {
     if (typeof document === 'undefined') return false;
@@ -30,13 +28,13 @@ const setVisitorCookie = (linkId: string): void => {
     if (typeof document === 'undefined') return;
     const cookieName = `clipview-${linkId}`;
     const expires = new Date();
-    expires.setTime(expires.getTime() + (60 * 60 * 1000)); // 1 hora de duración
+    expires.setTime(expires.getTime() + (24 * 60 * 60 * 1000)); // 24 horas de duración
     document.cookie = `${cookieName}=true;expires=${expires.toUTCString()};path=/;SameSite=Lax;Secure`;
 };
 
-const getOrCreatePersistentCookieId = (linkId: string): string => {
-    if (typeof document === 'undefined') return 'server-side';
-    const cookieName = `visitor-id-${linkId}`;
+const getOrCreatePersistentCookieId = (): string => {
+    if (typeof document === 'undefined') return 'server-side-visitor';
+    const cookieName = `visitor-id`;
     let visitorId = document.cookie
         .split('; ')
         .find(row => row.startsWith(`${cookieName}=`))
@@ -57,7 +55,6 @@ export default function ClientComponent({ shortId, linkId }: { shortId: string, 
   const [errorMessage, setErrorMessage] = useState('');
   const [linkData, setLinkData] = useState<LinkData | null>(null);
   const [gateStartTime, setGateStartTime] = useState<number | null>(null);
-  const [user] = useAuthState(auth);
 
   useEffect(() => {
     if (!linkId) {
@@ -77,14 +74,10 @@ export default function ClientComponent({ shortId, linkId }: { shortId: string, 
         const data = linkDoc.data() as Omit<LinkData, 'id'>;
         const link: LinkData = { id: linkDoc.id, ...data };
 
-        // **CRITICAL CHECK**: Verify owner's account status *before* proceeding.
-        const ownerRef = doc(db, 'users', link.userId);
-        const ownerDoc = await getDoc(ownerRef);
-        if (!ownerDoc.exists() || ownerDoc.data().accountStatus === 'suspended') {
-            setErrorMessage('This link is not available because the owner\'s account is suspended.');
-            setStatus('error');
-            return;
-        }
+        // No es necesario verificar el estado del usuario aquí. Las reglas de Firestore lo harán
+        // al momento de intentar escribir el click. Si el propietario está suspendido,
+        // la operación fallará y se registrará en la consola, pero no bloqueará
+        // la redirección para no penalizar al visitante.
 
         if (hasVisitorCookie(link.id)) {
             window.location.href = link.original;
@@ -129,25 +122,21 @@ export default function ClientComponent({ shortId, linkId }: { shortId: string, 
     try {
         setVisitorCookie(dataToUse.id);
 
-        const linkRef = doc(db, 'links', dataToUse.id);
         const batch = writeBatch(db);
-        
-        batch.update(linkRef, { clicks: increment(1) });
         
         const clickLogRef = doc(collection(db, 'clicks'));
         batch.set(clickLogRef, {
             linkId: dataToUse.id,
             timestamp: serverTimestamp(),
-            userId: user ? user.uid : null,
             userAgent: navigator.userAgent,
-            cookie: getOrCreatePersistentCookieId(dataToUse.id),
+            cookie: getOrCreatePersistentCookieId(),
             processed: false, // Mark as unprocessed for the backend job
         });
 
         await batch.commit();
 
     } catch(error) {
-        console.error("Failed to count click:", error);
+        console.error("Failed to count click (this is expected if owner is suspended):", error);
     } finally {
         window.location.href = dataToUse.original;
     }
