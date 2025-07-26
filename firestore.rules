@@ -4,6 +4,10 @@ service cloud.firestore {
   match /databases/{database}/documents {
     
     function isAdmin() {
+      // Only allow reads if the user is authenticated
+      if (request.auth == null) {
+        return false;
+      }
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
     
@@ -18,14 +22,18 @@ service cloud.firestore {
     }
     
     match /links/{linkId} {
+      allow create: if isOwner(request.resource.data.userId);
       allow read: if true;
-      allow create: if isOwner(request.resource.data.userId) || isAdmin();
-      allow update: if (isOwner(resource.data.userId) || isAdmin()) ||
-                      (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks', 'generatedEarnings']));
+      // Allow general updates only by owner/admin
+      allow update: if isOwner(resource.data.userId) || isAdmin();
+      // Allow anyone to update ONLY the 'clicks' and 'generatedEarnings' fields.
+      // This is for the public-facing click counter.
+      allow write: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks', 'generatedEarnings']);
       allow delete: if isOwner(resource.data.userId) || isAdmin();
     }
     
     match /clicks/{clickId} {
+      // Allow anyone to create a click log entry.
       allow create: if true;
       allow read, list: if isAdmin();
     }
@@ -34,6 +42,7 @@ service cloud.firestore {
         allow create: if isOwner(request.resource.data.userId);
         allow read: if isOwner(resource.data.userId) || isAdmin();
         allow update: if isAdmin();
+        // Allow user to list their own requests, and admin to list all.
         allow list: if (request.query.where.path == 'userId' && request.query.where.value == request.auth.uid) || isAdmin();
     }
 
@@ -44,7 +53,7 @@ service cloud.firestore {
     
     match /notifications/{notificationId} {
         allow read, list, update: if isOwner(resource.data.userId) || isAdmin();
-        allow create: if isAdmin() || request.resource.data.type == 'payout_requested';
+        allow create: if isAdmin() || isOwner(request.resource.data.userId);
     }
     
     match /supportTickets/{ticketId} {
@@ -55,13 +64,10 @@ service cloud.firestore {
       
       match /messages/{messageId} {
         // Parent must exist for read/list. This is safe.
-        allow read, list: if isAdmin() || get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId == request.auth.uid;
+        allow read, list: if isOwner(get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId) || isAdmin();
         
         // On create (in a batch), parent does not exist yet. Check incoming data.
-        allow create: if isAdmin() || request.resource.data.senderId == request.auth.uid;
-        
-        // Update must check the parent doc status.
-        allow update: if isAdmin() || (get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.status != 'completed' && get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId == request.auth.uid);
+        allow create: if isOwner(request.resource.data.senderId) || request.resource.data.senderId == 'support';
       }
     }
   }
