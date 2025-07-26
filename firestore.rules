@@ -4,7 +4,7 @@ service cloud.firestore {
   match /databases/{database}/documents {
     
     function isAdmin() {
-      return request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
     
     function isOwner(userId) {
@@ -13,15 +13,15 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if request.auth != null;
-      allow create: if isOwner(userId);
+      allow create: if request.auth.uid == userId;
       allow update: if isOwner(userId) || isAdmin();
     }
     
     match /links/{linkId} {
       allow create: if isOwner(request.resource.data.userId) || isAdmin();
       allow read: if true;
-      allow update: if (isOwner(resource.data.userId) || isAdmin()) || 
-                      (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks', 'generatedEarnings']));
+      allow write: if isOwner(resource.data.userId) || isAdmin();
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks', 'generatedEarnings']);
       allow delete: if isOwner(resource.data.userId) || isAdmin();
     }
     
@@ -34,8 +34,7 @@ service cloud.firestore {
         allow create: if isOwner(request.resource.data.userId);
         allow read: if isOwner(resource.data.userId) || isAdmin();
         allow update: if isAdmin();
-        // The following rule is safe because we check the userId in the query on the client-side.
-        allow list: if request.auth != null || isAdmin();
+        allow list: if (request.query.where.path == 'userId' && request.query.where.value == request.auth.uid) || isAdmin();
     }
 
     match /cpmHistory/{cpmId} {
@@ -45,17 +44,24 @@ service cloud.firestore {
     
     match /notifications/{notificationId} {
         allow read, list, update: if isOwner(resource.data.userId) || isAdmin();
-        allow create: if isAdmin(); // Only admins can create global notifications
+        allow create: if isAdmin();
     }
     
     match /supportTickets/{ticketId} {
       allow create: if isOwner(request.resource.data.userId);
-      allow read, list: if isOwner(resource.data.userId) || isAdmin();
-      allow update: if isOwner(resource.data.userId) || isAdmin();
+      allow read: if isOwner(resource.data.userId) || isAdmin();
+      allow update: if isAdmin() || (isOwner(resource.data.userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastMessage', 'lastMessageTimestamp', 'isReadByAdmin', 'isReadByUser', 'status']));
+      allow list: if (request.query.where.path == 'userId' && request.query.where.value == request.auth.uid) || isAdmin();
       
       match /messages/{messageId} {
-        allow read, list: if isOwner(get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId) || isAdmin();
-        allow create: if isOwner(get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId) || isAdmin();
+        // Parent must exist for read/list. This is safe.
+        allow read, list: if isAdmin() || get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId == request.auth.uid;
+        
+        // On create (in a batch), parent does not exist yet. Check incoming data.
+        allow create: if isAdmin() || request.resource.data.senderId == request.auth.uid;
+        
+        // Update must check the parent doc status.
+        allow update: if isAdmin() || (get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.status != 'completed' && get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId == request.auth.uid);
       }
     }
   }
