@@ -15,7 +15,7 @@ import { notFound } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import LinkGate from '@/components/link-gate'; 
 import type { LinkData } from '@/types'; 
-import { db, auth } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, doc, addDoc, Timestamp } from 'firebase/firestore';
 
 export default function ClientComponent({ shortId }: { shortId: string }) {
@@ -43,8 +43,12 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
         const data = linkDoc.data() as Omit<LinkData, 'id'>;
         const link: LinkData = { id: linkDoc.id, ...data };
         
-        // Check for suspended links
-        if (link.accountStatus === 'suspended') {
+        // Check for suspended user accounts or suspended links
+        const userRef = doc(db, 'users', link.userId);
+        const userSnap = await getDoc(userRef);
+        const userData = userSnap.data();
+
+        if (userData?.accountStatus === 'suspended' || link.monetizationStatus === 'suspended') {
             setStatus('invalid');
             return;
         }
@@ -89,12 +93,9 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
     setStatus('redirecting');
 
     try {
-        // This is the simplest, most reliable way to record a click.
-        // It contains only the essential information for a backend process to later
-        // calculate earnings without requiring any extra permissions on the client.
         await addDoc(collection(db, 'clicks'), {
             linkId: dataToUse.id,
-            timestamp: Timestamp.now(),
+            timestamp: new Date(),
         });
     } catch(error) {
         console.error("Failed to count click:", error);
