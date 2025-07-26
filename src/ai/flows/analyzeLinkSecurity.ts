@@ -11,7 +11,7 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, limit, Timestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit, Timestamp, orderBy } from 'firebase/firestore';
 
 const AnalyzeLinkSecurityInputSchema = z.object({
   linkId: z.string().describe("The ID of the link to analyze."),
@@ -39,7 +39,7 @@ export async function analyzeLinkSecurity(input: AnalyzeLinkSecurityInput): Prom
 }
 
 const PromptInputSchema = AnalyzeLinkSecurityInputSchema.extend({
-    clickTimestamps: z.array(z.string()).describe("A list of click timestamps in ISO 8601 format."),
+    clickTimestamps: z.array(z.string()).describe("A list of click timestamps in ISO 8601 format, sorted from most recent to oldest."),
 });
 
 /**
@@ -76,7 +76,7 @@ const prompt = ai.definePrompt({
   output: { schema: AnalyzeLinkSecurityOutputSchema },
   prompt: `You are an expert fraud detection analyst for a link shortening service. Your task is to analyze a series of click timestamps for a specific link and determine if the activity seems robotic, fraudulent, or otherwise non-human.
 
-  Analyze the following list of click timestamps. Look for patterns like:
+  The timestamps are already sorted with the most recent click first. Analyze the following list of click timestamps. Look for patterns like:
   - Very rapid, successive clicks (e.g., multiple clicks within the same second).
   - Perfectly uniform intervals between clicks (e.g., one click exactly every 5.0 seconds).
   - Large bursts of activity in a very short time frame.
@@ -106,15 +106,17 @@ const analyzeLinkSecurityFlow = ai.defineFlow(
     // Step 1: Fetch Clicks - with specific error handling
     let clicksSnapshot;
     try {
-        // Query without 'orderBy' to avoid needing a composite index.
+        // This is the optimal query. It requires a composite index in Firestore.
+        // The index should be on: 'clicks' collection, 'linkId' (ascending), 'timestamp' (descending).
         const clicksQuery = query(
           collection(db, 'clicks'),
           where('linkId', '==', input.linkId),
+          orderBy('timestamp', 'desc'),
           limit(200)
         );
         clicksSnapshot = await getDocs(clicksQuery);
     } catch (dbError) {
-        throw new Error("Failed to query clicks from Firestore.");
+        throw new Error("Failed to query clicks from Firestore. A composite index is likely required.");
     }
 
     if (clicksSnapshot.empty) {
@@ -129,18 +131,13 @@ const analyzeLinkSecurityFlow = ai.defineFlow(
     // Step 2: Process Timestamps - with specific error handling
     let clickTimestamps: string[];
     try {
-        const convertedDates = clicksSnapshot.docs
+        clickTimestamps = clicksSnapshot.docs
             .map(doc => {
                 const rawTimestamp = doc.data().timestamp;
-                return convertToDate(rawTimestamp);
+                const date = convertToDate(rawTimestamp);
+                return date ? date.toISOString() : null;
             })
-            .filter((date): date is Date => date !== null);
-        
-        // Sort the dates in memory (descending, most recent first)
-        convertedDates.sort((a, b) => b.getTime() - a.getTime());
-
-        // Convert sorted dates to ISO strings
-        clickTimestamps = convertedDates.map(date => date.toISOString());
+            .filter((ts): ts is string => ts !== null);
 
     } catch (processingError) {
         throw new Error("Failed to process click timestamps.");
