@@ -2,61 +2,63 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    function isUserAuthenticated(userId) {
-      return request.auth != null && request.auth.uid == userId;
-    }
-
-    function isUserAdmin() {
-      return request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
-
-    match /users/{userId} {
-      allow read;
-      allow create: if isUserAuthenticated(userId);
-      allow update: if isUserAuthenticated(userId) || isUserAdmin();
-    }
-
+  
+    // Links: Publicly readable to get destination URL, but only owner can write.
     match /links/{linkId} {
-      allow read;
-      allow create: if isUserAuthenticated(request.resource.data.userId);
-      allow update: if isUserAuthenticated(resource.data.userId) || isUserAdmin();
-      allow delete: if isUserAuthenticated(resource.data.userId) || isUserAdmin();
-    }
+      allow read: if true;
+      allow create, update, delete: if request.auth.uid == resource.data.userId;
 
+      // Clicks subcollection can be written to by anyone, but not read.
+      // This is now DEPRECATED in favor of the root /clicks collection.
+      match /clicks/{clickId} {
+        allow read, write: if false; // Keep this locked down
+      }
+    }
+    
+    // Clicks Collection: ANYONE can create a click document. This is essential
+    // for anonymous visitors to register their visit. They cannot read, update, or delete.
     match /clicks/{clickId} {
-      // Any visitor can create a click log.
-      allow create: if get(/databases/$(database)/documents/links/$(request.resource.data.linkId)).data.userId != null &&
-                      get(/databases/$(database)/documents/users/$(get(/databases/$(database)/documents/links/$(request.resource.data.linkId)).data.userId)).data.accountStatus == 'active';
-      // Only admins should be able to update/delete click logs (e.g. for maintenance)
-      allow update, delete: if isUserAdmin();
-      allow read: if isUserAdmin();
-    }
-    
-    match /cpmHistory/{cpmId} {
-      allow read;
-      allow list;
-      allow create, update, delete: if isUserAdmin();
-    }
-    
-    match /payoutRequests/{payoutId} {
-      allow read: if isUserAuthenticated(resource.data.userId) || isUserAdmin();
-      allow list: if isUserAdmin();
-      allow create: if isUserAuthenticated(request.resource.data.userId);
-      allow update: if isUserAdmin();
+      allow create: if true;
+      allow read, update, delete: if false; // Nobody can read/change click logs directly
     }
 
+    // Users: Only the authenticated user can read/write their own document.
+    // Admins have special privileges defined below.
+    match /users/{userId} {
+      allow read, write: if request.auth.uid == userId;
+    }
+    
+    // Notifications: Only owner can manage their notifications.
     match /notifications/{notificationId} {
-      allow read, update: if isUserAuthenticated(resource.data.userId);
-      allow create: if isUserAuthenticated(request.resource.data.userId) || isUserAdmin();
+        allow read, write: if request.auth.uid == resource.data.userId;
     }
 
+    // CPM History: Readable by all authenticated users (for client-side calcs), writable only by admin.
+    match /cpmHistory/{historyId} {
+        allow read: if request.auth != null;
+        allow write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Payout Requests: Readable by owner or admin. Writable only by owner.
+    match /payoutRequests/{requestId} {
+        allow read: if request.auth.uid == resource.data.userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+        allow create: if request.auth.uid == request.resource.data.userId;
+        allow update: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    // Support Tickets: Accessible only by the user who created it or an admin.
     match /supportTickets/{ticketId} {
-        allow read, create, update: if isUserAuthenticated(request.auth.uid) || isUserAdmin();
-        
-        match /messages/{messageId} {
-             allow read, create, update: if isUserAuthenticated(request.auth.uid) || isUserAdmin();
-        }
+      allow read, create, update: if request.auth.uid == resource.data.userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      
+      match /messages/{messageId} {
+        allow read, create: if request.auth.uid == get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      }
+    }
+
+    // Admin-only access for listing collections
+    match /{document=**} {
+        // Admins can list users, links, payouts
+        allow list: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
   }
 }
