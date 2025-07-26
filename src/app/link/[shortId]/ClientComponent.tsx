@@ -15,8 +15,8 @@ import { notFound } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import LinkGate from '@/components/link-gate'; 
 import type { LinkData } from '@/types'; 
-import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, addDoc, Timestamp } from 'firebase/firestore';
+import { db, auth } from '@/lib/firebase';
+import { collection, query, where, getDocs, doc, writeBatch, increment, serverTimestamp, getDoc, addDoc } from 'firebase/firestore';
 
 export default function ClientComponent({ shortId }: { shortId: string }) {
   const [status, setStatus] = useState<'loading' | 'gate' | 'redirecting' | 'not-found' | 'invalid'>('loading');
@@ -43,16 +43,6 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
         const data = linkDoc.data() as Omit<LinkData, 'id'>;
         const link: LinkData = { id: linkDoc.id, ...data };
         
-        // Check for suspended user accounts or suspended links
-        const userRef = doc(db, 'users', link.userId);
-        const userSnap = await getDoc(userRef);
-        const userData = userSnap.data();
-
-        if (userData?.accountStatus === 'suspended' || link.monetizationStatus === 'suspended') {
-            setStatus('invalid');
-            return;
-        }
-
         setLinkData(link);
 
         const hasRules = link.rules && link.rules.length > 0;
@@ -93,6 +83,8 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
     setStatus('redirecting');
 
     try {
+        // The only task is to create a simple click document.
+        // It contains only the link ID and a client-side timestamp.
         await addDoc(collection(db, 'clicks'), {
             linkId: dataToUse.id,
             timestamp: new Date(),

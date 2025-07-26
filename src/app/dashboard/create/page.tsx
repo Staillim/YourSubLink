@@ -51,6 +51,8 @@ export default function CreateLinkPage() {
       setShortenedUrl(null);
       try {
         const shortId = Math.random().toString(36).substring(2, 8);
+        const isMonetizable = rules.length >= 3;
+        
         const newLink = {
           userId: user.uid,
           original: longUrl,
@@ -60,8 +62,15 @@ export default function CreateLinkPage() {
           title,
           description,
           rules,
-          monetizable: rules.length >= 3,
+          monetizable: isMonetizable,
           generatedEarnings: 0,
+          monetizationHistory: [
+            {
+                status: isMonetizable ? 'active' : 'inactive',
+                startDate: serverTimestamp(),
+                endDate: null
+            }
+          ]
         };
         await addDoc(collection(db, "links"), newLink);
         const url = `${window.location.origin}/link/${shortId}`;
