@@ -54,7 +54,10 @@ service cloud.firestore {
       // LIST:
       // - Admins can list all links.
       // - Authenticated users can list their own links.
-      allow list: if isAdmin() || (isAuth() && request.query.where.userId == request.auth.uid);
+      // - Anyone can list a link if they are querying specifically by shortId and asking for just one.
+      allow list: if isAdmin() || 
+                    (isAuth() && request.query.where.userId == request.auth.uid) ||
+                    (request.query.where.shortId is string && request.query.limit == 1);
       
       // CREATE:
       // - Only authenticated users can create links for themselves.
