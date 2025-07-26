@@ -19,6 +19,7 @@ import { db, auth } from '@/lib/firebase';
 import { collection, doc, writeBatch, increment, serverTimestamp, getDoc } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 
+
 // --- Funciones Helper para Cookies ---
 
 /**
@@ -99,6 +100,7 @@ export default function ClientComponent({ shortId, linkId }: { shortId: string, 
             return;
         }
         
+        // Comprobación de cuenta suspendida
         const userRef = doc(db, 'users', link.userId);
         const userSnap = await getDoc(userRef);
         
@@ -144,24 +146,20 @@ export default function ClientComponent({ shortId, linkId }: { shortId: string, 
     setStatus('redirecting');
 
     try {
-        // ✅ PASO 2: Establecer la cookie antes de registrar la visita.
         setVisitorCookie(dataToUse.id);
 
         const linkRef = doc(db, 'links', dataToUse.id);
         const batch = writeBatch(db);
         
-        // 1. Incrementa el contador de visitas brutas en el documento del enlace.
         batch.update(linkRef, { clicks: increment(1) });
         
-        // 2. Crea un registro detallado de la visita en la colección 'clicks'.
         const clickLogRef = doc(collection(db, 'clicks'));
         batch.set(clickLogRef, {
             linkId: dataToUse.id,
             timestamp: serverTimestamp(),
-            userId: user ? user.uid : null,
-            ip: null, // La IP no se puede obtener de forma fiable desde el cliente.
+            userId: user ? user.uid : null, // Guarda el ID del usuario si está logueado
+            ip: null, // No se puede obtener la IP desde el cliente
             userAgent: navigator.userAgent,
-            // 🧠 Opción extra: Guardar el ID persistente del visitante.
             cookie: getOrCreatePersistentCookieId(dataToUse.id),
         });
 
@@ -173,6 +171,7 @@ export default function ClientComponent({ shortId, linkId }: { shortId: string, 
         window.location.href = dataToUse.original;
     }
   }
+
 
   if (status === 'invalid') {
     return (
