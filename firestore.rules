@@ -2,63 +2,57 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-  
-    // Links: Publicly readable to get destination URL, but only owner can write.
+    
+    // Links can be read by anyone to display the LinkGate, but only the owner or an admin can modify them.
     match /links/{linkId} {
-      allow read: if true;
-      allow create, update, delete: if request.auth.uid == resource.data.userId;
-
-      // Clicks subcollection can be written to by anyone, but not read.
-      // This is now DEPRECATED in favor of the root /clicks collection.
-      match /clicks/{clickId} {
-        allow read, write: if false; // Keep this locked down
-      }
+      allow get: if true;
+      allow list, create, update, delete: if request.auth != null && (request.auth.uid == resource.data.userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
     }
-    
-    // Clicks Collection: ANYONE can create a click document. This is essential
-    // for anonymous visitors to register their visit. They cannot read, update, or delete.
+
+    // Clicks can be CREATED by anyone (to log a visit), but cannot be read or modified by users.
+    // This rule is critical for the link redirection flow to work correctly.
+    // Admins can read the clicks for analysis.
     match /clicks/{clickId} {
-      allow create: if true;
-      allow read, update, delete: if false; // Nobody can read/change click logs directly
-    }
-
-    // Users: Only the authenticated user can read/write their own document.
-    // Admins have special privileges defined below.
-    match /users/{userId} {
-      allow read, write: if request.auth.uid == userId;
-    }
-    
-    // Notifications: Only owner can manage their notifications.
-    match /notifications/{notificationId} {
-        allow read, write: if request.auth.uid == resource.data.userId;
-    }
-
-    // CPM History: Readable by all authenticated users (for client-side calcs), writable only by admin.
-    match /cpmHistory/{historyId} {
-        allow read: if request.auth != null;
-        allow write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
-
-    // Payout Requests: Readable by owner or admin. Writable only by owner.
-    match /payoutRequests/{requestId} {
-        allow read: if request.auth.uid == resource.data.userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-        allow create: if request.auth.uid == request.resource.data.userId;
-        allow update: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
-    
-    // Support Tickets: Accessible only by the user who created it or an admin.
-    match /supportTickets/{ticketId} {
-      allow read, create, update: if request.auth.uid == resource.data.userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      // Allow creation if the link exists and its owner is not suspended.
+      allow create: if request.resource.data.processed == false && exists(/databases/$(database)/documents/links/$(request.resource.data.linkId)) && get(/databases/$(database)/documents/links/$(request.resource.data.linkId)).data.accountStatus != 'suspended';
       
-      match /messages/{messageId} {
-        allow read, create: if request.auth.uid == get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-      }
+      // Only admins can read, update, or delete click logs.
+      allow read, update, delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // Admin-only access for listing collections
-    match /{document=**} {
-        // Admins can list users, links, payouts
-        allow list: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    // Users can only read/update their own profile. Admins can read/write any profile.
+    match /users/{userId} {
+      allow get, update: if request.auth != null && request.auth.uid == userId;
+      allow list, create, delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Payout requests can only be read by their owner or an admin. Only admins can modify them.
+    match /payoutRequests/{requestId} {
+      allow get, list: if request.auth != null && (request.auth.uid == resource.data.userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+      allow update, delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Notifications can only be accessed by the user they are intended for or an admin.
+    match /notifications/{notificationId} {
+      allow read, update, list: if request.auth != null && (request.auth.uid == resource.data.userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+      allow create, delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // CPM History is read-only for users, but writable by admins.
+    match /cpmHistory/{historyId} {
+        allow get, list: if request.auth != null;
+        allow create, update, delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Support tickets can be read/written by the owner or an admin.
+    match /supportTickets/{ticketId} {
+      allow get, list, create, update, delete: if request.auth != null && (request.auth.uid == resource.data.userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+      
+      // Messages within a ticket follow the same rule.
+      match /messages/{messageId} {
+        allow get, list, create, update, delete: if request.auth != null && (request.auth.uid == get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+      }
     }
   }
 }
