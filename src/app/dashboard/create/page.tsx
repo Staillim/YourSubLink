@@ -53,7 +53,9 @@ export default function CreateLinkPage() {
       try {
         // Determine initial CPM
         let initialCpm = 0;
-        if (rules.length >= 3) {
+        const isMonetizable = rules.length >= 3;
+
+        if (isMonetizable) {
             if (profile.customCpm) {
                 initialCpm = profile.customCpm;
             } else {
@@ -68,7 +70,7 @@ export default function CreateLinkPage() {
         }
         
         const initialMonetization: MonetizationPeriod = {
-            status: rules.length >= 3 ? 'active' : 'suspended', // Suspended if not enough rules
+            status: isMonetizable ? 'active' : 'suspended', // Suspended if not enough rules
             cpm: initialCpm,
             from: serverTimestamp(),
             to: null,

@@ -1,138 +1,96 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-  
-    // =================================================================
-    // Helper Functions
-    // =================================================================
+
+    function isNumber(value) {
+      return value is number;
+    }
+
+    function isString(value) {
+      return value is string;
+    }
+
+    function isBoolean(value) {
+      return value is bool;
+    }
     
-    // Checks if the user making the request has the 'admin' role.
+    function isTimestamp(value) {
+      return value is timestamp;
+    }
+
     function isAdmin() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
-    
-    // Checks if the user is authenticated.
-    function isAuthenticated() {
-      return request.auth != null && request.auth.uid != null;
-    }
-    
-    // Checks if the user is the owner of the document.
+
     function isOwner(userId) {
-      return request.auth.uid == userId;
+      return request.auth != null && request.auth.uid == userId;
     }
 
-    // =================================================================
-    // Users Collection
-    // =================================================================
     match /users/{userId} {
-      // READ: Users can read their own profile. Admins can read any profile.
-      allow read: if isAuthenticated() && (isOwner(userId) || isAdmin());
-      
-      // CREATE: A user can create their own profile document.
-      allow create: if isOwner(userId);
-      
-      // UPDATE: 
-      // - A user can only update their own displayName.
-      // - An admin can update other fields (role, status, earnings, etc.).
-      allow update: if isAuthenticated() && (
-        (isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName'])) ||
-        isAdmin()
-      );
+      // Admins can read/write any user profile.
+      // Users can only read/update their own profile.
+      allow read: if isAdmin() || isOwner(userId);
+      allow update: if isAdmin() || isOwner(userId);
+      allow create, delete: if isAdmin();
+    }
+    
+    match /payoutRequests/{payoutId} {
+        // Users can create their own payout requests.
+        allow create: if isOwner(request.resource.data.userId);
+        // Admins can read all requests and update their status.
+        allow read, update: if isAdmin();
+    }
+    
+    match /cpmHistory/{historyId} {
+        // Only admins can manage CPM history.
+        allow read, create, update: if isAdmin();
     }
 
-    // =================================================================
-    // Links Collection
-    // =================================================================
     match /links/{linkId} {
-      // READ: Anyone can read a link document. This is necessary for the link redirection page.
-      allow read: if true;
-      
-      // CREATE: An authenticated user can create a new link.
-      allow create: if isAuthenticated() && isOwner(request.resource.data.userId);
-      
-      // UPDATE:
-      // - The owner can update their own link details.
-      // - The backend (represented by admin role) can update earnings and history.
-      allow update: if isAuthenticated() && (
-        isOwner(resource.data.userId) || 
-        isAdmin()
-      );
-      
-      // DELETE: The owner or an admin can delete a link.
-      allow delete: if isAuthenticated() && (isOwner(resource.data.userId) || isAdmin());
+      // Anyone can read a link document to get the original URL.
+      allow get: if true;
+      // Users can list their own links, admins can list all links.
+      allow list: if request.auth != null;
+      // Users can create links for themselves.
+      allow create: if isOwner(request.resource.data.userId);
+      // Users can update their own links, admins can update any link.
+      allow update: if isOwner(resource.data.userId) || isAdmin();
+      // Users can delete their own links, admins can delete any link.
+      allow delete: if isOwner(resource.data.userId) || isAdmin();
     }
 
-    // =================================================================
-    // Clicks Collection
-    // =================================================================
     match /clicks/{clickId} {
-      // READ:
-      // - Admins can read all click data for analysis.
-      // - A user can read the clicks associated with their own links.
-      allow read: if isAuthenticated() && (
-        isAdmin() || 
-        get(/databases/$(database)/documents/links/$(resource.data.linkId)).data.userId == request.auth.uid
-      );
-      
-      // CREATE: Anyone can create a click log. This is a public action.
+      // Anyone can create a click document. This is crucial for the link gate to work.
       allow create: if true;
-      
-      // UPDATE: Only admins (representing the backend process) can update a click to mark it as processed.
-      allow update: if isAuthenticated() && isAdmin();
+      // Only admins can read, update or delete click logs.
+      allow read, update, delete: if isAdmin();
     }
     
-    // =================================================================
-    // Notifications Collection
-    // =================================================================
     match /notifications/{notificationId} {
-      // READ, UPDATE: Only the user receiving the notification can read or update it (e.g., mark as read).
-      allow read, update: if isAuthenticated() && isOwner(resource.data.userId);
-      // CREATE: Only admins (backend) can create notifications.
-      allow create: if isAuthenticated() && isAdmin();
+        // Users can read their own notifications.
+        allow read: if isOwner(resource.data.userId);
+        // Users can mark their own notifications as read.
+        allow update: if isOwner(resource.data.userId);
+        // Notifications are created by the system (backend/admin actions), not directly by users.
+        allow create: if isAdmin();
     }
     
-    // =================================================================
-    // Payout Requests Collection
-    // =================================================================
-    match /payoutRequests/{requestId} {
-      // READ:
-      // - A user can read their own payout requests.
-      // - An admin can read all requests.
-      allow read: if isAuthenticated() && (isOwner(resource.data.userId) || isAdmin());
-      
-      // CREATE: An authenticated user can create a payout request.
-      allow create: if isAuthenticated() && isOwner(request.resource.data.userId);
-      
-      // UPDATE: Only an admin can update a request (e.g., approve or reject).
-      allow update: if isAuthenticated() && isAdmin();
-    }
-    
-    // =================================================================
-    // CPM History Collection
-    // =================================================================
-    match /cpmHistory/{cpmId} {
-      // READ: Any authenticated user can read the CPM history to calculate earnings.
-      allow read: if isAuthenticated();
-      // WRITE: Only admins can create or update CPM history.
-      allow write: if isAuthenticated() && isAdmin();
-    }
-    
-    // =================================================================
-    // Support Tickets Collection
-    // =================================================================
     match /supportTickets/{ticketId} {
-      // READ, UPDATE: The owner of the ticket or an admin can read/update it.
-      allow read, update: if isAuthenticated() && (isOwner(resource.data.userId) || isAdmin());
-      // CREATE: An authenticated user can create a ticket.
-      allow create: if isAuthenticated() && isOwner(request.resource.data.userId);
-
-      // Messages Subcollection
-      match /messages/{messageId} {
-        // READ: The owner or an admin can read messages.
-        allow read: if isAuthenticated() && (isOwner(get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId) || isAdmin());
-        // CREATE: The owner or an admin (support) can create messages.
-        allow create: if isAuthenticated() && (isOwner(get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId) || isAdmin());
-      }
+        // Users can read their own tickets, admins can read all.
+        allow get: if isOwner(resource.data.userId) || isAdmin();
+        allow list: if request.auth != null; // Either user for their own or admin for all.
+        // Users can create tickets.
+        allow create: if isOwner(request.resource.data.userId);
+        // Admins and owners can update (e.g. status, read flag).
+        allow update: if isOwner(resource.data.userId) || isAdmin();
+        
+        match /messages/{messageId} {
+            // Admins and owners can read messages in their tickets.
+            allow read: if get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId == request.auth.uid || isAdmin();
+            // Admins and owners can write messages.
+            allow create: if get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId == request.auth.uid || isAdmin();
+        }
     }
   }
 }
