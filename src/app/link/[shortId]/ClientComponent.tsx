@@ -93,21 +93,21 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
     try {
         const batch = writeBatch(db);
         
-        // Use the link's ID to reference it, and add the owner's userId to the click data
+        // 1. Create a log of the click with a 'processed: false' status
         const clickLogRef = doc(collection(db, 'clicks'));
         const clickPayload = {
             linkId: dataToUse.id,
-            userId: dataToUse.userId, // This is crucial for the security rule
+            userId: dataToUse.userId,
             timestamp: serverTimestamp(),
             processed: false,
         };
-
         batch.set(clickLogRef, clickPayload);
         
-        // Increment the local click counter on the link document itself
+        // 2. Increment the local click counter on the link document itself
         const linkRef = doc(db, 'links', dataToUse.id);
         batch.update(linkRef, { clicks: increment(1) });
         
+        // Commit both operations atomically
         await batch.commit();
 
     } catch(error) {
