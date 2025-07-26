@@ -16,7 +16,7 @@ import { Loader2 } from 'lucide-react';
 import LinkGate from '@/components/link-gate'; 
 import type { LinkData } from '@/types'; 
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, writeBatch, increment, serverTimestamp, getDoc, limit } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, writeBatch, serverTimestamp, getDoc, limit } from 'firebase/firestore';
 
 const hasVisitorCookie = (linkId: string): boolean => {
     if (typeof document === 'undefined') return false;
@@ -133,14 +133,17 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
         const batch = writeBatch(db);
         
         const clickLogRef = doc(collection(db, 'clicks'));
-        batch.set(clickLogRef, {
+        
+        const clickPayload = {
             linkId: dataToUse.id,
-            userId: dataToUse.userId,
+            userId: dataToUse.userId, // Send userId for the security rule
             timestamp: serverTimestamp(),
             userAgent: navigator.userAgent,
             cookie: getOrCreatePersistentCookieId(),
             processed: false,
-        });
+        };
+        
+        batch.set(clickLogRef, clickPayload);
 
         await batch.commit();
 
