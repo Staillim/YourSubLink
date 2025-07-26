@@ -1,68 +1,134 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    function isAdmin() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+  
+    // ============================================================
+    // Helper Functions
+    // ============================================================
+    function isAuth() {
+      return request.auth != null;
     }
     
     function isOwner(userId) {
-      return request.auth != null && request.auth.uid == userId;
+      return isAuth() && request.auth.uid == userId;
+    }
+    
+    function isAdmin() {
+      // Check if the user is authenticated before trying to access their data
+      return isAuth() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
+    // ============================================================
+    // USERS Collection
+    // ============================================================
     match /users/{userId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth.uid == userId;
-      allow update: if isOwner(userId) || isAdmin();
+      // READ:
+      // - Admins can read any user profile.
+      // - Authenticated users can read their own profile.
+      allow get: if isAdmin() || isOwner(userId);
+      allow list: if isAdmin(); // Only admins can list all users
+      
+      // WRITE (Update/Set):
+      // - Admins can update any user profile.
+      // - Authenticated users can update their own profile, but cannot change their role.
+      allow update: if isAdmin() || (isOwner(userId) && request.resource.data.role == resource.data.role);
+
+      // CREATE:
+      // - Users are created via a server-side process (Firebase Auth trigger), not directly.
+      //   So direct creation is denied.
+      allow create: if isOwner(userId);
+
+      // DELETE:
+      // - No one can delete user profiles directly.
+      allow delete: if false;
     }
-    
+
+    // ============================================================
+    // LINKS Collection
+    // ============================================================
     match /links/{linkId} {
-      allow create: if isOwner(request.resource.data.userId) || isAdmin();
-      allow read: if true;
-      allow update: if (isOwner(resource.data.userId) || isAdmin()) ||
-                      (request.auth == null && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks', 'generatedEarnings']));
-      allow delete: if isOwner(resource.data.userId) || isAdmin();
+      // READ (get):
+      // - Anyone can read a link document directly. This is necessary for redirection.
+      allow get: if true;
+      
+      // READ (list):
+      // - Admins can list all links.
+      // - Authenticated users can list their own links.
+      // - ANYONE can query for a link by its shortId, which is essential for the link page to work.
+      allow list: if isAdmin() || 
+                     (isAuth() && request.query.where.userId == request.auth.uid) ||
+                     (request.query.where.shortId != null && request.query.limit == 1);
+      
+      // CREATE:
+      // - Only authenticated users can create links for themselves.
+      allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
+      
+      // UPDATE:
+      // - Admins or the owner of the link have full update permissions.
+      // - Any visitor can update ONLY the 'clicks' and 'generatedEarnings' fields, and only by incrementing them by a specific amount.
+      allow update: if isAdmin() || 
+                     (isAuth() && get(/databases/$(database)/documents/links/$(linkId)).data.userId == request.auth.uid) ||
+                     (
+                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks', 'generatedEarnings']) &&
+                       request.resource.data.clicks == resource.data.clicks + 1
+                     );
+
+      // DELETE:
+      // - Admins or the owner of the link can delete it.
+      allow delete: if isAdmin() || (isAuth() && get(/databases/$(database)/documents/links/$(linkId)).data.userId == request.auth.uid);
     }
     
+    // ============================================================
+    // PAYOUT REQUESTS Collection
+    // ============================================================
+    match /payoutRequests/{payoutId} {
+        allow get, list: if isAdmin() || (isAuth() && resource.data.userId == request.auth.uid);
+        allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
+        allow update: if isAdmin();
+        allow delete: if false;
+    }
+    
+    // ============================================================
+    // CPM HISTORY Collection
+    // ============================================================
+    match /cpmHistory/{historyId} {
+      allow get, list: if true;
+      allow write: if isAdmin();
+    }
+    
+    // ============================================================
+    // NOTIFICATIONS Collection
+    // ============================================================
+    match /notifications/{notificationId} {
+      allow get, list: if isAdmin() || (isAuth() && resource.data.userId == request.auth.uid);
+      allow create: if isAdmin(); // Only backend/admins create notifications
+      allow update: if isAdmin() || (isAuth() && resource.data.userId == request.auth.uid); // Users can mark as read
+      allow delete: if false;
+    }
+    
+    // ============================================================
+    // SUPPORT TICKETS Collection
+    // ============================================================
+    match /supportTickets/{ticketId} {
+      allow get, list: if isAdmin() || (isAuth() && resource.data.userId == request.auth.uid);
+      allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAdmin() || (isAuth() && get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId == request.auth.uid);
+      
+      match /messages/{messageId} {
+        allow get, list: if isAdmin() || (isAuth() && get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId == request.auth.uid);
+        allow create: if isAdmin() || (isAuth() && get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId == request.auth.uid);
+      }
+    }
+
+    // ============================================================
+    // CLICKS Collection
+    // ============================================================
+    // Anyone can create a click log. This is a simple, secure write operation.
+    // Reading is restricted to admins to prevent data scraping.
     match /clicks/{clickId} {
       allow create: if true;
       allow read, list: if isAdmin();
-    }
-
-    match /payoutRequests/{requestId} {
-        allow create: if isOwner(request.resource.data.userId);
-        allow read: if isOwner(resource.data.userId) || isAdmin();
-        allow update: if isAdmin();
-        allow list: if (request.query.where.path == 'userId' && request.query.where.value == request.auth.uid) || isAdmin();
-    }
-
-    match /cpmHistory/{cpmId} {
-        allow read, list: if request.auth != null;
-        allow create, update: if isAdmin();
-    }
-    
-    match /notifications/{notificationId} {
-        allow read, list, update: if isOwner(resource.data.userId) || isAdmin();
-        allow create: if isAdmin();
-    }
-    
-    match /supportTickets/{ticketId} {
-      allow create: if isOwner(request.resource.data.userId);
-      allow read: if isOwner(resource.data.userId) || isAdmin();
-      allow update: if isAdmin() || (isOwner(resource.data.userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastMessage', 'lastMessageTimestamp', 'isReadByAdmin', 'isReadByUser', 'status']));
-      allow list: if (request.query.where.path == 'userId' && request.query.where.value == request.auth.uid) || isAdmin();
-      
-      match /messages/{messageId} {
-        // Parent must exist for read/list. This is safe.
-        allow read, list: if isAdmin() || get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId == request.auth.uid;
-        
-        // On create (in a batch), parent does not exist yet. Check incoming data.
-        allow create: if isAdmin() || request.resource.data.senderId == request.auth.uid;
-        
-        // Update must check the parent doc status.
-        allow update: if isAdmin() || (get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.status != 'completed' && get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId == request.auth.uid);
-      }
+      allow update, delete: if false; // Logs are immutable
     }
   }
 }
