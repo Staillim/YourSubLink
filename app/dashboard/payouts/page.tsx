@@ -53,14 +53,6 @@ export default function PayoutsPage() {
             toast({ title: 'Insufficient Balance', description: 'You cannot request more than your available balance.', variant: 'destructive' });
             return;
         }
-        if (!method) {
-            toast({ title: 'Payment Method Required', description: 'Please select a payment method.', variant: 'destructive' });
-            return;
-        }
-        if (!details.trim()) {
-            toast({ title: 'Payment Details Required', description: 'Please provide your payment details (e.g., email or phone number).', variant: 'destructive' });
-            return;
-        }
 
         setIsSubmitting(true);
         try {
@@ -158,11 +150,11 @@ export default function PayoutsPage() {
                         <div className="grid gap-4 py-4">
                              <div className="space-y-2">
                                 <Label>Amount ($)</Label>
-                                <Input required type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder={`e.g. ${availableBalance.toFixed(2)}`} step="0.01" />
+                                <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder={`e.g. ${availableBalance.toFixed(2)}`} step="0.01" />
                             </div>
                             <div className="space-y-2">
                                 <Label>Payment Method</Label>
-                                <Select required onValueChange={setMethod} value={method}>
+                                <Select onValueChange={setMethod} value={method}>
                                     <SelectTrigger>
                                         <SelectValue placeholder="Select a method" />
                                     </SelectTrigger>
@@ -175,7 +167,7 @@ export default function PayoutsPage() {
                             </div>
                             <div className="space-y-2">
                                 <Label>Payment Details</Label>
-                                <Input required value={details} onChange={e => setDetails(e.target.value)} placeholder="Your PayPal email or phone number" />
+                                <Input value={details} onChange={e => setDetails(e.target.value)} placeholder="Your PayPal email or phone number" />
                             </div>
                         </div>
                         <DialogFooter>
