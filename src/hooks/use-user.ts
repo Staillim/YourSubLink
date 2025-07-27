@@ -54,6 +54,8 @@ export function useUser() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [payouts, setPayouts] = useState<PayoutRequest[]>([]);
   const [cpmHistory, setCpmHistory] = useState<CpmHistory[]>([]);
+  const [earningsFromGlobalCpm, setEarningsFromGlobalCpm] = useState(0);
+  const [earningsFromCustomCpm, setEarningsFromCustomCpm] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -75,12 +77,45 @@ export function useUser() {
     let profileLoaded = false;
     let payoutsLoaded = false;
     let cpmLoaded = false;
+    let earningsCalculated = false;
 
     const checkLoadingComplete = () => {
-        if (profileLoaded && payoutsLoaded && cpmLoaded) {
+        if (profileLoaded && payoutsLoaded && cpmLoaded && earningsCalculated) {
             setLoading(false);
         }
     };
+    
+    // Fetch user earnings breakdown
+    const calculateEarningsBreakdown = async () => {
+        const clicksQuery = query(collection(db, 'clicks'), where('userId', '==', authUser.uid), where('processed', '==', true));
+        const clicksSnapshot = await getDocs(clicksQuery);
+        
+        let globalEarnings = 0;
+        let customEarnings = 0;
+
+        const globalRate = cpmHistory.find(c => !c.endDate)?.rate || 0;
+
+        clicksSnapshot.forEach(doc => {
+            const clickData = doc.data();
+            const cpmForClick = clickData.cpmUsed || 0;
+            const earningsForClick = clickData.earningsGenerated || 0;
+            
+            // If the CPM used for the click matches the current global CPM, it's global.
+            // This is an approximation but sufficient for this breakdown.
+            // A more precise way would be to check if the user had a custom CPM at the time of the click.
+            if (cpmForClick === globalRate) {
+                globalEarnings += earningsForClick;
+            } else {
+                customEarnings += earningsForClick;
+            }
+        });
+
+        setEarningsFromGlobalCpm(globalEarnings);
+        setEarningsFromCustomCpm(customEarnings);
+        earningsCalculated = true;
+        checkLoadingComplete();
+    };
+
 
     const userDocRef = doc(db, 'users', authUser.uid);
     const unsubProfile = onSnapshot(userDocRef, async (userDoc) => {
@@ -127,6 +162,10 @@ export function useUser() {
         const historyData: CpmHistory[] = snapshot.docs.map(doc => doc.data() as CpmHistory);
         setCpmHistory(historyData);
         cpmLoaded = true;
+        // When CPM history is loaded, we can calculate earnings breakdown
+        if (authUser) {
+            calculateEarningsBreakdown();
+        }
         checkLoadingComplete();
     });
 
@@ -170,6 +209,8 @@ export function useUser() {
     availableBalance,
     activeCpm,
     hasCustomCpm,
-    globalActiveCpm
+    globalActiveCpm,
+    earningsFromGlobalCpm,
+    earningsFromCustomCpm,
   };
 }
