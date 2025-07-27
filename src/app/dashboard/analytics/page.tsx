@@ -47,19 +47,11 @@ export default function AnalyticsPage() {
   const { user, profile, loading } = useUser();
   const [links, setLinks] = useState<LinkItem[]>([]);
   const [cpmHistory, setCpmHistory] = useState<CpmHistory[]>([]);
-  const [linksLoading, setLinksLoading] = useState(true);
-
-  // States to track individual data loads
-  const [linksDataLoaded, setLinksDataLoaded] = useState(false);
-  const [cpmDataLoaded, setCpmDataLoaded] = useState(false);
-
+  const [dataLoading, setDataLoading] = useState(true);
 
   useEffect(() => {
     if (user) {
-      setLinksLoading(true);
-      setLinksDataLoaded(false);
-      setCpmDataLoaded(false);
-
+      setDataLoading(true);
       const linksQuery = query(collection(db, "links"), where("userId", "==", user.uid));
       const cpmQuery = query(collection(db, 'cpmHistory'), orderBy('startDate', 'desc'));
 
@@ -84,38 +76,33 @@ export default function AnalyticsPage() {
           });
         });
         setLinks(linksData);
-        setLinksDataLoaded(true);
       });
       
       const unsubCpm = onSnapshot(cpmQuery, (snapshot) => {
           const historyData: CpmHistory[] = snapshot.docs.map(doc => doc.data() as CpmHistory);
           setCpmHistory(historyData);
-          setCpmDataLoaded(true);
       });
+      
+      // Since useUser handles its own loading state, we can rely on that.
+      // And we listen to CPM and links separately.
+      if (!loading) {
+        setDataLoading(false);
+      }
       
       return () => {
         unsubLinks();
         unsubCpm();
       }
     } else if (!loading) {
-        setLinksLoading(false);
+        setDataLoading(false);
     }
   }, [user, loading]);
-  
-  useEffect(() => {
-    // We combine the main user loading state with the specific data loading states
-    if (!loading && linksDataLoaded && cpmDataLoaded) {
-      setLinksLoading(false);
-    }
-  }, [loading, linksDataLoaded, cpmDataLoaded]);
 
   const totalClicks = links.reduce((acc, link) => acc + link.clicks, 0);
   const totalEarnings = links.reduce((acc, link) => acc + (link.generatedEarnings || 0), 0);
   
-  // Determine the active CPM to display
   const globalActiveCpm = cpmHistory.find(c => !c.endDate)?.rate || 0;
   const activeCpm = profile?.customCpm != null ? profile.customCpm : globalActiveCpm;
-  
   const hasCustomCpm = profile?.customCpm != null;
 
   const getMonthlyChartData = () => {
@@ -153,7 +140,7 @@ export default function AnalyticsPage() {
   })).sort((a,b) => b.earnings - a.earnings);
 
 
-  if (loading || linksLoading) {
+  if (loading || dataLoading) {
       return (
         <>
             <div className="flex items-center">
