@@ -22,7 +22,7 @@ import {
     TableRow,
   } from '@/components/ui/table';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
-import { DollarSign, Eye, ArrowUp } from 'lucide-react';
+import { DollarSign, Eye, ArrowUp, Star } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { LinkItem } from '../page';
 import { format, getMonth, getYear } from 'date-fns';
@@ -87,10 +87,10 @@ export default function AnalyticsPage() {
             const month = getMonth(new Date(link.date));
             const key = `${currentYear}-${month}`;
             
-            if (monthlyEarnings[key]) {
-                monthlyEarnings[key] += link.generatedEarnings;
+            if (monthlyEarnings[monthKey]) {
+                monthlyEarnings[monthKey] += link.generatedEarnings;
             } else {
-                monthlyEarnings[key] = link.generatedEarnings;
+                monthlyEarnings[monthKey] = link.generatedEarnings;
             }
         }
     });
@@ -157,7 +157,7 @@ export default function AnalyticsPage() {
                       <p className="text-xs text-muted-foreground">Across all your links</p>
                   </CardContent>
               </Card>
-              <Card>
+              <Card className={hasCustomCpm ? 'border-primary' : ''}>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                       <CardTitle className="text-sm font-medium">Active CPM</CardTitle>
                        <DollarSign className="h-4 w-4 text-muted-foreground" />
@@ -166,7 +166,7 @@ export default function AnalyticsPage() {
                       <div className="text-2xl font-bold">${typeof activeCpm === 'number' ? activeCpm.toFixed(4) : '0.0000'}</div>
                       {hasCustomCpm ? (
                         <div className="text-xs text-muted-foreground flex items-center gap-1">
-                           <ArrowUp className="h-3 w-3 text-green-500"/>
+                           <Star className="h-3 w-3 text-yellow-500"/>
                            <span>Your custom rate (Global: ${typeof globalActiveCpm === 'number' ? globalActiveCpm.toFixed(4) : '0.0000'})</span>
                         </div>
                       ) : (
