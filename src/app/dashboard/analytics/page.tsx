@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -23,7 +22,7 @@ import {
     TableRow,
   } from '@/components/ui/table';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
-import { DollarSign, Eye, ArrowUp, Globe, Star } from 'lucide-react';
+import { DollarSign, Eye, ArrowUp } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { LinkItem } from '../page';
 import { format, getMonth, getYear } from 'date-fns';
@@ -43,9 +42,7 @@ export default function AnalyticsPage() {
     totalEarnings, 
     activeCpm, 
     hasCustomCpm, 
-    globalActiveCpm,
-    earningsFromGlobalCpm,
-    earningsFromCustomCpm
+    globalActiveCpm 
   } = useUser();
   const [links, setLinks] = useState<LinkItem[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
@@ -133,8 +130,7 @@ export default function AnalyticsPage() {
                 <h1 className="text-lg font-semibold md:text-2xl">Analytics</h1>
             </div>
             <div className="grid gap-6">
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                    <Skeleton className="h-28" />
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                     <Skeleton className="h-28" />
                     <Skeleton className="h-28" />
                     <Skeleton className="h-28" />
@@ -152,7 +148,7 @@ export default function AnalyticsPage() {
         <h1 className="text-lg font-semibold md:text-2xl">Analytics</h1>
       </div>
       <div className="grid gap-6">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                       <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
@@ -160,27 +156,17 @@ export default function AnalyticsPage() {
                   </CardHeader>
                   <CardContent>
                       <div className="text-2xl font-bold">${totalEarnings.toFixed(4)}</div>
-                      <p className="text-xs text-muted-foreground">Sum of all earnings</p>
-                  </CardContent>
-              </Card>
-               <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">Earnings (Global CPM)</CardTitle>
-                      <Globe className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                      <div className="text-2xl font-bold">${earningsFromGlobalCpm.toFixed(4)}</div>
-                      <p className="text-xs text-muted-foreground">From the standard platform rate</p>
+                      <p className="text-xs text-muted-foreground">Based on total monetizable clicks</p>
                   </CardContent>
               </Card>
               <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">Earnings (Custom CPM)</CardTitle>
-                      <Star className="h-4 w-4 text-muted-foreground" />
+                      <CardTitle className="text-sm font-medium">Total Clicks</CardTitle>
+                       <Eye className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                      <div className="text-2xl font-bold">${earningsFromCustomCpm.toFixed(4)}</div>
-                      <p className="text-xs text-muted-foreground">From your special rate</p>
+                      <div className="text-2xl font-bold">+{totalClicks.toLocaleString()}</div>
+                      <p className="text-xs text-muted-foreground">Across all links</p>
                   </CardContent>
               </Card>
               <Card>

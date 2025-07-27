@@ -54,16 +54,16 @@ export function useUser() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [payouts, setPayouts] = useState<PayoutRequest[]>([]);
   const [cpmHistory, setCpmHistory] = useState<CpmHistory[]>([]);
-  const [earningsFromGlobalCpm, setEarningsFromGlobalCpm] = useState(0);
-  const [earningsFromCustomCpm, setEarningsFromCustomCpm] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Si la autenticación de Firebase aún está cargando, mantenemos el estado de carga general.
     if (authLoading) {
       setLoading(true);
       return;
     }
 
+    // Si no hay un usuario autenticado, terminamos la carga.
     if (!authUser) {
       setUserProfile(null);
       setPayouts([]);
@@ -71,108 +71,104 @@ export function useUser() {
       return;
     }
 
+    // El usuario está autenticado, pero necesitamos cargar sus datos. Mantenemos la carga activa.
     setLoading(true);
+    let isSubscribed = true;
 
-    const unsubProfile = onSnapshot(doc(db, 'users', authUser.uid), async (userDoc) => {
-        let profileData;
-        if (userDoc.exists()) {
-            profileData = userDoc.data();
-        } else {
-            await createUserProfile(authUser);
-            const newUserDoc = await getDoc(doc(db, 'users', authUser.uid));
-            profileData = newUserDoc.data();
-        }
+    const userDocRef = doc(db, 'users', authUser.uid);
+    const payoutsQuery = query(collection(db, "payoutRequests"), where("userId", "==", authUser.uid));
+    const cpmQuery = query(collection(db, 'cpmHistory'), orderBy('startDate', 'desc'));
 
-        if (profileData) {
-            const linksQuery = query(collection(db, 'links'), where('userId', '==', authUser.uid));
-            const linksSnapshot = await getDocs(linksQuery);
-            const totalGeneratedEarnings = linksSnapshot.docs.reduce((acc, doc) => acc + (doc.data().generatedEarnings || 0), 0);
-            
-            setUserProfile({
-                uid: authUser.uid,
-                displayName: profileData.displayName || 'User',
-                email: profileData.email || '',
-                photoURL: profileData.photoURL || '',
-                role: profileData.role || 'user',
-                generatedEarnings: totalGeneratedEarnings,
-                paidEarnings: profileData.paidEarnings || 0,
-                customCpm: profileData.customCpm,
-                accountStatus: profileData.accountStatus || 'active',
-                linksCount: linksSnapshot.size,
-            });
+    // Variable para controlar si todas las subscripciones han cargado sus datos iniciales
+    let profileLoaded = false;
+    let payoutsLoaded = false;
+    let cpmLoaded = false;
+
+    const checkLoadingComplete = () => {
+        if(profileLoaded && payoutsLoaded && cpmLoaded) {
+            setLoading(false);
         }
+    }
+
+    const unsubProfile = onSnapshot(userDocRef, async (userDoc) => {
+      if (!isSubscribed) return;
+
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        const linksQuery = query(collection(db, 'links'), where('userId', '==', authUser.uid));
+        const linksSnapshot = await getDocs(linksQuery);
+        const totalGeneratedEarnings = linksSnapshot.docs.reduce((acc, doc) => {
+            return acc + (doc.data().generatedEarnings || 0);
+        }, 0);
+
+        setUserProfile({
+            uid: authUser.uid,
+            displayName: userData.displayName || 'User',
+            email: userData.email || '',
+            photoURL: userData.photoURL || '',
+            role: userData.role || 'user',
+            generatedEarnings: totalGeneratedEarnings,
+            paidEarnings: userData.paidEarnings || 0,
+            customCpm: userData.customCpm,
+            accountStatus: userData.accountStatus || 'active',
+            linksCount: linksSnapshot.size,
+        });
+      } else {
+        await createUserProfile(authUser);
+      }
+      profileLoaded = true;
+      checkLoadingComplete();
     });
 
-    // Firestore query fix: Removed orderBy from the query and will sort on the client.
-    const unsubPayouts = onSnapshot(query(collection(db, "payoutRequests"), where("userId", "==", authUser.uid)), (snapshot) => {
-        const payoutData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PayoutRequest));
-        // Sort client-side
-        payoutData.sort((a,b) => (b.requestedAt?.seconds ?? 0) - (a.requestedAt?.seconds ?? 0));
-        setPayouts(payoutData);
+    const unsubPayouts = onSnapshot(payoutsQuery, (snapshot) => {
+      if (!isSubscribed) return;
+      const requests: PayoutRequest[] = [];
+      snapshot.forEach(doc => {
+          requests.push({ id: doc.id, ...doc.data() } as PayoutRequest);
+      });
+      setPayouts(requests.sort((a,b) => (b.requestedAt?.seconds ?? 0) - (a.requestedAt?.seconds ?? 0)));
+      
+      payoutsLoaded = true;
+      checkLoadingComplete();
     });
 
-    const unsubCpm = onSnapshot(query(collection(db, 'cpmHistory'), orderBy('startDate', 'desc')), (snapshot) => {
+    const unsubCpm = onSnapshot(cpmQuery, (snapshot) => {
+        if (!isSubscribed) return;
         setCpmHistory(snapshot.docs.map(doc => doc.data() as CpmHistory));
+        cpmLoaded = true;
+        checkLoadingComplete();
     });
 
     return () => {
+      isSubscribed = false;
       unsubProfile();
       unsubPayouts();
       unsubCpm();
     };
   }, [authUser, authLoading]);
   
-  // This effect will run when the dependencies change, ensuring loading is false only when all data is present.
-  useEffect(() => {
-    if (!authLoading && authUser && userProfile !== null && cpmHistory.length > 0) {
-        // Calculate earnings breakdown once all data is available
-        const calculateEarningsBreakdown = async () => {
-            const clicksQuery = query(collection(db, 'clicks'), where('userId', '==', authUser.uid), where('processed', '==', true));
-            const clicksSnapshot = await getDocs(clicksQuery);
-            
-            let globalEarnings = 0;
-            let customEarnings = 0;
-    
-            const globalRate = cpmHistory.find(c => !c.endDate)?.rate || 0;
-            const customRate = userProfile?.customCpm;
-
-            clicksSnapshot.forEach(doc => {
-                const clickData = doc.data();
-                const earningsForClick = clickData.earningsGenerated || 0;
-                
-                // If a custom rate exists, any non-global rate click is custom.
-                // Otherwise, all earnings are global.
-                if (customRate && clickData.cpmUsed === customRate) {
-                   customEarnings += earningsForClick;
-                } else {
-                   globalEarnings += earningsForClick;
-                }
-            });
-    
-            setEarningsFromGlobalCpm(globalEarnings);
-            setEarningsFromCustomCpm(customEarnings);
-            setLoading(false); // All data is loaded and calculated
-        };
-
-        calculateEarningsBreakdown();
-    } else if (!authLoading && !authUser) {
-        setLoading(false);
-    }
-  }, [authUser, authLoading, userProfile, cpmHistory]);
-
+  // Derived state for balance calculation
   const totalEarnings = userProfile?.generatedEarnings ?? 0;
   const paidEarnings = userProfile?.paidEarnings ?? 0;
-  const payoutsPending = payouts.filter(p => p.status === 'pending').reduce((acc, p) => acc + p.amount, 0);
+  const payoutsPending = payouts
+        .filter(p => p.status === 'pending')
+        .reduce((acc, p) => acc + p.amount, 0);
+
   const availableBalance = totalEarnings - paidEarnings - payoutsPending;
   
   const finalProfile: UserProfile | null = userProfile ? {
       ...userProfile,
+      // Treat customCpm of 0 as null so the UI can correctly show global CPM
       customCpm: userProfile.customCpm === 0 ? null : userProfile.customCpm,
   } : null;
 
-  const globalActiveCpm = cpmHistory.find(c => !c.endDate)?.rate || 0;
+  const globalActiveCpm = useMemo(() => {
+    return cpmHistory.find(c => !c.endDate)?.rate || 0;
+  }, [cpmHistory]);
+  
   const hasCustomCpm = finalProfile?.customCpm != null && finalProfile.customCpm > 0;
   const activeCpm = hasCustomCpm ? finalProfile.customCpm! : globalActiveCpm;
+
 
   return {
     user: authUser as FirebaseUser | null,
@@ -186,8 +182,6 @@ export function useUser() {
     availableBalance,
     activeCpm,
     hasCustomCpm,
-    globalActiveCpm,
-    earningsFromGlobalCpm,
-    earningsFromCustomCpm,
+    globalActiveCpm
   };
 }
