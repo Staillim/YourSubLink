@@ -148,27 +148,40 @@ export function useUser() {
   }, [authUser, authLoading]);
   
   // Memoize derived state for performance and stability
-  const derivedState = useMemo(() => {
-    const generatedEarnings = userProfile?.generatedEarnings ?? 0;
-    const paidEarnings = userProfile?.paidEarnings ?? 0;
-    const payoutsPending = payouts
+  const { availableBalance, payoutsPending, paidEarnings, activeCpm, globalActiveCpm, hasCustomCpm } = useMemo(() => {
+    if (loading) {
+      return {
+        availableBalance: undefined,
+        payoutsPending: undefined,
+        paidEarnings: undefined,
+        activeCpm: undefined,
+        globalActiveCpm: undefined,
+        hasCustomCpm: undefined,
+      };
+    }
+
+    const genEarnings = userProfile?.generatedEarnings ?? 0;
+    const pEarnings = userProfile?.paidEarnings ?? 0;
+    const pendPayouts = payouts
           .filter(p => p.status === 'pending')
           .reduce((acc, p) => acc + p.amount, 0);
 
-    const availableBalance = generatedEarnings - paidEarnings - payoutsPending;
+    const balance = genEarnings - pEarnings - pendPayouts;
 
-    const globalActiveCpm = cpmHistory.find(c => !c.endDate)?.rate ?? 0;
-    const hasCustomCpm = userProfile?.customCpm != null && userProfile.customCpm > 0;
-    const activeCpm = hasCustomCpm ? userProfile.customCpm : globalActiveCpm;
+    const globalCpm = cpmHistory.find(c => !c.endDate)?.rate ?? 0;
+    const customCpm = userProfile?.customCpm;
+    const customRateActive = typeof customCpm === 'number' && customCpm > 0;
+    const finalActiveCpm = customRateActive ? customCpm : globalCpm;
 
     return {
-        payoutsPending,
-        availableBalance,
-        activeCpm,
-        globalActiveCpm,
-        hasCustomCpm,
+        availableBalance: balance,
+        payoutsPending: pendPayouts,
+        paidEarnings: pEarnings,
+        activeCpm: finalActiveCpm,
+        globalActiveCpm: globalCpm,
+        hasCustomCpm: customRateActive,
     };
-  }, [userProfile, payouts, cpmHistory]);
+  }, [loading, userProfile, payouts, cpmHistory]);
 
   return {
     user: authUser as FirebaseUser | null,
@@ -176,7 +189,11 @@ export function useUser() {
     role: userProfile?.role,
     loading: loading,
     payouts,
-    cpmHistory,
-    ...derivedState
+    availableBalance,
+    payoutsPending,
+    paidEarnings,
+    activeCpm,
+    globalActiveCpm,
+    hasCustomCpm
   };
 }
