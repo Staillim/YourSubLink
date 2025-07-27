@@ -70,14 +70,24 @@ export function useUser() {
       return;
     }
 
-    // Keep loading until all data is fetched
     setLoading(true);
 
     const userDocRef = doc(db, 'users', authUser.uid);
+    const payoutsQuery = query(collection(db, "payoutRequests"), where("userId", "==", authUser.uid));
+    const cpmQuery = query(collection(db, 'cpmHistory'), orderBy('startDate', 'desc'));
+
+    let profileLoaded = false;
+    let payoutsLoaded = false;
+    let cpmLoaded = false;
+
+    const checkAllLoaded = () => {
+        if (profileLoaded && payoutsLoaded && cpmLoaded) {
+            setLoading(false);
+        }
+    };
+
     const unsubProfile = onSnapshot(userDocRef, async (userDoc) => {
-      if (!userDoc.exists()) {
-        await createUserProfile(authUser);
-      } else {
+      if (userDoc.exists()) {
         const userData = userDoc.data();
         const linksQuery = query(collection(db, 'links'), where('userId', '==', authUser.uid));
         const linksSnapshot = await getDocs(linksQuery);
@@ -97,40 +107,34 @@ export function useUser() {
           accountStatus: userData.accountStatus || 'active',
           linksCount: linksSnapshot.size,
         });
+      } else {
+        await createUserProfile(authUser);
       }
+      profileLoaded = true;
+      checkAllLoaded();
     });
 
-    const payoutsQuery = query(collection(db, "payoutRequests"), where("userId", "==", authUser.uid), orderBy('requestedAt', 'desc'));
     const unsubPayouts = onSnapshot(payoutsQuery, (snapshot) => {
       const requestsData: PayoutRequest[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PayoutRequest));
+      // Sort on the client to avoid needing a composite index
+      requestsData.sort((a, b) => (b.requestedAt?.seconds ?? 0) - (a.requestedAt?.seconds ?? 0));
       setPayouts(requestsData);
+      payoutsLoaded = true;
+      checkAllLoaded();
     });
 
-    const cpmQuery = query(collection(db, 'cpmHistory'), orderBy('startDate', 'desc'));
     const unsubCpm = onSnapshot(cpmQuery, (snapshot) => {
         setCpmHistory(snapshot.docs.map(doc => doc.data() as CpmHistory));
+        cpmLoaded = true;
+        checkAllLoaded();
     });
-
-    // The loading state will be set to false once the profile and cpmHistory are available
-    if (userProfile && cpmHistory.length > 0) {
-        setLoading(false);
-    }
-    
-    // Fallback to stop loading if auth is done but profile isn't setting for some reason.
-    const timer = setTimeout(() => {
-        if(loading) {
-            setLoading(false);
-        }
-    }, 5000);
-
 
     return () => {
       unsubProfile();
       unsubPayouts();
       unsubCpm();
-      clearTimeout(timer);
     };
-  }, [authUser, authLoading, userProfile, cpmHistory.length]);
+  }, [authUser, authLoading]);
   
   const totalEarnings = userProfile?.generatedEarnings ?? 0;
   const paidEarnings = userProfile?.paidEarnings ?? 0;
