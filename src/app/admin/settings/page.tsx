@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, writeBatch, serverTimestamp, addDoc, onSnapshot, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, writeBatch, serverTimestamp, addDoc, onSnapshot, updateDoc, deleteDoc, orderBy } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,8 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Rule } from '@/components/rule-editor';
-
+import type { Rule } from '@/components/rule-editor';
 
 const RULE_TYPES = {
   like: 'Like a Video',
@@ -58,20 +57,18 @@ export default function AdminSettingsPage() {
 
     // Fetch Active CPM
     useEffect(() => {
-        const fetchActiveCpm = async () => {
-            setLoadingCpm(true);
-            const q = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
-            const querySnapshot = await getDocs(q);
-            if (!querySnapshot.empty) {
-                const cpmDoc = querySnapshot.docs[0];
+        const q = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            if (!snapshot.empty) {
+                const cpmDoc = snapshot.docs[0];
                 setActiveCpm(cpmDoc.data().rate);
                 setActiveCpmId(cpmDoc.id);
             } else {
                 setActiveCpm(null);
             }
             setLoadingCpm(false);
-        }
-        fetchActiveCpm();
+        });
+        return () => unsubscribe();
     }, []);
 
     // Listen for Global Rules
@@ -122,8 +119,7 @@ export default function AdminSettingsPage() {
             await batch.commit();
             toast({ title: 'CPM Rate Updated', description: `The new CPM rate of $${rate.toFixed(4)} is now active.` });
             setNewCpmRate('');
-            setActiveCpm(rate);
-            setActiveCpmId(newCpmRef.id);
+            // No need to manually set state, onSnapshot will handle it.
         } catch (error: any) {
             toast({ title: 'Error', description: 'Could not update CPM rate.', variant: 'destructive'});
         } finally {

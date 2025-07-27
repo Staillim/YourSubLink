@@ -1,3 +1,4 @@
+
 import type { Rule } from '@/components/rule-editor';
 
 export type LinkData = {
@@ -11,6 +12,7 @@ export type LinkData = {
   monetizable: boolean;
   clicks: number;
   monetizationStatus: 'active' | 'suspended';
+  generatedEarnings: number;
 };
 
 export type Notification = {
@@ -46,5 +48,3 @@ export type ChatMessage = {
   timestamp: any;
   isPredefined?: boolean;
 }
-
-    
