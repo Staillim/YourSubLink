@@ -24,7 +24,7 @@ import {
     TableRow,
   } from '@/components/ui/table';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
-import { ExternalLink, DollarSign, Eye, ArrowUp } from 'lucide-react';
+import { DollarSign, Eye, ArrowUp } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { LinkItem } from '../page';
 import { format, getMonth, getYear } from 'date-fns';
@@ -114,9 +114,9 @@ export default function AnalyticsPage() {
   
   // Determine the active CPM to display
   const globalActiveCpm = cpmHistory.find(c => !c.endDate)?.rate || 0;
-  const activeCpm = profile?.customCpm !== null && profile?.customCpm !== undefined ? profile.customCpm : globalActiveCpm;
+  const activeCpm = profile?.customCpm != null ? profile.customCpm : globalActiveCpm;
   
-  const hasCustomCpm = profile?.customCpm !== null && profile?.customCpm !== undefined;
+  const hasCustomCpm = profile?.customCpm != null;
 
   const getMonthlyChartData = () => {
     const monthlyEarnings: { [key: string]: number } = {};
