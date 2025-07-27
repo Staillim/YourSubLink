@@ -1,10 +1,11 @@
 
+
 'use client';
 
 import { useState, useEffect } from 'react';
 import { useUser } from '@/hooks/use-user';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, getDocs, orderBy } from 'firebase/firestore';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import {
   Card,
@@ -34,35 +35,15 @@ const chartConfig = {
   },
 };
 
-type CpmHistory = {
-    rate: number;
-    startDate: { seconds: number };
-    endDate?: { seconds: number };
-};
-
-
 export default function AnalyticsPage() {
-  const { user, profile, loading } = useUser();
+  const { user, profile, loading, activeCpm, hasCustomCpm, globalActiveCpm } = useUser();
   const [links, setLinks] = useState<LinkItem[]>([]);
-  const [cpmHistory, setCpmHistory] = useState<CpmHistory[]>([]);
-  const [dataLoading, setDataLoading] = useState(true);
+  const [linksLoading, setLinksLoading] = useState(true);
 
   useEffect(() => {
     if (user) {
-      setDataLoading(true);
-      
-      let linksLoaded = false;
-      let cpmLoaded = false;
-      
-      const checkDone = () => {
-        if (linksLoaded && cpmLoaded) {
-          setDataLoading(false);
-        }
-      }
-
+      setLinksLoading(true);
       const linksQuery = query(collection(db, "links"), where("userId", "==", user.uid));
-      const cpmQuery = query(collection(db, 'cpmHistory'), orderBy('startDate', 'desc'));
-
       const unsubLinks = onSnapshot(linksQuery, (querySnapshot) => {
         const linksData: LinkItem[] = [];
         querySnapshot.forEach((doc) => {
@@ -84,33 +65,17 @@ export default function AnalyticsPage() {
           });
         });
         setLinks(linksData);
-        linksLoaded = true;
-        checkDone();
+        setLinksLoading(false);
       });
       
-      const unsubCpm = onSnapshot(cpmQuery, (snapshot) => {
-          const historyData: CpmHistory[] = snapshot.docs.map(doc => doc.data() as CpmHistory);
-          setCpmHistory(historyData);
-          cpmLoaded = true;
-          checkDone();
-      });
-      
-      return () => {
-        unsubLinks();
-        unsubCpm();
-      }
+      return () => unsubLinks();
     } else if (!loading) {
-        setDataLoading(false);
+        setLinksLoading(false);
     }
   }, [user, loading]);
   
   const totalClicks = links.reduce((acc, link) => acc + link.clicks, 0);
   const totalEarnings = links.reduce((acc, link) => acc + (link.generatedEarnings || 0), 0);
-  
-  // Determine the active CPM to display
-  const globalActiveCpm = cpmHistory.find(c => !c.endDate)?.rate ?? 0;
-  const hasCustomCpm = profile?.customCpm != null && profile.customCpm > 0;
-  const activeCpm = hasCustomCpm ? profile.customCpm : globalActiveCpm;
   
   const getMonthlyChartData = () => {
     const monthlyEarnings: { [key: string]: number } = {};
@@ -147,7 +112,7 @@ export default function AnalyticsPage() {
   })).sort((a,b) => b.earnings - a.earnings);
 
 
-  if (loading || dataLoading) {
+  if (loading || linksLoading) {
       return (
         <>
             <div className="flex items-center">
