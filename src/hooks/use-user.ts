@@ -57,97 +57,75 @@ export function useUser() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Si la autenticación de Firebase aún está cargando, mantenemos el estado de carga general.
     if (authLoading) {
       setLoading(true);
       return;
     }
 
-    // Si no hay un usuario autenticado, terminamos la carga.
     if (!authUser) {
       setUserProfile(null);
       setPayouts([]);
+      setCpmHistory([]);
       setLoading(false);
       return;
     }
 
-    // El usuario está autenticado, pero necesitamos cargar sus datos. Mantenemos la carga activa.
     setLoading(true);
-    let isSubscribed = true;
 
     const userDocRef = doc(db, 'users', authUser.uid);
-    const payoutsQuery = query(collection(db, "payoutRequests"), where("userId", "==", authUser.uid));
-    const cpmQuery = query(collection(db, 'cpmHistory'), orderBy('startDate', 'desc'));
-
-    // Variable para controlar si todas las subscripciones han cargado sus datos iniciales
-    let profileLoaded = false;
-    let payoutsLoaded = false;
-    let cpmLoaded = false;
-
-    const checkLoadingComplete = () => {
-        if(profileLoaded && payoutsLoaded && cpmLoaded) {
-            setLoading(false);
-        }
-    }
-
     const unsubProfile = onSnapshot(userDocRef, async (userDoc) => {
-      if (!isSubscribed) return;
+        if (!userDoc.exists()) {
+            await createUserProfile(authUser);
+            // The listener will re-fire with the new document, so we can wait.
+        } else {
+            const userData = userDoc.data();
+             const linksQuery = query(collection(db, 'links'), where('userId', '==', authUser.uid));
+             const linksSnapshot = await getDocs(linksQuery);
+             const totalGeneratedEarnings = linksSnapshot.docs.reduce((acc, doc) => {
+                return acc + (doc.data().generatedEarnings || 0);
+             }, 0);
 
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
-        const linksQuery = query(collection(db, 'links'), where('userId', '==', authUser.uid));
-        const linksSnapshot = await getDocs(linksQuery);
-        const totalGeneratedEarnings = linksSnapshot.docs.reduce((acc, doc) => {
-            return acc + (doc.data().generatedEarnings || 0);
-        }, 0);
-
-        setUserProfile({
-            uid: authUser.uid,
-            displayName: userData.displayName || 'User',
-            email: userData.email || '',
-            photoURL: userData.photoURL || '',
-            role: userData.role || 'user',
-            generatedEarnings: totalGeneratedEarnings,
-            paidEarnings: userData.paidEarnings || 0,
-            customCpm: userData.customCpm,
-            accountStatus: userData.accountStatus || 'active',
-            linksCount: linksSnapshot.size,
-        });
-      } else {
-        await createUserProfile(authUser);
-      }
-      profileLoaded = true;
-      checkLoadingComplete();
+            setUserProfile({
+                uid: authUser.uid,
+                displayName: userData.displayName || 'User',
+                email: userData.email || '',
+                photoURL: userData.photoURL || '',
+                role: userData.role || 'user',
+                generatedEarnings: totalGeneratedEarnings,
+                paidEarnings: userData.paidEarnings || 0,
+                customCpm: userData.customCpm,
+                accountStatus: userData.accountStatus || 'active',
+                linksCount: linksSnapshot.size,
+            });
+        }
     });
 
+    const payoutsQuery = query(collection(db, "payoutRequests"), where("userId", "==", authUser.uid));
     const unsubPayouts = onSnapshot(payoutsQuery, (snapshot) => {
-      if (!isSubscribed) return;
       const requests: PayoutRequest[] = [];
       snapshot.forEach(doc => {
           requests.push({ id: doc.id, ...doc.data() } as PayoutRequest);
       });
       setPayouts(requests.sort((a,b) => (b.requestedAt?.seconds ?? 0) - (a.requestedAt?.seconds ?? 0)));
-      
-      payoutsLoaded = true;
-      checkLoadingComplete();
     });
 
+    const cpmQuery = query(collection(db, 'cpmHistory'), orderBy('startDate', 'desc'));
     const unsubCpm = onSnapshot(cpmQuery, (snapshot) => {
-        if (!isSubscribed) return;
         setCpmHistory(snapshot.docs.map(doc => doc.data() as CpmHistory));
-        cpmLoaded = true;
-        checkLoadingComplete();
     });
+
+    // Combine loading states
+    if (!authLoading && userProfile !== null) {
+      setLoading(false);
+    }
 
     return () => {
-      isSubscribed = false;
       unsubProfile();
       unsubPayouts();
       unsubCpm();
     };
-  }, [authUser, authLoading]);
+  }, [authUser, authLoading, userProfile === null]); // Rerun if user logs in/out or profile is initially null
   
-  // Derived state for balance calculation
   const totalEarnings = userProfile?.generatedEarnings ?? 0;
   const paidEarnings = userProfile?.paidEarnings ?? 0;
   const payoutsPending = payouts
@@ -156,25 +134,24 @@ export function useUser() {
 
   const availableBalance = totalEarnings - paidEarnings - payoutsPending;
   
-  const finalProfile: UserProfile | null = userProfile ? {
-      ...userProfile,
-      // Treat customCpm of 0 as null so the UI can correctly show global CPM
-      customCpm: userProfile.customCpm === 0 ? null : userProfile.customCpm,
-  } : null;
-
   const globalActiveCpm = useMemo(() => {
     return cpmHistory.find(c => !c.endDate)?.rate || 0;
   }, [cpmHistory]);
   
-  const hasCustomCpm = finalProfile?.customCpm != null && finalProfile.customCpm > 0;
-  const activeCpm = hasCustomCpm ? finalProfile.customCpm! : globalActiveCpm;
+  const hasCustomCpm = useMemo(() => {
+    return userProfile?.customCpm != null && userProfile.customCpm > 0;
+  }, [userProfile?.customCpm]);
+
+  const activeCpm = useMemo(() => {
+    return hasCustomCpm ? userProfile?.customCpm! : globalActiveCpm;
+  }, [hasCustomCpm, userProfile?.customCpm, globalActiveCpm]);
 
 
   return {
     user: authUser as FirebaseUser | null,
-    profile: finalProfile,
+    profile: userProfile,
     role: userProfile?.role,
-    loading,
+    loading: authLoading || loading,
     payouts,
     totalEarnings,
     payoutsPending,
