@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useUser } from '@/hooks/use-user';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
@@ -38,7 +38,7 @@ export default function PayoutsPage() {
 
     const handlePayoutRequest = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!user || !profile || availableBalance === undefined) return;
+        if (!user || !profile || typeof availableBalance !== 'number') return;
         
         const payoutAmount = parseFloat(amount);
         if (isNaN(payoutAmount) || payoutAmount <= 0) {
@@ -90,14 +90,24 @@ export default function PayoutsPage() {
     if (loading) {
         return (
             <div className="flex flex-col gap-6">
-                <Skeleton className="h-8 w-32" />
-                <div className="grid gap-4 md:grid-cols-3">
+                <div className="flex items-center justify-between">
+                    <h1 className="text-lg font-semibold md:text-2xl">Payouts</h1>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                     <Skeleton className="h-28" />
                     <Skeleton className="h-28" />
                     <Skeleton className="h-28" />
                 </div>
-                 <Skeleton className="h-20" />
-                 <Skeleton className="h-60" />
+                 <Skeleton className="h-10 w-40" />
+                 <Card>
+                    <CardHeader>
+                        <Skeleton className="h-6 w-48" />
+                        <Skeleton className="h-4 w-64" />
+                    </CardHeader>
+                     <CardContent>
+                        <Skeleton className="h-40 w-full" />
+                     </CardContent>
+                 </Card>
             </div>
         )
     }
@@ -115,7 +125,7 @@ export default function PayoutsPage() {
                         <DollarSign className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">${availableBalance}</div>
+                        <div className="text-2xl font-bold">${(availableBalance ?? 0).toFixed(4)}</div>
                         <p className="text-xs text-muted-foreground">Ready for withdrawal</p>
                     </CardContent>
                 </Card>
@@ -125,7 +135,7 @@ export default function PayoutsPage() {
                         <Wallet className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">${payoutsPending}</div>
+                        <div className="text-2xl font-bold">${(payoutsPending ?? 0).toFixed(4)}</div>
                         <p className="text-xs text-muted-foreground">Requested but not yet paid</p>
                     </CardContent>
                 </Card>
@@ -135,7 +145,7 @@ export default function PayoutsPage() {
                         <PiggyBank className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">${paidEarnings}</div>
+                        <div className="text-2xl font-bold">${(paidEarnings ?? 0).toFixed(4)}</div>
                         <p className="text-xs text-muted-foreground">Total earnings paid out to you</p>
                     </CardContent>
                 </Card>
