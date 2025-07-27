@@ -103,8 +103,12 @@ export function useUser() {
         }
     });
 
-    const unsubPayouts = onSnapshot(query(collection(db, "payoutRequests"), where("userId", "==", authUser.uid), orderBy("requestedAt", "desc")), (snapshot) => {
-      setPayouts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PayoutRequest)));
+    // Firestore query fix: Removed orderBy from the query and will sort on the client.
+    const unsubPayouts = onSnapshot(query(collection(db, "payoutRequests"), where("userId", "==", authUser.uid)), (snapshot) => {
+        const payoutData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PayoutRequest));
+        // Sort client-side
+        payoutData.sort((a,b) => (b.requestedAt?.seconds ?? 0) - (a.requestedAt?.seconds ?? 0));
+        setPayouts(payoutData);
     });
 
     const unsubCpm = onSnapshot(query(collection(db, 'cpmHistory'), orderBy('startDate', 'desc')), (snapshot) => {
