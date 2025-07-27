@@ -10,7 +10,7 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, writeBatch, Timestamp, getDoc, serverTimestamp, increment } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, writeBatch, Timestamp, getDoc, serverTimestamp, increment, limit } from 'firebase/firestore';
 import type { LinkData } from '@/types';
 
 const CalculateEarningsOutputSchema = z.object({
@@ -81,14 +81,17 @@ const calculateEarningsFlow = ai.defineFlow(
       
       let earningsForThisClick = 0;
       let cpmUsed = 0;
+      
+      // Increment the click counter regardless of monetization status
+      batch.update(linkRef, { clicks: increment(1) });
 
       if (isMonetizable) {
         const customCpm = userData?.customCpm;
 
-        if (customCpm && customCpm > 0) {
+        if (customCpm != null && customCpm > 0) {
             cpmUsed = customCpm;
         } else {
-            const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
+            const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null), limit(1));
             const cpmSnapshot = await getDocs(cpmQuery);
             if (!cpmSnapshot.empty) {
                 cpmUsed = cpmSnapshot.docs[0].data().rate;
@@ -100,14 +103,10 @@ const calculateEarningsFlow = ai.defineFlow(
         earningsForThisClick = cpmUsed / 1000;
         totalEarnings += earningsForThisClick;
 
-        // Increment both clicks and earnings on the link document
+        // Increment earnings on the link document
         batch.update(linkRef, { 
-          clicks: increment(1),
           generatedEarnings: increment(earningsForThisClick) 
         });
-      } else {
-        // If not monetizable, just increment the clicks
-        batch.update(linkRef, { clicks: increment(1) });
       }
 
       batch.update(clickDoc.ref, { 

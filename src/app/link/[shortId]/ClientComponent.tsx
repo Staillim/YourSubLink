@@ -16,7 +16,7 @@ import { Loader2 } from 'lucide-react';
 import LinkGate from '@/components/link-gate'; 
 import type { LinkData } from '@/types'; 
 import { db } from '@/lib/firebase';
-import { collection, doc, writeBatch, increment, serverTimestamp, getDoc } from 'firebase/firestore';
+import { collection, doc, writeBatch, increment, serverTimestamp, getDoc, getDocs, query, where, limit } from 'firebase/firestore';
 
 export default function ClientComponent({ shortId, linkId }: { shortId: string, linkId: string }) {
   const [status, setStatus] = useState<'loading' | 'gate' | 'redirecting' | 'not-found' | 'invalid'>('loading');
@@ -95,54 +95,21 @@ export default function ClientComponent({ shortId, linkId }: { shortId: string, 
     setStatus('redirecting');
 
     try {
-        const linkRef = doc(db, 'links', dataToUse.id);
         const batch = writeBatch(db);
         
-        // 1. Increment the click counter
-        batch.update(linkRef, { clicks: increment(1) });
-        
-        let earningsGenerated = 0;
-
-        // 2. If monetizable, calculate and increment earnings
-        if (dataToUse.monetizable) {
-            // The user document was already fetched, so we can assume it exists here
-            const userRef = doc(db, 'users', dataToUse.userId);
-            const userSnap = await getDoc(userRef);
-            const userData = userSnap.data();
-            const customCpm = userData?.customCpm;
-
-            let cpmUsed = 0;
-            if (customCpm != null && customCpm > 0) {
-                cpmUsed = customCpm;
-            } else {
-                // If no custom CPM, fetch the global one (already secured by rules)
-                const cpmHistoryRef = collection(db, 'cpmHistory');
-                const cpmQuery = query(cpmHistoryRef, where('endDate', '==', null), limit(1));
-                const cpmSnapshot = await getDocs(cpmQuery);
-                let activeCpm = 3.00; // Default fallback CPM
-                if (!cpmSnapshot.empty) {
-                    activeCpm = cpmSnapshot.docs[0].data().rate;
-                }
-                cpmUsed = activeCpm;
-            }
-            
-            earningsGenerated = cpmUsed / 1000;
-            batch.update(linkRef, { generatedEarnings: increment(earningsGenerated) });
-        }
-        
-        // 3. Create a log of the click
+        // Only create a click log document. The backend will process it.
         const clickLogRef = doc(collection(db, 'clicks'));
         batch.set(clickLogRef, {
             linkId: dataToUse.id,
             userId: dataToUse.userId,
             timestamp: serverTimestamp(),
-            earningsGenerated: earningsGenerated,
+            processed: false, // Mark as unprocessed
         });
 
         await batch.commit();
 
     } catch(error) {
-        console.error("Failed to count click:", error);
+        console.error("Failed to log click:", error);
     } finally {
         window.location.href = dataToUse.original;
     }
