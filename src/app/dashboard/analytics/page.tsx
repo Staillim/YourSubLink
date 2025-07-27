@@ -1,11 +1,10 @@
 
-
 'use client';
 
 import { useState, useEffect } from 'react';
 import { useUser } from '@/hooks/use-user';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, getDocs, orderBy } from 'firebase/firestore';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import {
   Card,
@@ -35,16 +34,35 @@ const chartConfig = {
   },
 };
 
+type CpmHistory = {
+    rate: number;
+    startDate: { seconds: number };
+    endDate?: { seconds: number };
+};
+
+
 export default function AnalyticsPage() {
-  const { user, loading, activeCpm, hasCustomCpm, globalActiveCpm } = useUser();
+  const { user, profile, loading } = useUser();
   const [links, setLinks] = useState<LinkItem[]>([]);
-  const [linksLoading, setLinksLoading] = useState(true);
+  const [cpmHistory, setCpmHistory] = useState<CpmHistory[]>([]);
+  const [dataLoading, setDataLoading] = useState(true);
 
   useEffect(() => {
     if (user) {
-      setLinksLoading(true);
-      const linksQuery = query(collection(db, "links"), where("userId", "==", user.uid));
+      setDataLoading(true);
       
+      let linksLoaded = false;
+      let cpmLoaded = false;
+      
+      const checkDone = () => {
+        if (linksLoaded && cpmLoaded) {
+          setDataLoading(false);
+        }
+      }
+
+      const linksQuery = query(collection(db, "links"), where("userId", "==", user.uid));
+      const cpmQuery = query(collection(db, 'cpmHistory'), orderBy('startDate', 'desc'));
+
       const unsubLinks = onSnapshot(linksQuery, (querySnapshot) => {
         const linksData: LinkItem[] = [];
         querySnapshot.forEach((doc) => {
@@ -66,19 +84,33 @@ export default function AnalyticsPage() {
           });
         });
         setLinks(linksData);
-        setLinksLoading(false);
+        linksLoaded = true;
+        checkDone();
+      });
+      
+      const unsubCpm = onSnapshot(cpmQuery, (snapshot) => {
+          const historyData: CpmHistory[] = snapshot.docs.map(doc => doc.data() as CpmHistory);
+          setCpmHistory(historyData);
+          cpmLoaded = true;
+          checkDone();
       });
       
       return () => {
         unsubLinks();
+        unsubCpm();
       }
     } else if (!loading) {
-        setLinksLoading(false);
+        setDataLoading(false);
     }
   }, [user, loading]);
   
   const totalClicks = links.reduce((acc, link) => acc + link.clicks, 0);
   const totalEarnings = links.reduce((acc, link) => acc + (link.generatedEarnings || 0), 0);
+  
+  // Determine the active CPM to display
+  const globalActiveCpm = cpmHistory.find(c => !c.endDate)?.rate ?? 0;
+  const hasCustomCpm = profile?.customCpm != null && profile.customCpm > 0;
+  const activeCpm = hasCustomCpm ? profile.customCpm : globalActiveCpm;
   
   const getMonthlyChartData = () => {
     const monthlyEarnings: { [key: string]: number } = {};
@@ -115,7 +147,7 @@ export default function AnalyticsPage() {
   })).sort((a,b) => b.earnings - a.earnings);
 
 
-  if (loading || linksLoading) {
+  if (loading || dataLoading) {
       return (
         <>
             <div className="flex items-center">
@@ -171,7 +203,7 @@ export default function AnalyticsPage() {
                       {hasCustomCpm ? (
                         <div className="text-xs text-muted-foreground flex items-center gap-1">
                            <ArrowUp className="h-3 w-3 text-green-500"/>
-                           <span>Custom rate (Global: ${globalActiveCpm.toFixed(4)})</span>
+                           <span>Your custom rate (Global: ${globalActiveCpm.toFixed(4)})</span>
                         </div>
                       ) : (
                         <p className="text-xs text-muted-foreground">Current global rate per 1000 views</p>
