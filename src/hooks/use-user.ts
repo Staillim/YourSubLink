@@ -14,7 +14,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db, createUserProfile } from '@/lib/firebase';
-import { doc, onSnapshot, collection, query, where, getDocs, orderBy, getDoc } from 'firebase/firestore';
+import { doc, onSnapshot, collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import type { User as FirebaseUser } from 'firebase/auth';
 
 export type UserProfile = {
@@ -70,43 +70,40 @@ export function useUser() {
       return;
     }
 
+    // Keep loading until all data is fetched
     setLoading(true);
 
     const userDocRef = doc(db, 'users', authUser.uid);
     const unsubProfile = onSnapshot(userDocRef, async (userDoc) => {
-        if (!userDoc.exists()) {
-            await createUserProfile(authUser);
-            // The listener will re-fire with the new document, so we can wait.
-        } else {
-            const userData = userDoc.data();
-             const linksQuery = query(collection(db, 'links'), where('userId', '==', authUser.uid));
-             const linksSnapshot = await getDocs(linksQuery);
-             const totalGeneratedEarnings = linksSnapshot.docs.reduce((acc, doc) => {
-                return acc + (doc.data().generatedEarnings || 0);
-             }, 0);
+      if (!userDoc.exists()) {
+        await createUserProfile(authUser);
+      } else {
+        const userData = userDoc.data();
+        const linksQuery = query(collection(db, 'links'), where('userId', '==', authUser.uid));
+        const linksSnapshot = await getDocs(linksQuery);
+        const totalGeneratedEarnings = linksSnapshot.docs.reduce((acc, doc) => {
+          return acc + (doc.data().generatedEarnings || 0);
+        }, 0);
 
-            setUserProfile({
-                uid: authUser.uid,
-                displayName: userData.displayName || 'User',
-                email: userData.email || '',
-                photoURL: userData.photoURL || '',
-                role: userData.role || 'user',
-                generatedEarnings: totalGeneratedEarnings,
-                paidEarnings: userData.paidEarnings || 0,
-                customCpm: userData.customCpm,
-                accountStatus: userData.accountStatus || 'active',
-                linksCount: linksSnapshot.size,
-            });
-        }
+        setUserProfile({
+          uid: authUser.uid,
+          displayName: userData.displayName || 'User',
+          email: userData.email || '',
+          photoURL: userData.photoURL || '',
+          role: userData.role || 'user',
+          generatedEarnings: totalGeneratedEarnings,
+          paidEarnings: userData.paidEarnings || 0,
+          customCpm: userData.customCpm,
+          accountStatus: userData.accountStatus || 'active',
+          linksCount: linksSnapshot.size,
+        });
+      }
     });
 
-    const payoutsQuery = query(collection(db, "payoutRequests"), where("userId", "==", authUser.uid));
+    const payoutsQuery = query(collection(db, "payoutRequests"), where("userId", "==", authUser.uid), orderBy('requestedAt', 'desc'));
     const unsubPayouts = onSnapshot(payoutsQuery, (snapshot) => {
-      const requests: PayoutRequest[] = [];
-      snapshot.forEach(doc => {
-          requests.push({ id: doc.id, ...doc.data() } as PayoutRequest);
-      });
-      setPayouts(requests.sort((a,b) => (b.requestedAt?.seconds ?? 0) - (a.requestedAt?.seconds ?? 0)));
+      const requestsData: PayoutRequest[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PayoutRequest));
+      setPayouts(requestsData);
     });
 
     const cpmQuery = query(collection(db, 'cpmHistory'), orderBy('startDate', 'desc'));
@@ -114,17 +111,26 @@ export function useUser() {
         setCpmHistory(snapshot.docs.map(doc => doc.data() as CpmHistory));
     });
 
-    // Combine loading states
-    if (!authLoading && userProfile !== null) {
-      setLoading(false);
+    // The loading state will be set to false once the profile and cpmHistory are available
+    if (userProfile && cpmHistory.length > 0) {
+        setLoading(false);
     }
+    
+    // Fallback to stop loading if auth is done but profile isn't setting for some reason.
+    const timer = setTimeout(() => {
+        if(loading) {
+            setLoading(false);
+        }
+    }, 5000);
+
 
     return () => {
       unsubProfile();
       unsubPayouts();
       unsubCpm();
+      clearTimeout(timer);
     };
-  }, [authUser, authLoading, userProfile === null]); // Rerun if user logs in/out or profile is initially null
+  }, [authUser, authLoading, userProfile, cpmHistory.length]);
   
   const totalEarnings = userProfile?.generatedEarnings ?? 0;
   const paidEarnings = userProfile?.paidEarnings ?? 0;
@@ -151,7 +157,7 @@ export function useUser() {
     user: authUser as FirebaseUser | null,
     profile: userProfile,
     role: userProfile?.role,
-    loading: authLoading || loading,
+    loading: loading,
     payouts,
     totalEarnings,
     payoutsPending,
