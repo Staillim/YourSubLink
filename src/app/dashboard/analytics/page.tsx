@@ -1,15 +1,17 @@
 
+
 'use client';
 
 import { useState, useEffect } from 'react';
 import { useUser } from '@/hooks/use-user';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, getDocs, orderBy } from 'firebase/firestore';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
@@ -22,7 +24,7 @@ import {
     TableRow,
   } from '@/components/ui/table';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
-import { DollarSign, Eye, ArrowUp } from 'lucide-react';
+import { ExternalLink, DollarSign, Eye, ArrowUp } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { LinkItem } from '../page';
 import { format, getMonth, getYear } from 'date-fns';
@@ -34,24 +36,33 @@ const chartConfig = {
   },
 };
 
+type CpmHistory = {
+    rate: number;
+    startDate: { seconds: number };
+    endDate?: { seconds: number };
+};
+
 
 export default function AnalyticsPage() {
-  const { 
-    user, 
-    loading, 
-    totalEarnings, 
-    activeCpm, 
-    hasCustomCpm, 
-    globalActiveCpm 
-  } = useUser();
+  const { user, profile, loading } = useUser();
   const [links, setLinks] = useState<LinkItem[]>([]);
-  const [dataLoading, setDataLoading] = useState(true);
+  const [cpmHistory, setCpmHistory] = useState<CpmHistory[]>([]);
+  const [linksLoading, setLinksLoading] = useState(true);
+
+  // States to track individual data loads
+  const [linksDataLoaded, setLinksDataLoaded] = useState(false);
+  const [cpmDataLoaded, setCpmDataLoaded] = useState(false);
+
 
   useEffect(() => {
     if (user) {
-      setDataLoading(true);
+      setLinksLoading(true);
+      setLinksDataLoaded(false);
+      setCpmDataLoaded(false);
+
       const linksQuery = query(collection(db, "links"), where("userId", "==", user.uid));
-     
+      const cpmQuery = query(collection(db, 'cpmHistory'), orderBy('startDate', 'desc'));
+
       const unsubLinks = onSnapshot(linksQuery, (querySnapshot) => {
         const linksData: LinkItem[] = [];
         querySnapshot.forEach((doc) => {
@@ -73,20 +84,39 @@ export default function AnalyticsPage() {
           });
         });
         setLinks(linksData);
-        if (!loading) {
-          setDataLoading(false);
-        }
+        setLinksDataLoaded(true);
+      });
+      
+      const unsubCpm = onSnapshot(cpmQuery, (snapshot) => {
+          const historyData: CpmHistory[] = snapshot.docs.map(doc => doc.data() as CpmHistory);
+          setCpmHistory(historyData);
+          setCpmDataLoaded(true);
       });
       
       return () => {
         unsubLinks();
+        unsubCpm();
       }
     } else if (!loading) {
-        setDataLoading(false);
+        setLinksLoading(false);
     }
   }, [user, loading]);
+  
+  useEffect(() => {
+    // We combine the main user loading state with the specific data loading states
+    if (!loading && linksDataLoaded && cpmDataLoaded) {
+      setLinksLoading(false);
+    }
+  }, [loading, linksDataLoaded, cpmDataLoaded]);
 
   const totalClicks = links.reduce((acc, link) => acc + link.clicks, 0);
+  const totalEarnings = links.reduce((acc, link) => acc + (link.generatedEarnings || 0), 0);
+  
+  // Determine the active CPM to display
+  const globalActiveCpm = cpmHistory.find(c => !c.endDate)?.rate || 0;
+  const activeCpm = profile?.customCpm !== null && profile?.customCpm !== undefined ? profile.customCpm : globalActiveCpm;
+  
+  const hasCustomCpm = profile?.customCpm !== null && profile?.customCpm !== undefined;
 
   const getMonthlyChartData = () => {
     const monthlyEarnings: { [key: string]: number } = {};
@@ -123,7 +153,7 @@ export default function AnalyticsPage() {
   })).sort((a,b) => b.earnings - a.earnings);
 
 
-  if (loading || dataLoading) {
+  if (loading || linksLoading) {
       return (
         <>
             <div className="flex items-center">
@@ -166,7 +196,7 @@ export default function AnalyticsPage() {
                   </CardHeader>
                   <CardContent>
                       <div className="text-2xl font-bold">+{totalClicks.toLocaleString()}</div>
-                      <p className="text-xs text-muted-foreground">Across all links</p>
+                      <p className="text-xs text-muted-foreground">Across all your links</p>
                   </CardContent>
               </Card>
               <Card>
@@ -179,7 +209,7 @@ export default function AnalyticsPage() {
                       {hasCustomCpm ? (
                         <div className="text-xs text-muted-foreground flex items-center gap-1">
                            <ArrowUp className="h-3 w-3 text-green-500"/>
-                           <span>Custom rate (Global: ${globalActiveCpm.toFixed(4)})</span>
+                           <span>Your custom rate is active (Global: ${globalActiveCpm.toFixed(4)})</span>
                         </div>
                       ) : (
                         <p className="text-xs text-muted-foreground">Current global rate per 1000 views</p>
@@ -266,4 +296,3 @@ export default function AnalyticsPage() {
     </>
   );
 }
-
