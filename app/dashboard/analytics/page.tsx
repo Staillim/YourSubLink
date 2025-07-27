@@ -1,10 +1,9 @@
 
-
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useUser } from '@/hooks/use-user';
-import { db } from '@/lib/firebase';
+import { useAuthState } from 'react-firebase-hooks/auth';
+import { auth, db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, getDocs, orderBy } from 'firebase/firestore';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import {
@@ -24,7 +23,7 @@ import {
     TableRow,
   } from '@/components/ui/table';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
-import { ExternalLink, DollarSign, Eye, ArrowUp } from 'lucide-react';
+import { ExternalLink, DollarSign, Eye } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { LinkItem } from '../page';
 import { format, getMonth, getYear } from 'date-fns';
@@ -44,7 +43,7 @@ type CpmHistory = {
 
 
 export default function AnalyticsPage() {
-  const { user, profile, loading } = useUser();
+  const [user, loading] = useAuthState(auth);
   const [links, setLinks] = useState<LinkItem[]>([]);
   const [cpmHistory, setCpmHistory] = useState<CpmHistory[]>([]);
   const [linksLoading, setLinksLoading] = useState(true);
@@ -80,7 +79,6 @@ export default function AnalyticsPage() {
             monetizable: data.monetizable || false,
             rules: data.rules || [],
             generatedEarnings: data.generatedEarnings || 0,
-            monetizationStatus: data.monetizationStatus || 'active'
           });
         });
         setLinks(linksData);
@@ -103,20 +101,14 @@ export default function AnalyticsPage() {
   }, [user, loading]);
   
   useEffect(() => {
-    // We combine the main user loading state with the specific data loading states
-    if (!loading && linksDataLoaded && cpmDataLoaded) {
+    if (linksDataLoaded && cpmDataLoaded) {
       setLinksLoading(false);
     }
-  }, [loading, linksDataLoaded, cpmDataLoaded]);
+  }, [linksDataLoaded, cpmDataLoaded]);
 
   const totalClicks = links.reduce((acc, link) => acc + link.clicks, 0);
   const totalEarnings = links.reduce((acc, link) => acc + (link.generatedEarnings || 0), 0);
-  
-  // Determine the active CPM to display
-  const globalActiveCpm = cpmHistory.find(c => !c.endDate)?.rate || 0;
-  const activeCpm = profile?.customCpm !== null && profile?.customCpm !== undefined ? profile.customCpm : globalActiveCpm;
-  
-  const hasCustomCpm = profile?.customCpm !== null && profile?.customCpm !== undefined;
+  const activeCpm = cpmHistory.find(c => !c.endDate)?.rate || 0;
 
   const getMonthlyChartData = () => {
     const monthlyEarnings: { [key: string]: number } = {};
@@ -127,7 +119,7 @@ export default function AnalyticsPage() {
     links.forEach(link => {
         if (getYear(new Date(link.date)) === currentYear && link.generatedEarnings > 0) {
             const month = getMonth(new Date(link.date));
-            const key = `${currentYear}-${month}`;
+            const monthKey = `${currentYear}-${month}`;
             
             if (monthlyEarnings[monthKey]) {
                 monthlyEarnings[monthKey] += link.generatedEarnings;
@@ -196,7 +188,7 @@ export default function AnalyticsPage() {
                   </CardHeader>
                   <CardContent>
                       <div className="text-2xl font-bold">+{totalClicks.toLocaleString()}</div>
-                      <p className="text-xs text-muted-foreground">Across all your links</p>
+                      <p className="text-xs text-muted-foreground">Across all links</p>
                   </CardContent>
               </Card>
               <Card>
@@ -206,14 +198,7 @@ export default function AnalyticsPage() {
                   </CardHeader>
                   <CardContent>
                       <div className="text-2xl font-bold">${activeCpm.toFixed(4)}</div>
-                      {hasCustomCpm ? (
-                        <div className="text-xs text-muted-foreground flex items-center gap-1">
-                           <ArrowUp className="h-3 w-3 text-green-500"/>
-                           <span>Your custom rate is active (Global: ${globalActiveCpm.toFixed(4)})</span>
-                        </div>
-                      ) : (
-                        <p className="text-xs text-muted-foreground">Current global rate per 1000 views</p>
-                      )}
+                      <p className="text-xs text-muted-foreground">Current rate per 1000 monetized views</p>
                   </CardContent>
               </Card>
           </div>
