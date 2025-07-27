@@ -149,17 +149,6 @@ export function useUser() {
   
   // Memoize derived state for performance and stability
   const { availableBalance, payoutsPending, paidEarnings, activeCpm, globalActiveCpm, hasCustomCpm } = useMemo(() => {
-    if (loading) {
-      return {
-        availableBalance: undefined,
-        payoutsPending: undefined,
-        paidEarnings: undefined,
-        activeCpm: undefined,
-        globalActiveCpm: undefined,
-        hasCustomCpm: undefined,
-      };
-    }
-
     const genEarnings = userProfile?.generatedEarnings ?? 0;
     const pEarnings = userProfile?.paidEarnings ?? 0;
     const pendPayouts = payouts
@@ -181,7 +170,7 @@ export function useUser() {
         globalActiveCpm: globalCpm,
         hasCustomCpm: customRateActive,
     };
-  }, [loading, userProfile, payouts, cpmHistory]);
+  }, [userProfile, payouts, cpmHistory]);
 
   return {
     user: authUser as FirebaseUser | null,

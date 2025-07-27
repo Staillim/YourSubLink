@@ -164,11 +164,11 @@ export default function AnalyticsPage() {
                        <DollarSign className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                      <div className="text-2xl font-bold">${typeof activeCpm === 'number' ? activeCpm.toFixed(4) : '...'}</div>
+                      <div className="text-2xl font-bold">${typeof activeCpm === 'number' ? activeCpm.toFixed(4) : '0.0000'}</div>
                       {hasCustomCpm ? (
                         <div className="text-xs text-muted-foreground flex items-center gap-1">
                            <ArrowUp className="h-3 w-3 text-green-500"/>
-                           <span>Your custom rate (Global: ${typeof globalActiveCpm === 'number' ? globalActiveCpm.toFixed(4) : '...'})</span>
+                           <span>Your custom rate (Global: ${typeof globalActiveCpm === 'number' ? globalActiveCpm.toFixed(4) : '0.0000'})</span>
                         </div>
                       ) : (
                         <p className="text-xs text-muted-foreground">Current global rate per 1000 views</p>
