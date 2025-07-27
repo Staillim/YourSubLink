@@ -16,12 +16,14 @@ import { Loader2 } from 'lucide-react';
 import LinkGate from '@/components/link-gate'; 
 import type { LinkData } from '@/types'; 
 import { db } from '@/lib/firebase';
-import { collection, doc, writeBatch, increment, serverTimestamp, getDoc } from 'firebase/firestore';
+import { collection, doc, writeBatch, increment, serverTimestamp, getDoc, query, where, getDocs, limit } from 'firebase/firestore';
+import type { Rule } from '@/components/rule-editor';
 
 export default function ClientComponent({ shortId, linkId }: { shortId: string, linkId: string }) {
   const [status, setStatus] = useState<'loading' | 'gate' | 'redirecting' | 'not-found' | 'invalid'>('loading');
   const [linkData, setLinkData] = useState<LinkData | null>(null);
   const [gateStartTime, setGateStartTime] = useState<number | null>(null);
+  const [finalRules, setFinalRules] = useState<Rule[]>([]);
 
   useEffect(() => {
     if (!linkId) {
@@ -39,34 +41,36 @@ export default function ClientComponent({ shortId, linkId }: { shortId: string, 
         }
 
         const data = linkDoc.data() as Omit<LinkData, 'id'>;
-        const link: LinkData = { id: linkDoc.id, ...data };
+        const currentLink: LinkData = { id: linkDoc.id, ...data };
 
-        // Check if creator account or link itself is suspended
-        const userRef = doc(db, 'users', link.userId);
+        const userRef = doc(db, 'users', currentLink.userId);
         const userSnap = await getDoc(userRef);
         
-        if (!userSnap.exists()) {
-            // If the user who created the link doesn't exist, treat the link as invalid.
+        if (!userSnap.exists() || userSnap.data()?.accountStatus === 'suspended' || currentLink.monetizationStatus === 'suspended') {
             setStatus('invalid');
             return;
         }
         
-        const userData = userSnap.data();
-        if (userData?.accountStatus === 'suspended' || link.monetizationStatus === 'suspended') {
-            setStatus('invalid');
-            return;
-        }
-        
-        setLinkData(link);
+        setLinkData(currentLink);
 
-        const hasRules = link.rules && link.rules.length > 0;
+        // Fetch global rules
+        const globalRulesQuery = query(collection(db, 'globalRules'), where('status', '==', 'active'));
+        const globalRulesSnapshot = await getDocs(globalRulesQuery);
+        const globalRules = globalRulesSnapshot.docs.map(doc => {
+            const ruleData = doc.data();
+            return { type: ruleData.type, url: ruleData.url };
+        }).filter(rule => rule.type && rule.url); // Ensure valid rule structure
 
-        if (hasRules) {
+        // Merge user rules and applicable global rules
+        const mergedRules = [...(currentLink.rules || []), ...globalRules];
+        setFinalRules(mergedRules);
+
+        if (mergedRules.length > 0) {
             setGateStartTime(Date.now());
             setStatus('gate');
         } else {
             setStatus('redirecting');
-            await handleAllStepsCompleted(link);
+            await handleAllStepsCompleted(currentLink);
         }
     };
 
@@ -80,11 +84,9 @@ export default function ClientComponent({ shortId, linkId }: { shortId: string, 
     const dataToUse = finalLinkData || linkData;
     if (!dataToUse) return;
 
-    // Security check: Interaction Speed
     if (gateStartTime) {
         const completionTime = Date.now();
         const durationInSeconds = (completionTime - gateStartTime) / 1000;
-        // If it took less than 10 seconds, it's likely a bot. Don't count the click.
         if (durationInSeconds < 10) {
             console.warn(`Invalid click detected: completed too fast (${durationInSeconds}s). Redirecting without counting.`);
             window.location.href = dataToUse.original;
@@ -95,17 +97,14 @@ export default function ClientComponent({ shortId, linkId }: { shortId: string, 
     setStatus('redirecting');
 
     try {
-        const linkRef = doc(db, 'links', dataToUse.id);
         const batch = writeBatch(db);
+        const linkRef = doc(db, 'links', dataToUse.id);
         
-        // 1. Increment the click counter
         batch.update(linkRef, { clicks: increment(1) });
         
         let earningsGenerated = 0;
 
-        // 2. If monetizable, calculate and increment earnings
         if (dataToUse.monetizable) {
-            // The user document was already fetched, so we can assume it exists here
             const userRef = doc(db, 'users', dataToUse.userId);
             const userSnap = await getDoc(userRef);
             const userData = userSnap.data();
@@ -115,11 +114,10 @@ export default function ClientComponent({ shortId, linkId }: { shortId: string, 
             if (customCpm != null && customCpm > 0) {
                 cpmUsed = customCpm;
             } else {
-                // If no custom CPM, fetch the global one (already secured by rules)
                 const cpmHistoryRef = collection(db, 'cpmHistory');
                 const cpmQuery = query(cpmHistoryRef, where('endDate', '==', null), limit(1));
                 const cpmSnapshot = await getDocs(cpmQuery);
-                let activeCpm = 3.00; // Default fallback CPM
+                let activeCpm = 3.00;
                 if (!cpmSnapshot.empty) {
                     activeCpm = cpmSnapshot.docs[0].data().rate;
                 }
@@ -130,7 +128,6 @@ export default function ClientComponent({ shortId, linkId }: { shortId: string, 
             batch.update(linkRef, { generatedEarnings: increment(earningsGenerated) });
         }
         
-        // 3. Create a log of the click
         const clickLogRef = doc(collection(db, 'clicks'));
         batch.set(clickLogRef, {
             linkId: dataToUse.id,
@@ -161,7 +158,7 @@ export default function ClientComponent({ shortId, linkId }: { shortId: string, 
     return notFound();
   }
 
-  if (status === 'loading' || status === 'redirecting') {
+  if (status === 'loading' || status === 'redirecting' || !linkData) {
     return (
       <div className="flex h-screen w-full flex-col items-center justify-center bg-background text-foreground p-4">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -170,8 +167,9 @@ export default function ClientComponent({ shortId, linkId }: { shortId: string, 
     );
   }
 
-  if (status === 'gate' && linkData) {
-    return <LinkGate linkData={linkData} onAllStepsCompleted={() => handleAllStepsCompleted()} />;
+  if (status === 'gate') {
+    const gateLinkData = { ...linkData, rules: finalRules };
+    return <LinkGate linkData={gateLinkData} onAllStepsCompleted={() => handleAllStepsCompleted()} />;
   }
   
   return (
