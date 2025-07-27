@@ -125,15 +125,14 @@ export default function AnalyticsPage() {
     const currentMonth = getMonth(now);
 
     links.forEach(link => {
-        const linkDate = new Date(link.date);
-        if (getYear(linkDate) === currentYear && link.generatedEarnings > 0) {
-            const month = getMonth(linkDate);
+        if (getYear(new Date(link.date)) === currentYear && link.generatedEarnings > 0) {
+            const month = getMonth(new Date(link.date));
             const key = `${currentYear}-${month}`;
             
-            if (monthlyEarnings[key]) {
-                monthlyEarnings[key] += link.generatedEarnings;
+            if (monthlyEarnings[monthKey]) {
+                monthlyEarnings[monthKey] += link.generatedEarnings;
             } else {
-                monthlyEarnings[key] = link.generatedEarnings;
+                monthlyEarnings[monthKey] = link.generatedEarnings;
             }
         }
     });
