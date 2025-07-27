@@ -5,13 +5,12 @@
 import { useState, useEffect } from 'react';
 import { useUser } from '@/hooks/use-user';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, getDocs, orderBy } from 'firebase/firestore';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
@@ -24,7 +23,7 @@ import {
     TableRow,
   } from '@/components/ui/table';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
-import { ExternalLink, DollarSign, Eye, ArrowUp } from 'lucide-react';
+import { DollarSign, Eye, ArrowUp } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { LinkItem } from '../page';
 import { format, getMonth, getYear } from 'date-fns';
@@ -36,27 +35,14 @@ const chartConfig = {
   },
 };
 
-type CpmHistory = {
-    rate: number;
-    startDate: { seconds: number };
-    endDate?: { seconds: number };
-};
-
-
 export default function AnalyticsPage() {
-  const { user, profile, loading, activeCpm, hasCustomCpm, globalActiveCpm } = useUser();
+  const { user, loading, activeCpm, hasCustomCpm, globalActiveCpm } = useUser();
   const [links, setLinks] = useState<LinkItem[]>([]);
   const [linksLoading, setLinksLoading] = useState(true);
-
-  // States to track individual data loads
-  const [linksDataLoaded, setLinksDataLoaded] = useState(false);
-
 
   useEffect(() => {
     if (user) {
       setLinksLoading(true);
-      setLinksDataLoaded(false);
-
       const linksQuery = query(collection(db, "links"), where("userId", "==", user.uid));
       
       const unsubLinks = onSnapshot(linksQuery, (querySnapshot) => {
@@ -80,7 +66,7 @@ export default function AnalyticsPage() {
           });
         });
         setLinks(linksData);
-        setLinksDataLoaded(true);
+        setLinksLoading(false);
       });
       
       return () => {
@@ -91,13 +77,6 @@ export default function AnalyticsPage() {
     }
   }, [user, loading]);
   
-  useEffect(() => {
-    // We combine the main user loading state with the specific data loading states
-    if (!loading && linksDataLoaded) {
-      setLinksLoading(false);
-    }
-  }, [loading, linksDataLoaded]);
-
   const totalClicks = links.reduce((acc, link) => acc + link.clicks, 0);
   const totalEarnings = links.reduce((acc, link) => acc + (link.generatedEarnings || 0), 0);
   

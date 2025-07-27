@@ -72,74 +72,65 @@ export function useUser() {
     setLoading(true);
     let isSubscribed = true;
 
-    const userDocRef = doc(db, 'users', authUser.uid);
-    const payoutsQuery = query(collection(db, "payoutRequests"), where("userId", "==", authUser.uid));
-    const cpmQuery = query(collection(db, 'cpmHistory'), orderBy('startDate', 'desc'));
+    // Se unifican los listeners para controlar el estado de carga de forma centralizada.
+    const listeners = [
+        () => onSnapshot(doc(db, 'users', authUser.uid), async (userDoc) => {
+            if (!isSubscribed) return;
+            if (userDoc.exists()) {
+                const userData = userDoc.data();
+                const linksQuery = query(collection(db, 'links'), where('userId', '==', authUser.uid));
+                const linksSnapshot = await getDocs(linksQuery);
+                const totalGeneratedEarnings = linksSnapshot.docs.reduce((acc, doc) => acc + (doc.data().generatedEarnings || 0), 0);
+                
+                setUserProfile({
+                    uid: authUser.uid,
+                    displayName: userData.displayName || 'User',
+                    email: userData.email || '',
+                    photoURL: userData.photoURL || '',
+                    role: userData.role || 'user',
+                    generatedEarnings: totalGeneratedEarnings,
+                    paidEarnings: userData.paidEarnings || 0,
+                    customCpm: userData.customCpm,
+                    accountStatus: userData.accountStatus || 'active',
+                    linksCount: linksSnapshot.size,
+                });
+            } else {
+                await createUserProfile(authUser);
+            }
+        }),
+        () => onSnapshot(query(collection(db, "payoutRequests"), where("userId", "==", authUser.uid)), (snapshot) => {
+            if (!isSubscribed) return;
+            const requests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PayoutRequest));
+            setPayouts(requests.sort((a,b) => (b.requestedAt?.seconds ?? 0) - (a.requestedAt?.seconds ?? 0)));
+        }),
+        () => onSnapshot(query(collection(db, 'cpmHistory'), orderBy('startDate', 'desc')), (snapshot) => {
+            if (!isSubscribed) return;
+            setCpmHistory(snapshot.docs.map(doc => doc.data() as CpmHistory));
+        })
+    ];
 
-    let profileLoaded = false;
-    let payoutsLoaded = false;
-    let cpmLoaded = false;
+    const unsubs = listeners.map(listener => listener());
 
-    const checkLoadingComplete = () => {
-        if (profileLoaded && payoutsLoaded && cpmLoaded) {
+    // Se establece un timeout para evitar un estado de carga infinito si algo falla.
+    const loadingTimeout = setTimeout(() => {
+        if(isSubscribed) {
             setLoading(false);
         }
-    }
+    }, 5000); // 5 segundos de espera máxima
 
-    const unsubProfile = onSnapshot(userDocRef, async (userDoc) => {
-      if (!isSubscribed) return;
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
-        const linksQuery = query(collection(db, 'links'), where('userId', '==', authUser.uid));
-        const linksSnapshot = await getDocs(linksQuery);
-        const totalGeneratedEarnings = linksSnapshot.docs.reduce((acc, doc) => {
-            return acc + (doc.data().generatedEarnings || 0);
-        }, 0);
-
-        setUserProfile({
-            uid: authUser.uid,
-            displayName: userData.displayName || 'User',
-            email: userData.email || '',
-            photoURL: userData.photoURL || '',
-            role: userData.role || 'user',
-            generatedEarnings: totalGeneratedEarnings,
-            paidEarnings: userData.paidEarnings || 0,
-            customCpm: userData.customCpm,
-            accountStatus: userData.accountStatus || 'active',
-            linksCount: linksSnapshot.size,
-        });
-      } else {
-        await createUserProfile(authUser);
+    // El estado de carga principal ahora depende del estado de carga del perfil.
+    const unsubProfileCheck = onSnapshot(doc(db, 'users', authUser.uid), (doc) => {
+      if(doc.exists() && isSubscribed) {
+        setLoading(false);
+        clearTimeout(loadingTimeout);
       }
-      profileLoaded = true;
-      checkLoadingComplete();
     });
-
-    const unsubPayouts = onSnapshot(payoutsQuery, (snapshot) => {
-      if (!isSubscribed) return;
-      const requests: PayoutRequest[] = [];
-      snapshot.forEach(doc => {
-          requests.push({ id: doc.id, ...doc.data() } as PayoutRequest);
-      });
-      setPayouts(requests.sort((a,b) => (b.requestedAt?.seconds ?? 0) - (a.requestedAt?.seconds ?? 0)));
-      payoutsLoaded = true;
-      checkLoadingComplete();
-    });
-    
-    const unsubCpm = onSnapshot(cpmQuery, (snapshot) => {
-        if (!isSubscribed) return;
-        const historyData: CpmHistory[] = snapshot.docs.map(doc => doc.data() as CpmHistory);
-        setCpmHistory(historyData);
-        cpmLoaded = true;
-        checkLoadingComplete();
-    });
-
 
     return () => {
       isSubscribed = false;
-      unsubProfile();
-      unsubPayouts();
-      unsubCpm();
+      unsubs.forEach(unsub => unsub());
+      unsubProfileCheck();
+      clearTimeout(loadingTimeout);
     };
   }, [authUser, authLoading]);
   
@@ -156,7 +147,9 @@ export function useUser() {
 
     const globalCpm = cpmHistory.find(c => !c.endDate)?.rate || 0;
     const customCpm = userProfile?.customCpm;
-    const hasCustom = customCpm != null && customCpm > 0;
+    
+    // Lógica corregida para determinar si hay un CPM personalizado activo.
+    const hasCustom = typeof customCpm === 'number' && customCpm > 0;
     const actCpm = hasCustom ? customCpm : globalCpm;
 
     return {
