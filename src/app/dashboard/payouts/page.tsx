@@ -38,7 +38,7 @@ export default function PayoutsPage() {
 
     const handlePayoutRequest = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!user || !profile) return;
+        if (!user || !profile || availableBalance === undefined) return;
         
         const payoutAmount = parseFloat(amount);
         if (isNaN(payoutAmount) || payoutAmount <= 0) {
@@ -115,7 +115,7 @@ export default function PayoutsPage() {
                         <DollarSign className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">${availableBalance.toFixed(4)}</div>
+                        <div className="text-2xl font-bold">${typeof availableBalance === 'number' ? availableBalance.toFixed(4) : '0.0000'}</div>
                         <p className="text-xs text-muted-foreground">Ready for withdrawal</p>
                     </CardContent>
                 </Card>
@@ -125,7 +125,7 @@ export default function PayoutsPage() {
                         <Wallet className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">${payoutsPending.toFixed(4)}</div>
+                        <div className="text-2xl font-bold">${typeof payoutsPending === 'number' ? payoutsPending.toFixed(4) : '0.0000'}</div>
                         <p className="text-xs text-muted-foreground">Requested but not yet paid</p>
                     </CardContent>
                 </Card>
@@ -135,7 +135,7 @@ export default function PayoutsPage() {
                         <PiggyBank className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">${paidEarnings.toFixed(4)}</div>
+                        <div className="text-2xl font-bold">${typeof paidEarnings === 'number' ? paidEarnings.toFixed(4) : '0.0000'}</div>
                         <p className="text-xs text-muted-foreground">Total earnings paid out to you</p>
                     </CardContent>
                 </Card>
@@ -143,7 +143,7 @@ export default function PayoutsPage() {
             
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogTrigger asChild>
-                    <Button disabled={availableBalance < MIN_PAYOUT_AMOUNT} className="font-semibold">
+                    <Button disabled={typeof availableBalance !== 'number' || availableBalance < MIN_PAYOUT_AMOUNT} className="font-semibold">
                         Request a Payout
                     </Button>
                 </DialogTrigger>
@@ -158,7 +158,7 @@ export default function PayoutsPage() {
                         <div className="grid gap-4 py-4">
                              <div className="space-y-2">
                                 <Label>Amount ($)</Label>
-                                <Input required type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder={`e.g. ${availableBalance.toFixed(2)}`} step="0.01" />
+                                <Input required type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder={`e.g. ${typeof availableBalance === 'number' ? availableBalance.toFixed(2) : ''}`} step="0.01" />
                             </div>
                             <div className="space-y-2">
                                 <Label>Payment Method</Label>
