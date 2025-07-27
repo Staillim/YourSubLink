@@ -44,25 +44,21 @@ type CpmHistory = {
 
 
 export default function AnalyticsPage() {
-  const { user, profile, loading } = useUser();
+  const { user, profile, loading, activeCpm, hasCustomCpm, globalActiveCpm } = useUser();
   const [links, setLinks] = useState<LinkItem[]>([]);
-  const [cpmHistory, setCpmHistory] = useState<CpmHistory[]>([]);
   const [linksLoading, setLinksLoading] = useState(true);
 
   // States to track individual data loads
   const [linksDataLoaded, setLinksDataLoaded] = useState(false);
-  const [cpmDataLoaded, setCpmDataLoaded] = useState(false);
 
 
   useEffect(() => {
     if (user) {
       setLinksLoading(true);
       setLinksDataLoaded(false);
-      setCpmDataLoaded(false);
 
       const linksQuery = query(collection(db, "links"), where("userId", "==", user.uid));
-      const cpmQuery = query(collection(db, 'cpmHistory'), orderBy('startDate', 'desc'));
-
+      
       const unsubLinks = onSnapshot(linksQuery, (querySnapshot) => {
         const linksData: LinkItem[] = [];
         querySnapshot.forEach((doc) => {
@@ -87,15 +83,8 @@ export default function AnalyticsPage() {
         setLinksDataLoaded(true);
       });
       
-      const unsubCpm = onSnapshot(cpmQuery, (snapshot) => {
-          const historyData: CpmHistory[] = snapshot.docs.map(doc => doc.data() as CpmHistory);
-          setCpmHistory(historyData);
-          setCpmDataLoaded(true);
-      });
-      
       return () => {
         unsubLinks();
-        unsubCpm();
       }
     } else if (!loading) {
         setLinksLoading(false);
@@ -104,20 +93,14 @@ export default function AnalyticsPage() {
   
   useEffect(() => {
     // We combine the main user loading state with the specific data loading states
-    if (!loading && linksDataLoaded && cpmDataLoaded) {
+    if (!loading && linksDataLoaded) {
       setLinksLoading(false);
     }
-  }, [loading, linksDataLoaded, cpmDataLoaded]);
+  }, [loading, linksDataLoaded]);
 
   const totalClicks = links.reduce((acc, link) => acc + link.clicks, 0);
   const totalEarnings = links.reduce((acc, link) => acc + (link.generatedEarnings || 0), 0);
   
-  // Determine the active CPM to display
-  const globalActiveCpm = cpmHistory.find(c => !c.endDate)?.rate || 0;
-  const activeCpm = profile?.customCpm !== null && profile?.customCpm !== undefined ? profile.customCpm : globalActiveCpm;
-  
-  const hasCustomCpm = profile?.customCpm !== null && profile?.customCpm !== undefined;
-
   const getMonthlyChartData = () => {
     const monthlyEarnings: { [key: string]: number } = {};
     const now = new Date();
@@ -209,7 +192,7 @@ export default function AnalyticsPage() {
                       {hasCustomCpm ? (
                         <div className="text-xs text-muted-foreground flex items-center gap-1">
                            <ArrowUp className="h-3 w-3 text-green-500"/>
-                           <span>Your custom rate is active (Global: ${globalActiveCpm.toFixed(4)})</span>
+                           <span>Custom rate (Global: ${globalActiveCpm.toFixed(4)})</span>
                         </div>
                       ) : (
                         <p className="text-xs text-muted-foreground">Current global rate per 1000 views</p>
