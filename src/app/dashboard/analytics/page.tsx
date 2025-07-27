@@ -5,13 +5,12 @@
 import { useState, useEffect } from 'react';
 import { useUser } from '@/hooks/use-user';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, getDocs, orderBy } from 'firebase/firestore';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
@@ -36,15 +35,9 @@ const chartConfig = {
   },
 };
 
-type CpmHistory = {
-    rate: number;
-    startDate: { seconds: number };
-    endDate?: { seconds: number };
-};
-
 
 export default function AnalyticsPage() {
-  const { user, profile, loading, totalEarnings, activeCpm, hasCustomCpm, globalActiveCpm } = useUser();
+  const { user, loading, totalEarnings, activeCpm, hasCustomCpm, globalActiveCpm } = useUser();
   const [links, setLinks] = useState<LinkItem[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
 
@@ -180,7 +173,7 @@ export default function AnalyticsPage() {
                       {hasCustomCpm ? (
                         <div className="text-xs text-muted-foreground flex items-center gap-1">
                            <ArrowUp className="h-3 w-3 text-green-500"/>
-                           <span>Your custom rate is active (Global: ${globalActiveCpm.toFixed(4)})</span>
+                           <span>Custom rate (Global: ${globalActiveCpm.toFixed(4)})</span>
                         </div>
                       ) : (
                         <p className="text-xs text-muted-foreground">Current global rate per 1000 views</p>

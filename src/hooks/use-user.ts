@@ -154,14 +154,15 @@ export function useUser() {
   } : null;
 
   const globalActiveCpm = cpmHistory.find(c => !c.endDate)?.rate || 0;
-  const activeCpm = finalProfile?.customCpm != null ? finalProfile.customCpm : globalActiveCpm;
-  const hasCustomCpm = finalProfile?.customCpm != null;
+  const hasCustomCpm = finalProfile?.customCpm != null && finalProfile.customCpm > 0;
+  const activeCpm = hasCustomCpm ? finalProfile.customCpm! : globalActiveCpm;
+
 
   return {
     user: authUser as FirebaseUser | null,
     profile: finalProfile,
     role: userProfile?.role,
-    loading: loading,
+    loading,
     payouts,
     totalEarnings,
     payoutsPending,
