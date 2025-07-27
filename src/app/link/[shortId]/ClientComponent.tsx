@@ -144,8 +144,6 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
             timestamp: serverTimestamp(),
             cpmUsed,
             earningsGenerated,
-            processed: true, // Mark as processed since it's handled on the client
-            processedAt: serverTimestamp()
         });
 
         // Commit all operations atomically
