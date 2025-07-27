@@ -62,13 +62,25 @@ export function useUser() {
       return;
     }
 
+    // Keep loading until both profile and payouts have been fetched for the first time.
     setLoading(true);
 
     const userDocRef = doc(db, 'users', authUser.uid);
+    const payoutsQuery = query(collection(db, "payoutRequests"), where("userId", "==", authUser.uid));
+    
+    let profileLoaded = false;
+    let payoutsLoaded = false;
+
+    const checkLoadingComplete = () => {
+        if (profileLoaded && payoutsLoaded) {
+            setLoading(false);
+        }
+    };
+
+
     const unsubProfile = onSnapshot(userDocRef, async (userDoc) => {
         if (userDoc.exists()) {
             const userData = userDoc.data();
-            // Fetch related data only after confirming user exists
             const linksQuery = query(collection(db, 'links'), where('userId', '==', authUser.uid));
             const linksSnapshot = await getDocs(linksQuery);
             const totalGeneratedEarnings = linksSnapshot.docs.reduce((acc, doc) => {
@@ -88,34 +100,25 @@ export function useUser() {
                 linksCount: linksSnapshot.size,
             });
         } else {
-            // If user doesn't exist in Firestore, create them
             await createUserProfile(authUser);
-            // After creation, the onSnapshot will trigger again with the new data
         }
+        profileLoaded = true;
+        checkLoadingComplete();
     });
 
-    const payoutsQuery = query(collection(db, "payoutRequests"), where("userId", "==", authUser.uid));
     const unsubPayouts = onSnapshot(payoutsQuery, (snapshot) => {
-        const requests: PayoutRequest[] = [];
-        snapshot.forEach(doc => {
-            requests.push({ id: doc.id, ...doc.data() } as PayoutRequest);
-        });
-        setPayouts(requests.sort((a, b) => (b.requestedAt?.seconds ?? 0) - (a.requestedAt?.seconds ?? 0)));
+      const requests: PayoutRequest[] = [];
+      snapshot.forEach(doc => {
+          requests.push({ id: doc.id, ...doc.data() } as PayoutRequest);
+      });
+      setPayouts(requests.sort((a,b) => (b.requestedAt?.seconds ?? 0) - (a.requestedAt?.seconds ?? 0)));
+      payoutsLoaded = true;
+      checkLoadingComplete();
     });
-    
-    // Combine loading states: the overall loading is true until the profile is not null
-    // (which means the first snapshot has been processed)
-    const unsubCombined = onSnapshot(userDocRef, (doc) => {
-        if (doc.exists()) {
-            setLoading(false);
-        }
-    });
-
 
     return () => {
       unsubProfile();
       unsubPayouts();
-      unsubCombined();
     };
   }, [authUser, authLoading]);
   
@@ -130,6 +133,7 @@ export function useUser() {
   
   const finalProfile: UserProfile | null = userProfile ? {
       ...userProfile,
+      // Treat customCpm of 0 as null so the UI can correctly show global CPM
       customCpm: userProfile.customCpm === 0 ? null : userProfile.customCpm,
   } : null;
 
@@ -137,7 +141,7 @@ export function useUser() {
     user: authUser as FirebaseUser | null,
     profile: finalProfile,
     role: userProfile?.role,
-    loading: loading, // Use the refined loading state
+    loading: loading,
     payouts,
     payoutsPending,
     paidEarnings,
