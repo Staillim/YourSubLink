@@ -44,17 +44,15 @@ type CpmHistory = {
 
 
 export default function AnalyticsPage() {
-  const { user, profile, loading } = useUser();
+  const { user, profile, loading, totalEarnings, activeCpm, hasCustomCpm, globalActiveCpm } = useUser();
   const [links, setLinks] = useState<LinkItem[]>([]);
-  const [cpmHistory, setCpmHistory] = useState<CpmHistory[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
 
   useEffect(() => {
     if (user) {
       setDataLoading(true);
       const linksQuery = query(collection(db, "links"), where("userId", "==", user.uid));
-      const cpmQuery = query(collection(db, 'cpmHistory'), orderBy('startDate', 'desc'));
-
+     
       const unsubLinks = onSnapshot(linksQuery, (querySnapshot) => {
         const linksData: LinkItem[] = [];
         querySnapshot.forEach((doc) => {
@@ -76,22 +74,13 @@ export default function AnalyticsPage() {
           });
         });
         setLinks(linksData);
+        if (!loading) {
+          setDataLoading(false);
+        }
       });
-      
-      const unsubCpm = onSnapshot(cpmQuery, (snapshot) => {
-          const historyData: CpmHistory[] = snapshot.docs.map(doc => doc.data() as CpmHistory);
-          setCpmHistory(historyData);
-      });
-      
-      // Since useUser handles its own loading state, we can rely on that.
-      // And we listen to CPM and links separately.
-      if (!loading) {
-        setDataLoading(false);
-      }
       
       return () => {
         unsubLinks();
-        unsubCpm();
       }
     } else if (!loading) {
         setDataLoading(false);
@@ -99,11 +88,6 @@ export default function AnalyticsPage() {
   }, [user, loading]);
 
   const totalClicks = links.reduce((acc, link) => acc + link.clicks, 0);
-  const totalEarnings = links.reduce((acc, link) => acc + (link.generatedEarnings || 0), 0);
-  
-  const globalActiveCpm = cpmHistory.find(c => !c.endDate)?.rate || 0;
-  const activeCpm = profile?.customCpm != null ? profile.customCpm : globalActiveCpm;
-  const hasCustomCpm = profile?.customCpm != null;
 
   const getMonthlyChartData = () => {
     const monthlyEarnings: { [key: string]: number } = {};

@@ -14,7 +14,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db, createUserProfile } from '@/lib/firebase';
-import { doc, onSnapshot, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, onSnapshot, collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import type { User as FirebaseUser } from 'firebase/auth';
 
 export type UserProfile = {
@@ -42,11 +42,18 @@ export type PayoutRequest = {
     processedAt?: any;
 };
 
+type CpmHistory = {
+    rate: number;
+    startDate: { seconds: number };
+    endDate?: { seconds: number };
+};
+
 
 export function useUser() {
   const [authUser, authLoading] = useAuthState(auth);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [payouts, setPayouts] = useState<PayoutRequest[]>([]);
+  const [cpmHistory, setCpmHistory] = useState<CpmHistory[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -62,22 +69,20 @@ export function useUser() {
       return;
     }
 
-    // Keep loading until both profile and payouts have been fetched for the first time.
+    // Keep loading until all data sources have been fetched for the first time.
     setLoading(true);
 
-    const userDocRef = doc(db, 'users', authUser.uid);
-    const payoutsQuery = query(collection(db, "payoutRequests"), where("userId", "==", authUser.uid));
-    
     let profileLoaded = false;
     let payoutsLoaded = false;
+    let cpmLoaded = false;
 
     const checkLoadingComplete = () => {
-        if (profileLoaded && payoutsLoaded) {
+        if (profileLoaded && payoutsLoaded && cpmLoaded) {
             setLoading(false);
         }
     };
 
-
+    const userDocRef = doc(db, 'users', authUser.uid);
     const unsubProfile = onSnapshot(userDocRef, async (userDoc) => {
         if (userDoc.exists()) {
             const userData = userDoc.data();
@@ -106,6 +111,7 @@ export function useUser() {
         checkLoadingComplete();
     });
 
+    const payoutsQuery = query(collection(db, "payoutRequests"), where("userId", "==", authUser.uid));
     const unsubPayouts = onSnapshot(payoutsQuery, (snapshot) => {
       const requests: PayoutRequest[] = [];
       snapshot.forEach(doc => {
@@ -115,21 +121,31 @@ export function useUser() {
       payoutsLoaded = true;
       checkLoadingComplete();
     });
+    
+    const cpmQuery = query(collection(db, 'cpmHistory'), orderBy('startDate', 'desc'));
+    const unsubCpm = onSnapshot(cpmQuery, (snapshot) => {
+        const historyData: CpmHistory[] = snapshot.docs.map(doc => doc.data() as CpmHistory);
+        setCpmHistory(historyData);
+        cpmLoaded = true;
+        checkLoadingComplete();
+    });
+
 
     return () => {
       unsubProfile();
       unsubPayouts();
+      unsubCpm();
     };
   }, [authUser, authLoading]);
   
   // Derived state for balance calculation
-  const generatedEarnings = userProfile?.generatedEarnings ?? 0;
+  const totalEarnings = userProfile?.generatedEarnings ?? 0;
   const paidEarnings = userProfile?.paidEarnings ?? 0;
   const payoutsPending = payouts
         .filter(p => p.status === 'pending')
         .reduce((acc, p) => acc + p.amount, 0);
 
-  const availableBalance = generatedEarnings - paidEarnings - payoutsPending;
+  const availableBalance = totalEarnings - paidEarnings - payoutsPending;
   
   const finalProfile: UserProfile | null = userProfile ? {
       ...userProfile,
@@ -137,14 +153,22 @@ export function useUser() {
       customCpm: userProfile.customCpm === 0 ? null : userProfile.customCpm,
   } : null;
 
+  const globalActiveCpm = cpmHistory.find(c => !c.endDate)?.rate || 0;
+  const activeCpm = finalProfile?.customCpm != null ? finalProfile.customCpm : globalActiveCpm;
+  const hasCustomCpm = finalProfile?.customCpm != null;
+
   return {
     user: authUser as FirebaseUser | null,
     profile: finalProfile,
     role: userProfile?.role,
     loading: loading,
     payouts,
+    totalEarnings,
     payoutsPending,
     paidEarnings,
-    availableBalance
+    availableBalance,
+    activeCpm,
+    hasCustomCpm,
+    globalActiveCpm
   };
 }
