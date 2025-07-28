@@ -3,7 +3,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions
+    // Helper functions to make rules more readable.
     function isAuth() {
       return request.auth != null;
     }
@@ -13,128 +13,119 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isAuth() &&
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      // An admin is an authenticated user whose document in the 'users' collection has the role 'admin'.
+      return isAuth() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
     // USERS Collection
     match /users/{userId} {
-      // Permitir que cualquiera pueda leer (get) un usuario para que el cliente pueda obtener customCpm o accountStatus,
-      // necesario para monetización y validaciones (esto es público porque no hay info sensible)
+      // Public Get: Allow anyone to get a single user document. 
+      // This is needed for the client to check account status or custom CPMs. Sensitive data should not be stored here.
       allow get: if true;
-
-      // Solo admins pueden listar usuarios
+      
+      // List: Only admins can list all users.
       allow list: if isAdmin();
 
-      // Actualización: admins o dueño (sin poder cambiar role)
+      // Update: Admins can update any user. Users can only update their own profile, and cannot change their role.
       allow update: if isAdmin() || (isOwner(userId) && request.resource.data.role == resource.data.role);
 
-      // Crear: solo el dueño (normalmente creado automáticamente)
+      // Create: Only the user themselves can create their own document.
       allow create: if isOwner(userId);
-
-      // No se permite borrar usuarios directamente
+      
+      // Delete: Disallowed for all.
       allow delete: if false;
     }
 
     // LINKS Collection
     match /links/{linkId} {
-      // Permitir lectura pública (get y list) para que cualquier visitante vea el link y pueda usarlo
+      // Public Read: Anyone can read link documents for redirection.
       allow read: if true;
 
-      // Crear: solo usuarios autenticados para sus propios links
+      // Create: Only authenticated users can create links for themselves.
       allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
 
-      // Actualizar: admins, dueño o solo para incrementar clicks y generatedEarnings (evita que alguien modifique otros campos)
-      allow update: if isAdmin() ||
-                      (isAuth() && resource.data.userId == request.auth.uid) ||
-                      (
-                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks', 'generatedEarnings']) &&
-                        (request.resource.data.clicks == resource.data.clicks + 1)
-                      );
-
-      // Borrar: admins o dueño
+      // Update: 
+      // 1. Admins can update anything.
+      // 2. Owners can update their own links.
+      allow update: if isAdmin() || (isAuth() && resource.data.userId == request.auth.uid);
+      
+      // Delete: Admins or owners can delete links.
       allow delete: if isAdmin() || (isAuth() && resource.data.userId == request.auth.uid);
     }
-
-    // CLICKS Collection
+    
+    // CLICKS Collection (for logging individual clicks)
     match /clicks/{clickId} {
-      // Crear clicks es público, porque se usan para contabilizar visitas sin auth
+      // Create: Anyone can create a click document. This is done on the client-side when a link is visited.
       allow create: if true;
-
-      // Leer/listar solo admins
-      allow read, list: if isAdmin();
+      
+      // Read/Update/Delete: Only admins can read click logs or modify them. Users cannot.
+      allow read, update, delete: if isAdmin();
     }
 
     // PAYOUT REQUESTS Collection
     match /payoutRequests/{requestId} {
-      // Crear solo el dueño autenticado
-      allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
+      // Create: Only the owner of the request can create it.
+      allow create: if isOwner(request.resource.data.userId);
 
-      // Leer: admins o dueño
+      // Get: Admins or the owner can get a specific request.
       allow get: if isAdmin() || isOwner(resource.data.userId);
-      allow list: if isAdmin() || isOwner(request.resource.data.userId);
 
-      // Actualizar: solo admins
+      // List: Admins can list all requests. Users can list ONLY their own requests by providing their UID in the query.
+      allow list: if isAdmin() || (isAuth() && request.query.where.userId == request.auth.uid);
+      
+      // Update: Only admins can approve or reject requests.
       allow update: if isAdmin();
-
-      // No se permite borrar
+      
+      // Delete: Disallowed.
       allow delete: if false;
     }
 
-    // CPM HISTORY Collection
+    // CPM HISTORY & GLOBAL RULES (Admin-managed settings)
     match /cpmHistory/{cpmId} {
-      // Permitir lectura pública porque el CPM es info pública para calcular ganancias
-      allow get, list: if true;
-
-      // Crear y actualizar solo admins
-      allow create, update: if isAdmin();
-
-      // Borrar solo admins (opcional)
-      allow delete: if isAdmin();
+      allow get, list: if true; // Publicly readable for earnings calculation.
+      allow create, update, delete: if isAdmin();
     }
     
-    // GLOBAL RULES Collection
     match /globalRules/{ruleId} {
-      allow get, list: if true;
+      allow get, list: if true; // Publicly readable for the link gate.
       allow create, update, delete: if isAdmin();
     }
 
     // NOTIFICATIONS Collection
     match /notifications/{notificationId} {
-      // Admins can read any notification. Users can only read their own.
-      allow get, list: if isAdmin() || isOwner(resource.data.userId);
+      // Admins can read any notification. Users can list/read their own.
+      allow get, list: if isAdmin() || (isAuth() && resource.data.userId == request.auth.uid);
 
-      // Crear: sistema/admins (permitido siempre)
-      allow create: if true;
+      // Create: System/admins can create notifications. This rule allows server-side processes to create notifications.
+      allow create: if isAdmin() || isAuth();
 
-      // Actualizar: admins o dueño
+      // Update: Admins or owners can update (e.g., mark as read).
       allow update: if isAdmin() || isOwner(resource.data.userId);
-
-      // No borrar
+      
+      // Delete: Disallowed.
       allow delete: if false;
     }
 
     // SUPPORT TICKETS Collection
     match /supportTickets/{ticketId} {
-      // Admins can see all tickets, users can see only their own.
-      allow get, list: if isAdmin() || isOwner(resource.data.userId);
+      // Get/List: Admins can access any ticket. Users can only access their own.
+      allow get, list: if isAdmin() || (isAuth() && resource.data.userId == request.auth.uid);
 
-      // Crear: dueño autenticado
-      allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
+      // Create: Users can create tickets for themselves.
+      allow create: if isOwner(request.resource.data.userId);
 
-      // Actualizar: admins o dueño
+      // Update: Admins or the owner can update the ticket status or metadata.
       allow update: if isAdmin() || isOwner(resource.data.userId);
 
-      // Nested messages
+      // Nested Messages Subcollection
       match /messages/{messageId} {
-        // Leer/listar: admins o dueño del ticket
+        // Get/List: Admins or the owner of the parent ticket can read messages.
         allow get, list: if isAdmin() || isOwner(get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId);
 
-        // Crear: Admins o el dueño del ticket (verificado contra los datos del ticket padre)
+        // Create: Admins or the owner of the parent ticket can create messages.
         allow create: if isAdmin() || isOwner(get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId);
         
-        // No se permite actualizar mensajes
+        // Update/Delete: Messages are immutable.
         allow update, delete: if false;
       }
     }
