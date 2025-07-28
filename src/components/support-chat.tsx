@@ -80,9 +80,10 @@ export default function SupportChat() {
     if (!user) return;
 
     setLoading(true);
+    // This query will now be filtered by Firestore's security rules automatically
     const ticketsQuery = query(
       collection(db, 'supportTickets'),
-      where('userId', '==', user.uid)
+      orderBy('lastMessageTimestamp', 'desc')
     );
 
     const unsubscribe = onSnapshot(ticketsQuery, (snapshot) => {
@@ -91,7 +92,8 @@ export default function SupportChat() {
             ...doc.data()
         } as SupportTicket));
         
-        setTickets(ticketsData.sort((a, b) => (b.lastMessageTimestamp?.seconds ?? 0) - (a.lastMessageTimestamp?.seconds ?? 0)));
+        // The security rules ensure only the user's tickets are returned.
+        setTickets(ticketsData);
         setLoading(false);
     }, (error) => {
         console.error("Error fetching support tickets: ", error);

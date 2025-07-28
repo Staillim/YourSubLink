@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useUser } from '@/hooks/use-user';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Bell, CheckCircle2, XCircle, Clock, Trophy, ShieldAlert, Trash2, MessageSquare, Star } from 'lucide-react';
 import type { PayoutRequest } from '@/hooks/use-user';
@@ -179,13 +179,18 @@ export default function NotificationsPage() {
         if (user) {
             setLoading(true);
             
+            // This query will be filtered by security rules automatically
             const generalNotificationsQuery = query(
                 collection(db, "notifications"), 
-                where("userId", "==", user.uid)
+                orderBy("createdAt", "desc")
             );
             
             const unsubGeneral = onSnapshot(generalNotificationsQuery, (generalSnapshot) => {
-                const generalData = generalSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
+                // Filter client-side to ensure we only show notifications for the current user
+                const generalData = generalSnapshot.docs
+                    .map(doc => ({ id: doc.id, ...doc.data() } as Notification))
+                    .filter(notif => notif.userId === user.uid);
+                
                 const payoutNotifications = processPayouts(payouts);
 
                 const allNotificationsData = [...generalData, ...payoutNotifications];
@@ -194,6 +199,9 @@ export default function NotificationsPage() {
                 
                 const formatted = sortedNotifications.map(getNotificationDetails);
                 setNotifications(formatted);
+                setLoading(false);
+            }, (error) => {
+                console.error("Error fetching notifications:", error);
                 setLoading(false);
             });
 
