@@ -10,7 +10,7 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, writeBatch, Timestamp, getDoc, serverTimestamp, increment } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, writeBatch, Timestamp, getDoc, serverTimestamp, increment, limit } from 'firebase/firestore';
 import type { LinkData } from '@/types';
 
 const CalculateEarningsOutputSchema = z.object({
@@ -53,7 +53,7 @@ const calculateEarningsFlow = ai.defineFlow(
       const userId = clickData.userId;
 
       if (!linkId || !userId) {
-        batch.update(clickDoc.ref, { processed: true, earningsGenerated: 0, reason: "Missing linkId or userId" });
+        batch.update(clickDoc.ref, { processed: true, earningsGenerated: 0, reason: "Missing linkId or userId", processedAt: serverTimestamp() });
         continue;
       }
       
@@ -61,7 +61,7 @@ const calculateEarningsFlow = ai.defineFlow(
       const linkSnap = await getDoc(linkRef);
 
       if (!linkSnap.exists()) {
-        batch.update(clickDoc.ref, { processed: true, earningsGenerated: 0, reason: "Link not found" });
+        batch.update(clickDoc.ref, { processed: true, earningsGenerated: 0, reason: "Link not found", processedAt: serverTimestamp() });
         continue;
       }
       
@@ -69,14 +69,14 @@ const calculateEarningsFlow = ai.defineFlow(
       const userSnap = await getDoc(userRef);
 
       if (!userSnap.exists() || userSnap.data().accountStatus === 'suspended') {
-        batch.update(clickDoc.ref, { processed: true, earningsGenerated: 0, reason: "User not found or suspended" });
+        batch.update(clickDoc.ref, { processed: true, earningsGenerated: 0, reason: "User not found or suspended", processedAt: serverTimestamp() });
         continue;
       }
 
       const linkData = linkSnap.data() as LinkData;
       const userData = userSnap.data();
 
-      // Check if link is monetizable
+      // Check if link is monetizable at the time of processing
       const isMonetizable = (linkData.rules?.length || 0) >= 3 && linkData.monetizationStatus === 'active';
       
       let earningsForThisClick = 0;
@@ -85,7 +85,7 @@ const calculateEarningsFlow = ai.defineFlow(
       if (isMonetizable) {
         const customCpm = userData?.customCpm;
 
-        if (customCpm && customCpm > 0) {
+        if (customCpm != null && customCpm > 0) {
             cpmUsed = customCpm;
         } else {
             const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
@@ -100,14 +100,10 @@ const calculateEarningsFlow = ai.defineFlow(
         earningsForThisClick = cpmUsed / 1000;
         totalEarnings += earningsForThisClick;
 
-        // Increment both clicks and earnings on the link document
+        // Increment earnings on the link document
         batch.update(linkRef, { 
-          clicks: increment(1),
           generatedEarnings: increment(earningsForThisClick) 
         });
-      } else {
-        // If not monetizable, just increment the clicks
-        batch.update(linkRef, { clicks: increment(1) });
       }
 
       batch.update(clickDoc.ref, { 

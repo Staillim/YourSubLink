@@ -100,46 +100,23 @@ export default function ClientComponent({ shortId, linkId }: { shortId: string, 
         const batch = writeBatch(db);
         const linkRef = doc(db, 'links', dataToUse.id);
         
+        // 1. Increment the raw click counter on the link document
         batch.update(linkRef, { clicks: increment(1) });
         
-        let earningsGenerated = 0;
-
-        if (dataToUse.monetizable) {
-            const userRef = doc(db, 'users', dataToUse.userId);
-            const userSnap = await getDoc(userRef);
-            const userData = userSnap.data();
-            const customCpm = userData?.customCpm;
-
-            let cpmUsed = 0;
-            if (customCpm != null && customCpm > 0) {
-                cpmUsed = customCpm;
-            } else {
-                const cpmHistoryRef = collection(db, 'cpmHistory');
-                const cpmQuery = query(cpmHistoryRef, where('endDate', '==', null), limit(1));
-                const cpmSnapshot = await getDocs(cpmQuery);
-                let activeCpm = 3.00;
-                if (!cpmSnapshot.empty) {
-                    activeCpm = cpmSnapshot.docs[0].data().rate;
-                }
-                cpmUsed = activeCpm;
-            }
-            
-            earningsGenerated = cpmUsed / 1000;
-            batch.update(linkRef, { generatedEarnings: increment(earningsGenerated) });
-        }
-        
+        // 2. Create a log of the click to be processed later by a backend flow
         const clickLogRef = doc(collection(db, 'clicks'));
         batch.set(clickLogRef, {
             linkId: dataToUse.id,
             userId: dataToUse.userId,
             timestamp: serverTimestamp(),
-            earningsGenerated: earningsGenerated,
+            processed: false, // Mark for backend processing
+            userAgent: navigator.userAgent, // Collect basic info
         });
 
         await batch.commit();
 
     } catch(error) {
-        console.error("Failed to count click:", error);
+        console.error("Failed to log click:", error);
     } finally {
         window.location.href = dataToUse.original;
     }
