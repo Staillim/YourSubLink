@@ -217,16 +217,19 @@ export default function PayoutsPage() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {loading ? (
+                            {loading && (
                                 <TableRow><TableCell colSpan={4} className="text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
-                            ) : payouts.length > 0 ? (
+                            )}
+                            {!loading && payouts.length > 0 ? (
                                 payouts.map(p => (
                                     <TableRow key={p.id}>
                                         <TableCell>
-                                            <div className="font-medium">{(p.processedAt || p.requestedAt) ? new Date((p.processedAt || p.requestedAt).seconds * 1000).toLocaleDateString() : 'Processing...'}</div>
+                                            <div className="font-medium">
+                                                {p.requestedAt ? new Date(p.requestedAt.seconds * 1000).toLocaleDateString() : 'Processing...'}
+                                            </div>
                                             <div className="sm:hidden mt-1 font-semibold">${p.amount.toFixed(4)}</div>
                                         </TableCell>
-                                         <TableCell className="font-semibold hidden sm:table-cell">${p.amount.toFixed(4)}</TableCell>
+                                        <TableCell className="font-semibold hidden sm:table-cell">${p.amount.toFixed(4)}</TableCell>
                                         <TableCell className="capitalize hidden sm:table-cell">{p.method}</TableCell>
                                         <TableCell className="text-right">
                                             <Badge variant={p.status === 'pending' ? 'secondary' : p.status === 'completed' ? 'default' : 'destructive'}
@@ -238,7 +241,7 @@ export default function PayoutsPage() {
                                     </TableRow>
                                 ))
                             ) : (
-                                <TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">No payout requests yet.</TableCell></TableRow>
+                                !loading && <TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">No payout requests yet.</TableCell></TableRow>
                             )}
                         </TableBody>
                    </Table>
