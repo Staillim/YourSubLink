@@ -211,14 +211,12 @@ export default function AdminUsersPage() {
     setIsPayoutHistoryDialogOpen(true);
     setHistoryLoading(true);
     try {
-        const q = query(
-            collection(db, 'payoutRequests'), 
-            where('userId', '==', user.uid),
-            orderBy('requestedAt', 'desc')
-        );
+        const q = query(collection(db, 'payoutRequests'), where('userId', '==', user.uid));
         const querySnapshot = await getDocs(q);
         const historyData = querySnapshot.docs
-            .map(doc => ({ id: doc.id, ...doc.data() } as PayoutRequest));
+            .map(doc => ({ id: doc.id, ...doc.data() } as PayoutRequest))
+            .filter(payout => payout.status === 'completed' || payout.status === 'rejected')
+            .sort((a, b) => (b.processedAt?.seconds ?? 0) - (a.processedAt?.seconds ?? 0));
             
         setPayoutHistory(historyData);
     } catch (error) {

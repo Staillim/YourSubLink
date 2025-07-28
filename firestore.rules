@@ -72,7 +72,8 @@ service cloud.firestore {
       allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
 
       // Leer: admins o dueño
-      allow get: if isAdmin() || isOwner(resource.data.userId);
+      allow get: if isAdmin() || (isAuth() && resource.data.userId == request.auth.uid);
+      // List: Admins can list all, users can only list their own with a where clause
       allow list: if isAdmin() || (isAuth() && request.query.userId == request.auth.uid);
 
       // Actualizar: solo admins
@@ -93,23 +94,18 @@ service cloud.firestore {
       // Borrar solo admins (opcional)
       allow delete: if isAdmin();
     }
-    
-    // GLOBAL RULES Collection
-    match /globalRules/{ruleId} {
-      allow get, list: if true;
-      allow create, update, delete: if isAdmin();
-    }
 
     // NOTIFICATIONS Collection
     match /notifications/{notificationId} {
-      // Admins can read any notification. Users can only read their own.
-      allow get, list: if isAdmin() || isOwner(resource.data.userId);
+      // Leer y listar: admins o dueño
+      allow get: if isAdmin() || (isAuth() && resource.data.userId == request.auth.uid);
+      allow list: if isAdmin() || (isAuth() && request.query.userId == request.auth.uid);
 
       // Crear: sistema/admins (permitido siempre)
       allow create: if true;
 
       // Actualizar: admins o dueño
-      allow update: if isAdmin() || isOwner(resource.data.userId);
+      allow update: if isAdmin() || (isAuth() && resource.data.userId == request.auth.uid);
 
       // No borrar
       allow delete: if false;
@@ -117,26 +113,34 @@ service cloud.firestore {
 
     // SUPPORT TICKETS Collection
     match /supportTickets/{ticketId} {
-      // Admins can see all tickets, users can see only their own.
-      allow get, list: if isAdmin() || isOwner(resource.data.userId);
+      // Leer y listar: admins o dueño
+      allow get: if isAdmin() || (isAuth() && resource.data.userId == request.auth.uid);
+      allow list: if isAdmin() || (isAuth() && request.query.userId == request.auth.uid);
 
       // Crear: dueño autenticado
       allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
 
       // Actualizar: admins o dueño
-      allow update: if isAdmin() || isOwner(resource.data.userId);
+      allow update: if isAdmin() || (isAuth() && resource.data.userId == request.auth.uid);
 
       // Nested messages
       match /messages/{messageId} {
         // Leer/listar: admins o dueño del ticket
-        allow get, list: if isAdmin() || isOwner(get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId);
+        allow read: if isAdmin() || (isAuth() && get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId == request.auth.uid);
 
-        // Crear: Admins o el dueño del ticket (verificado contra los datos del ticket padre)
-        allow create: if isAdmin() || isOwner(get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId);
-        
-        // No se permite actualizar mensajes
-        allow update, delete: if false;
+        // Crear: admins o dueño autenticado
+        allow create: if isAuth();
+
+        // Actualizar: admins o dueño si ticket no está completado (puedes afinarlo según lógica)
+        allow update: if isAdmin() || (get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.status != 'completed' && get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId == request.auth.uid);
       }
     }
+
+     // GLOBAL RULES Collection
+    match /globalRules/{ruleId} {
+      allow get, list: if true;
+      allow write: if isAdmin();
+    }
+
   }
 }
