@@ -179,18 +179,14 @@ export default function NotificationsPage() {
         if (user) {
             setLoading(true);
             
-            // This query will be filtered by security rules automatically
             const generalNotificationsQuery = query(
                 collection(db, "notifications"), 
+                where("userId", "==", user.uid),
                 orderBy("createdAt", "desc")
             );
             
             const unsubGeneral = onSnapshot(generalNotificationsQuery, (generalSnapshot) => {
-                // Filter client-side to ensure we only show notifications for the current user
-                const generalData = generalSnapshot.docs
-                    .map(doc => ({ id: doc.id, ...doc.data() } as Notification))
-                    .filter(notif => notif.userId === user.uid);
-                
+                const generalData = generalSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
                 const payoutNotifications = processPayouts(payouts);
 
                 const allNotificationsData = [...generalData, ...payoutNotifications];
