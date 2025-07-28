@@ -162,6 +162,18 @@ export function useUser() {
   
   // Memoize derived state for performance and stability
   const { availableBalance, payoutsPending, paidEarnings, activeCpm, globalActiveCpm, hasCustomCpm } = useMemo(() => {
+    // Return default values if profile or payouts are not loaded yet to prevent NaN results
+    if (!userProfile) {
+        return {
+            availableBalance: 0,
+            payoutsPending: 0,
+            paidEarnings: 0,
+            activeCpm: 0,
+            globalActiveCpm: 0,
+            hasCustomCpm: false,
+        };
+    }
+    
     const genEarnings = userProfile?.generatedEarnings ?? 0;
     const pEarnings = userProfile?.paidEarnings ?? 0;
     const pendPayouts = payouts
