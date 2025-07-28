@@ -172,49 +172,67 @@ const processPayouts = (payouts: PayoutRequest[]): Notification[] => {
             type: type,
             message: message,
             createdAt: p.processedAt || p.requestedAt,
-            isRead: p.status !== 'pending' // Consider pending as unread for sorting
+            isRead: p.status !== 'pending' 
         }
     })
 }
 
 export default function NotificationsPage() {
-    const { user, payouts, loading: userLoading } = useUser();
+    const { user, loading: userLoading } = useUser();
     const [notifications, setNotifications] = useState<FormattedNotification[]>([]);
+    const [payouts, setPayouts] = useState<PayoutRequest[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (userLoading) {
-            setLoading(true);
-            return;
-        }
         if (!user) {
-            setLoading(false);
+            if(!userLoading) setLoading(false);
             return;
         }
-        
-        const generalNotificationsQuery = query(
-            collection(db, "notifications"), 
-            where("userId", "==", user.uid)
-        );
-        
-        const unsubGeneral = onSnapshot(generalNotificationsQuery, (generalSnapshot) => {
-            const generalData = generalSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
-            const payoutNotifications = processPayouts(payouts || []);
 
-            const allNotificationsData = [...generalData, ...payoutNotifications];
-            
-            const sortedNotifications = allNotificationsData.sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
-            
-            const formatted = sortedNotifications.map(getNotificationDetails);
-            setNotifications(formatted);
-            setLoading(false);
-        }, (error) => {
-            console.error("Error fetching notifications:", error);
-            setLoading(false);
+        setLoading(true);
+        let notifsLoaded = false;
+        let payoutsLoaded = false;
+
+        const checkAllLoaded = (allNotifs: Notification[], allPayouts: PayoutRequest[]) => {
+            if (notifsLoaded && payoutsLoaded) {
+                 const payoutNotifications = processPayouts(allPayouts);
+                 const allNotificationsData = [...allNotifs, ...payoutNotifications];
+                 const sortedNotifications = allNotificationsData.sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
+                 const formatted = sortedNotifications.map(getNotificationDetails);
+                 setNotifications(formatted);
+                 setLoading(false);
+            }
+        };
+
+        const notifsQuery = query(collection(db, "notifications"), where("userId", "==", user.uid));
+        const unsubNotifs = onSnapshot(notifsQuery, (snapshot) => {
+            const notifData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
+            notifsLoaded = true;
+            checkAllLoaded(notifData, payouts);
+        }, (err) => {
+            console.error("Error fetching notifications:", err);
+            notifsLoaded = true;
+            checkAllLoaded([], payouts);
         });
 
-        return () => unsubGeneral();
-    }, [user, userLoading, payouts]);
+        const payoutsQuery = query(collection(db, "payoutRequests"), where("userId", "==", user.uid));
+        const unsubPayouts = onSnapshot(payoutsQuery, (snapshot) => {
+            const payoutData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PayoutRequest));
+            setPayouts(payoutData);
+            payoutsLoaded = true;
+            checkAllLoaded(notifications, payoutData);
+        }, (err) => {
+            console.error("Error fetching payouts:", err);
+            payoutsLoaded = true;
+            checkAllLoaded(notifications, []);
+        });
+
+        return () => {
+            unsubNotifs();
+            unsubPayouts();
+        };
+
+    }, [user, userLoading]);
 
   return (
     <div className="flex flex-col gap-6">

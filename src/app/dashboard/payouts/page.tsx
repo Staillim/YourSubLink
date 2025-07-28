@@ -223,7 +223,7 @@ export default function PayoutsPage() {
                                 payouts.map(p => (
                                     <TableRow key={p.id}>
                                         <TableCell>
-                                            <div className="font-medium">{p.requestedAt ? new Date(p.requestedAt.seconds * 1000).toLocaleDateString() : 'Processing...'}</div>
+                                            <div className="font-medium">{(p.processedAt || p.requestedAt) ? new Date((p.processedAt || p.requestedAt).seconds * 1000).toLocaleDateString() : 'Processing...'}</div>
                                             <div className="sm:hidden mt-1 font-semibold">${p.amount.toFixed(4)}</div>
                                         </TableCell>
                                          <TableCell className="font-semibold hidden sm:table-cell">${p.amount.toFixed(4)}</TableCell>

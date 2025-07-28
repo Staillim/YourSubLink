@@ -163,7 +163,7 @@ export function useUser() {
   // Memoize derived state for performance and stability
   const { availableBalance, payoutsPending, paidEarnings, activeCpm, globalActiveCpm, hasCustomCpm } = useMemo(() => {
     // Return default values if profile or payouts are not loaded yet to prevent NaN results
-    if (!userProfile) {
+    if (!userProfile || !payouts) {
         return {
             availableBalance: 0,
             payoutsPending: 0,
@@ -174,8 +174,8 @@ export function useUser() {
         };
     }
     
-    const genEarnings = userProfile?.generatedEarnings ?? 0;
-    const pEarnings = userProfile?.paidEarnings ?? 0;
+    const genEarnings = userProfile.generatedEarnings ?? 0;
+    const pEarnings = userProfile.paidEarnings ?? 0;
     const pendPayouts = payouts
           .filter(p => p.status === 'pending')
           .reduce((acc, p) => acc + p.amount, 0);
@@ -183,7 +183,7 @@ export function useUser() {
     const balance = genEarnings - pEarnings - pendPayouts;
 
     const globalCpm = cpmHistory.find(c => !c.endDate)?.rate ?? 0;
-    const customCpm = userProfile?.customCpm;
+    const customCpm = userProfile.customCpm;
     const customRateActive = typeof customCpm === 'number' && customCpm > 0;
     const finalActiveCpm = customRateActive ? customCpm : globalCpm;
 
