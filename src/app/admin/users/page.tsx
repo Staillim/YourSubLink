@@ -211,12 +211,14 @@ export default function AdminUsersPage() {
     setIsPayoutHistoryDialogOpen(true);
     setHistoryLoading(true);
     try {
-        const q = query(collection(db, 'payoutRequests'), where('userId', '==', user.uid));
+        const q = query(
+            collection(db, 'payoutRequests'), 
+            where('userId', '==', user.uid),
+            orderBy('requestedAt', 'desc')
+        );
         const querySnapshot = await getDocs(q);
         const historyData = querySnapshot.docs
-            .map(doc => ({ id: doc.id, ...doc.data() } as PayoutRequest))
-            .filter(payout => payout.status === 'completed' || payout.status === 'rejected')
-            .sort((a, b) => (b.processedAt?.seconds ?? 0) - (a.processedAt?.seconds ?? 0));
+            .map(doc => ({ id: doc.id, ...doc.data() } as PayoutRequest));
             
         setPayoutHistory(historyData);
     } catch (error) {
@@ -497,7 +499,7 @@ export default function AdminUsersPage() {
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead>Processed Date</TableHead>
+                                    <TableHead>Date</TableHead>
                                     <TableHead>Amount</TableHead>
                                     <TableHead>Method & Details</TableHead>
                                     <TableHead className="text-right">Status</TableHead>
@@ -506,14 +508,14 @@ export default function AdminUsersPage() {
                             <TableBody>
                                 {payoutHistory.map((payout) => (
                                     <TableRow key={`${selectedUser?.uid}-${payout.id}`}>
-                                        <TableCell>{payout.processedAt ? new Date(payout.processedAt.seconds * 1000).toLocaleString() : 'N/A'}</TableCell>
+                                        <TableCell>{payout.processedAt ? new Date(payout.processedAt.seconds * 1000).toLocaleString() : new Date(payout.requestedAt.seconds * 1000).toLocaleString()}</TableCell>
                                         <TableCell className="font-semibold">${payout.amount.toFixed(4)}</TableCell>
                                         <TableCell>
                                             <div className="capitalize font-medium">{payout.method}</div>
                                             <div className="text-xs text-muted-foreground">{payout.details}</div>
                                         </TableCell>
                                         <TableCell className="text-right">
-                                             <Badge variant={payout.status === 'completed' ? 'default' : 'destructive'} className={payout.status === 'completed' ? 'bg-green-600' : ''}>
+                                             <Badge variant={payout.status === 'completed' ? 'default' : payout.status === 'rejected' ? 'destructive' : 'secondary'} className={payout.status === 'completed' ? 'bg-green-600' : ''}>
                                                 {payout.status}
                                             </Badge>
                                         </TableCell>
@@ -522,7 +524,7 @@ export default function AdminUsersPage() {
                             </TableBody>
                         </Table>
                     ) : (
-                        <p className="text-center text-muted-foreground py-10">No completed or rejected payouts for this user.</p>
+                        <p className="text-center text-muted-foreground py-10">No payouts found for this user.</p>
                     )}
                 </div>
                  <DialogFooter>

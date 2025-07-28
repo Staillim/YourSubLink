@@ -156,14 +156,21 @@ const processPayouts = (payouts: PayoutRequest[]): Notification[] => {
     return payouts.map(p => {
         const amount = p.amount.toFixed(2);
         let type: Notification['type'] = 'payout_requested';
-        if (p.status === 'completed') type = 'payout_completed';
-        if (p.status === 'rejected') type = 'payout_rejected';
+        let message = `Your request for $${amount} is pending.`;
+        if (p.status === 'completed') {
+            type = 'payout_completed';
+            message = `Your request for $${amount} has been completed.`;
+        }
+        if (p.status === 'rejected') {
+            type = 'payout_rejected';
+            message = `Your request for $${amount} has been rejected.`;
+        }
         
         return {
             id: p.id,
             userId: p.userId,
             type: type,
-            message: `Your request for $${amount} was ${p.status}.`,
+            message: message,
             createdAt: p.processedAt || p.requestedAt,
             isRead: p.status !== 'pending' // Consider pending as unread for sorting
         }
@@ -171,41 +178,43 @@ const processPayouts = (payouts: PayoutRequest[]): Notification[] => {
 }
 
 export default function NotificationsPage() {
-    const { user, payouts } = useUser();
+    const { user, payouts, loading: userLoading } = useUser();
     const [notifications, setNotifications] = useState<FormattedNotification[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (user) {
+        if (userLoading) {
             setLoading(true);
-            
-            const generalNotificationsQuery = query(
-                collection(db, "notifications"), 
-                where("userId", "==", user.uid),
-                orderBy("createdAt", "desc")
-            );
-            
-            const unsubGeneral = onSnapshot(generalNotificationsQuery, (generalSnapshot) => {
-                const generalData = generalSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
-                const payoutNotifications = processPayouts(payouts);
-
-                const allNotificationsData = [...generalData, ...payoutNotifications];
-                
-                const sortedNotifications = allNotificationsData.sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
-                
-                const formatted = sortedNotifications.map(getNotificationDetails);
-                setNotifications(formatted);
-                setLoading(false);
-            }, (error) => {
-                console.error("Error fetching notifications:", error);
-                setLoading(false);
-            });
-
-            return () => unsubGeneral();
-        } else if (!user) {
-            setLoading(false);
+            return;
         }
-    }, [user, payouts]);
+        if (!user) {
+            setLoading(false);
+            return;
+        }
+        
+        const generalNotificationsQuery = query(
+            collection(db, "notifications"), 
+            where("userId", "==", user.uid)
+        );
+        
+        const unsubGeneral = onSnapshot(generalNotificationsQuery, (generalSnapshot) => {
+            const generalData = generalSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
+            const payoutNotifications = processPayouts(payouts || []);
+
+            const allNotificationsData = [...generalData, ...payoutNotifications];
+            
+            const sortedNotifications = allNotificationsData.sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
+            
+            const formatted = sortedNotifications.map(getNotificationDetails);
+            setNotifications(formatted);
+            setLoading(false);
+        }, (error) => {
+            console.error("Error fetching notifications:", error);
+            setLoading(false);
+        });
+
+        return () => unsubGeneral();
+    }, [user, userLoading, payouts]);
 
   return (
     <div className="flex flex-col gap-6">

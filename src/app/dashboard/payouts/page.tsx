@@ -210,7 +210,8 @@ export default function PayoutsPage() {
                    <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead className="w-1/3 sm:w-auto">Date & Amount</TableHead>
+                                <TableHead className="w-1/3 sm:w-auto">Date</TableHead>
+                                <TableHead className="hidden sm:table-cell">Amount</TableHead>
                                 <TableHead className="hidden sm:table-cell">Method</TableHead>
                                 <TableHead className="text-right">Status</TableHead>
                             </TableRow>
@@ -222,9 +223,10 @@ export default function PayoutsPage() {
                                 payouts.map(p => (
                                     <TableRow key={p.id}>
                                         <TableCell>
-                                            <div className="font-medium">${p.amount.toFixed(4)}</div>
-                                            <div className="text-xs text-muted-foreground">{p.requestedAt ? new Date(p.requestedAt.seconds * 1000).toLocaleDateString() : 'Processing...'}</div>
+                                            <div className="font-medium">{p.requestedAt ? new Date(p.requestedAt.seconds * 1000).toLocaleDateString() : 'Processing...'}</div>
+                                            <div className="sm:hidden mt-1 font-semibold">${p.amount.toFixed(4)}</div>
                                         </TableCell>
+                                         <TableCell className="font-semibold hidden sm:table-cell">${p.amount.toFixed(4)}</TableCell>
                                         <TableCell className="capitalize hidden sm:table-cell">{p.method}</TableCell>
                                         <TableCell className="text-right">
                                             <Badge variant={p.status === 'pending' ? 'secondary' : p.status === 'completed' ? 'default' : 'destructive'}
@@ -236,7 +238,7 @@ export default function PayoutsPage() {
                                     </TableRow>
                                 ))
                             ) : (
-                                <TableRow><TableCell colSpan={3} className="h-24 text-center text-muted-foreground">No payout requests yet.</TableCell></TableRow>
+                                <TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">No payout requests yet.</TableCell></TableRow>
                             )}
                         </TableBody>
                    </Table>
