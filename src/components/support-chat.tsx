@@ -80,9 +80,10 @@ export default function SupportChat() {
     if (!user) return;
 
     setLoading(true);
-    // This query will now be filtered by Firestore's security rules automatically
+    // Correct Query: This query matches the Firestore security rules for non-admins.
     const ticketsQuery = query(
       collection(db, 'supportTickets'),
+      where('userId', '==', user.uid),
       orderBy('lastMessageTimestamp', 'desc')
     );
 
@@ -92,7 +93,6 @@ export default function SupportChat() {
             ...doc.data()
         } as SupportTicket));
         
-        // The security rules ensure only the user's tickets are returned.
         setTickets(ticketsData);
         setLoading(false);
     }, (error) => {
