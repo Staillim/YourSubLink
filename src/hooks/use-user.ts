@@ -163,7 +163,7 @@ export function useUser() {
   // Memoize derived state for performance and stability
   const { availableBalance, payoutsPending, paidEarnings, activeCpm, globalActiveCpm, hasCustomCpm } = useMemo(() => {
     // Return default values if profile or payouts are not loaded yet to prevent NaN results
-    if (!userProfile || !payouts) {
+    if (loading || !userProfile) {
         return {
             availableBalance: 0,
             payoutsPending: 0,
@@ -195,7 +195,7 @@ export function useUser() {
         globalActiveCpm: globalCpm,
         hasCustomCpm: customRateActive,
     };
-  }, [userProfile, payouts, cpmHistory]);
+  }, [userProfile, payouts, cpmHistory, loading]);
 
   return {
     user: authUser as FirebaseUser | null,
