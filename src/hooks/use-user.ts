@@ -109,8 +109,13 @@ export function useUser() {
             linksCount: linksSnapshot.size, 
         });
       } else {
+        // If the profile doesn't exist, create it. This can happen for new sign-ups.
         await createUserProfile(authUser);
       }
+      profileLoaded = true;
+      checkLoadingComplete();
+    }, (error) => {
+      console.error("Error listening to user profile:", error);
       profileLoaded = true;
       checkLoadingComplete();
     });
@@ -126,6 +131,10 @@ export function useUser() {
       setPayouts(requests.sort((a,b) => (b.requestedAt?.seconds ?? 0) - (a.requestedAt?.seconds ?? 0)));
       payoutsLoaded = true;
       checkLoadingComplete();
+    }, (error) => {
+      console.error("Error listening to payouts:", error);
+      payoutsLoaded = true;
+      checkLoadingComplete();
     });
     
     // Subscribe to CPM History
@@ -136,6 +145,10 @@ export function useUser() {
         setCpmHistory(historyData);
         cpmHistoryLoaded = true;
         checkLoadingComplete();
+    }, (error) => {
+      console.error("Error listening to CPM history:", error);
+      cpmHistoryLoaded = true;
+      checkLoadingComplete();
     });
 
 
