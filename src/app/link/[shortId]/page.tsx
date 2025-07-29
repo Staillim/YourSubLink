@@ -31,3 +31,5 @@ export default async function ShortLinkPage({ params }: { params: { shortId: str
 
   return <ClientComponent shortId={params.shortId} linkId={linkId} />;
 }
+
+    

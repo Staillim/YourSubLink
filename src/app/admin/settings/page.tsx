@@ -119,7 +119,6 @@ export default function AdminSettingsPage() {
             await batch.commit();
             toast({ title: 'CPM Rate Updated', description: `The new CPM rate of $${rate.toFixed(4)} is now active.` });
             setNewCpmRate('');
-            // No need to manually set state, onSnapshot will handle it.
         } catch (error: any) {
             toast({ title: 'Error', description: 'Could not update CPM rate.', variant: 'destructive'});
         } finally {
@@ -286,4 +285,5 @@ export default function AdminSettingsPage() {
              </Card>
         </div>
     );
-}
+
+    
