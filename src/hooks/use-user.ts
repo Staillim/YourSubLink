@@ -99,12 +99,11 @@ export function useUser() {
       } else {
         await createUserProfile(authUser);
       }
+      setLoading(false); // **FIX**: Set loading to false only AFTER profile is processed.
     });
     unsubscribers.push(unsubProfile);
 
     // Subscribe to Payouts for the current user
-    // **FIX**: Removed orderBy from the query to avoid needing a composite index.
-    // Sorting will be done on the client side after fetching.
     const payoutsQuery = query(
       collection(db, "payoutRequests"),
       where("userId", "==", authUser.uid)
@@ -131,11 +130,6 @@ export function useUser() {
         console.error("Error fetching CPM history:", error);
     });
     unsubscribers.push(unsubCpm);
-
-    const unsubProfileForLoading = onSnapshot(userDocRef, (doc) => {
-        setLoading(false);
-    });
-    unsubscribers.push(unsubProfileForLoading);
 
 
     return () => {
