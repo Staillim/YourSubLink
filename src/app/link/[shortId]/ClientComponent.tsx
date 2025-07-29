@@ -1,4 +1,3 @@
-
 /**
  * !! ANTES DE EDITAR ESTE ARCHIVO, REVISA LAS DIRECTRICES EN LOS SIGUIENTES DOCUMENTOS: !!
  * - /README.md
@@ -142,8 +141,6 @@ export default function ClientComponent({ shortId, linkId }: { shortId: string, 
             timestamp: serverTimestamp(),
             earningsGenerated: earningsGenerated,
             cpmUsed: cpmUsed,
-            processed: true, // Mark as processed immediately
-            processedAt: serverTimestamp(),
             userAgent: navigator.userAgent,
         });
 
