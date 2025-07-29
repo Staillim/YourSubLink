@@ -121,14 +121,14 @@ export function useUser() {
     });
 
     // Subscribe to Payouts
-    const payoutsQuery = query(collection(db, "payoutRequests"), where("userId", "==", authUser.uid));
+    const payoutsQuery = query(collection(db, "payoutRequests"), where("userId", "==", authUser.uid), orderBy('requestedAt', 'desc'));
     const unsubPayouts = onSnapshot(payoutsQuery, (snapshot) => {
       if (!isSubscribed) return;
       const requests: PayoutRequest[] = [];
       snapshot.forEach(doc => {
           requests.push({ id: doc.id, ...doc.data() } as PayoutRequest);
       });
-      setPayouts(requests.sort((a,b) => (b.requestedAt?.seconds ?? 0) - (a.requestedAt?.seconds ?? 0)));
+      setPayouts(requests);
       payoutsLoaded = true;
       checkLoadingComplete();
     }, (error) => {
