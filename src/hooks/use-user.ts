@@ -70,24 +70,14 @@ export function useUser() {
       return;
     }
 
+    // Set loading to true when starting to fetch data for a new user
     setLoading(true);
-    let isSubscribed = true;
 
-    let profileLoaded = false;
-    let payoutsLoaded = false;
-    let cpmHistoryLoaded = false;
-
-    const checkLoadingComplete = () => {
-        if(profileLoaded && payoutsLoaded && cpmHistoryLoaded && isSubscribed) {
-            setLoading(false);
-        }
-    }
-
+    const unsubscribers: (() => void)[] = [];
+    
     // Subscribe to User Profile
     const userDocRef = doc(db, 'users', authUser.uid);
-    const unsubProfile = onSnapshot(userDocRef, async (userDoc) => {
-      if (!isSubscribed) return;
-
+    unsubscribers.push(onSnapshot(userDocRef, async (userDoc) => {
       if (userDoc.exists()) {
         const userData = userDoc.data();
         const linksQuery = query(collection(db, 'links'), where('userId', '==', authUser.uid));
@@ -109,61 +99,53 @@ export function useUser() {
             linksCount: linksSnapshot.size, 
         });
       } else {
-        // If the profile doesn't exist, create it. This can happen for new sign-ups.
         await createUserProfile(authUser);
       }
-      profileLoaded = true;
-      checkLoadingComplete();
-    }, (error) => {
-      console.error("Error listening to user profile:", error);
-      profileLoaded = true;
-      checkLoadingComplete();
-    });
+    }));
 
     // Subscribe to Payouts
-    const payoutsQuery = query(collection(db, "payoutRequests"), where("userId", "==", authUser.uid), orderBy('requestedAt', 'desc'));
-    const unsubPayouts = onSnapshot(payoutsQuery, (snapshot) => {
-      if (!isSubscribed) return;
+    const payoutsQuery = query(
+      collection(db, "payoutRequests"),
+      where("userId", "==", authUser.uid),
+      orderBy('requestedAt', 'desc')
+    );
+    unsubscribers.push(onSnapshot(payoutsQuery, (snapshot) => {
       const requests: PayoutRequest[] = [];
       snapshot.forEach(doc => {
           requests.push({ id: doc.id, ...doc.data() } as PayoutRequest);
       });
       setPayouts(requests);
-      payoutsLoaded = true;
-      checkLoadingComplete();
-    }, (error) => {
-      console.error("Error listening to payouts:", error);
-      payoutsLoaded = true;
-      checkLoadingComplete();
-    });
+    }));
     
     // Subscribe to CPM History
     const cpmQuery = query(collection(db, 'cpmHistory'), orderBy('startDate', 'desc'));
-    const unsubCpm = onSnapshot(cpmQuery, (snapshot) => {
-        if (!isSubscribed) return;
+    unsubscribers.push(onSnapshot(cpmQuery, (snapshot) => {
         const historyData: CpmHistory[] = snapshot.docs.map(doc => doc.data() as CpmHistory);
         setCpmHistory(historyData);
-        cpmHistoryLoaded = true;
-        checkLoadingComplete();
-    }, (error) => {
-      console.error("Error listening to CPM history:", error);
-      cpmHistoryLoaded = true;
-      checkLoadingComplete();
+    }));
+
+    // Since loading state depends on auth and profile, we can simplify its logic.
+    // The main `loading` will be true as long as `authLoading` is true.
+    // Once `authLoading` is false, and we have an `authUser`, `onSnapshot` will provide the data.
+    // We can consider loading complete once the profile is loaded for the first time.
+    const unsubProfileForLoading = onSnapshot(userDocRef, (doc) => {
+      if (doc.exists()) {
+        setLoading(false);
+        unsubProfileForLoading(); // Unsubscribe after first load to prevent multiple sets
+      }
     });
 
+    unsubscribers.push(unsubProfileForLoading);
 
     return () => {
-      isSubscribed = false;
-      unsubProfile();
-      unsubPayouts();
-      unsubCpm();
+      unsubscribers.forEach(unsub => unsub());
     };
   }, [authUser, authLoading]);
   
   // Memoize derived state for performance and stability
   const { availableBalance, payoutsPending, paidEarnings, activeCpm, globalActiveCpm, hasCustomCpm } = useMemo(() => {
     // Return default values if profile or payouts are not loaded yet to prevent NaN results
-    if (loading || !userProfile) {
+    if (!userProfile) {
         return {
             availableBalance: 0,
             payoutsPending: 0,
@@ -195,7 +177,7 @@ export function useUser() {
         globalActiveCpm: globalCpm,
         hasCustomCpm: customRateActive,
     };
-  }, [userProfile, payouts, cpmHistory, loading]);
+  }, [userProfile, payouts, cpmHistory]);
 
   return {
     user: authUser as FirebaseUser | null,
