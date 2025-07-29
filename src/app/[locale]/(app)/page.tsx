@@ -1,33 +1,27 @@
-
-
 'use client';
 
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Logo } from '@/components/icons';
 import { BarChart3, Edit, Share2, Award, ShieldCheck, Wallet } from 'lucide-react';
 import Image from 'next/image';
-import { LanguageSwitcher } from '@/components/language-switcher';
-import { Link } from '@/navigation';
-import { useTranslations } from 'next-intl';
 import { ThemeSwitcher } from '@/components/theme-switcher';
 
 
 export default function LandingPage() {
-    const t = useTranslations('LandingPage');
     return (
         <div className="flex flex-col min-h-screen bg-background text-foreground">
             {/* Header */}
             <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between p-4 bg-background/80 backdrop-blur-sm">
                 <Logo />
                 <div className="flex items-center gap-2">
-                    <LanguageSwitcher />
                     <ThemeSwitcher />
                     <Button asChild variant="ghost">
-                        <Link href="/auth">{t('signIn')}</Link>
+                        <Link href="/auth">Sign In</Link>
                     </Button>
                     <Button asChild>
-                        <Link href="/auth">{t('register')}</Link>
+                        <Link href="/auth">Register</Link>
                     </Button>
                 </div>
             </header>
@@ -36,14 +30,14 @@ export default function LandingPage() {
                 {/* Hero Section */}
                 <section className="flex flex-col items-center justify-center text-center pt-32 pb-16 px-4">
                     <h1 className="text-4xl md:text-5xl font-bold tracking-tight">
-                        {t('title')}
+                        Shorten, Monetize, and Analyze Your Links
                     </h1>
                     <p className="mt-4 max-w-2xl text-lg text-muted-foreground">
-                        {t('description')}
+                        YourSubLink is the all-in-one platform to turn your links into a source of income, with powerful analytics and direct support.
                     </p>
                     <div className="mt-8 flex gap-4">
                         <Button asChild size="lg" className="font-semibold">
-                            <Link href="/auth">{t('getStarted')}</Link>
+                            <Link href="/auth">Get Started for Free</Link>
                         </Button>
                     </div>
                 </section>

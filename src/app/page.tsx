@@ -6,7 +6,6 @@ import { Card } from '@/components/ui/card';
 import { Logo } from '@/components/icons';
 import { BarChart3, Edit, Share2, Award, ShieldCheck, Wallet } from 'lucide-react';
 import Image from 'next/image';
-import { cn } from '@/lib/utils';
 import { ThemeSwitcher } from '@/components/theme-switcher';
 
 

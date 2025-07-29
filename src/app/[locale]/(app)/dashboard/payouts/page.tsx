@@ -1,254 +1,156 @@
-
-
 'use client';
 
-import { useState } from 'react';
-import { useUser } from '@/hooks/use-user';
-import { db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose, DialogTrigger } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { toast } from '@/hooks/use-toast';
-import { Loader2, DollarSign, Wallet, PiggyBank } from 'lucide-react';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Badge } from '@/components/ui/badge';
-
-const MIN_PAYOUT_AMOUNT = 10;
-
-export default function PayoutsPage() {
-    const { user, profile, loading, payouts, payoutsPending, paidEarnings, availableBalance } = useUser();
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [isDialogOpen, setIsDialogOpen] = useState(false);
-
-    // Form state
-    const [amount, setAmount] = useState('');
-    const [method, setMethod] = useState('');
-    const [details, setDetails] = useState('');
-
-    const resetForm = () => {
-        setAmount('');
-        setMethod('');
-        setDetails('');
-        setIsDialogOpen(false);
-    };
-
-    const handlePayoutRequest = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!user || !profile || typeof availableBalance !== 'number') return;
-        
-        const payoutAmount = parseFloat(amount);
-        if (isNaN(payoutAmount) || payoutAmount <= 0) {
-            toast({ title: 'Invalid Amount', description: 'Please enter a valid amount.', variant: 'destructive' });
-            return;
-        }
-        if (payoutAmount < MIN_PAYOUT_AMOUNT) {
-             toast({ title: 'Amount too low', description: `The minimum payout amount is $${MIN_PAYOUT_AMOUNT}.`, variant: 'destructive' });
-            return;
-        }
-        if (payoutAmount > availableBalance) {
-            toast({ title: 'Insufficient Balance', description: 'You cannot request more than your available balance.', variant: 'destructive' });
-            return;
-        }
-        if (!method) {
-            toast({ title: 'Payment Method Required', description: 'Please select a payment method.', variant: 'destructive' });
-            return;
-        }
-        if (!details.trim()) {
-            toast({ title: 'Payment Details Required', description: 'Please provide your payment details (e.g., email or phone number).', variant: 'destructive' });
-            return;
-        }
-
-        setIsSubmitting(true);
-        try {
-            await addDoc(collection(db, 'payoutRequests'), {
-                userId: user.uid,
-                userEmail: user.email,
-                userName: profile.displayName,
-                amount: payoutAmount,
-                method,
-                details,
-                status: 'pending',
-                requestedAt: serverTimestamp(),
-            });
-
-            toast({ title: 'Request Submitted!', description: 'Your payout request has been sent for review.' });
-            resetForm();
-
-        } catch (error) {
-            console.error(error);
-            toast({ title: 'Error', description: 'Failed to submit payout request.', variant: 'destructive' });
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
+import { Card } from '@/components/ui/card';
+import { Logo } from '@/components/icons';
+import { BarChart3, Edit, Share2, Award, ShieldCheck, Wallet } from 'lucide-react';
+import Image from 'next/image';
+import { ThemeSwitcher } from '@/components/theme-switcher';
 
 
-    if (loading) {
-        return (
-            <div className="flex flex-col gap-6">
-                <div className="flex items-center justify-between">
-                    <h1 className="text-lg font-semibold md:text-2xl">Payouts</h1>
-                </div>
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    <Skeleton className="h-28" />
-                    <Skeleton className="h-28" />
-                    <Skeleton className="h-28" />
-                </div>
-                 <Skeleton className="h-10 w-40" />
-                 <Card>
-                    <CardHeader>
-                        <Skeleton className="h-6 w-48" />
-                        <Skeleton className="h-4 w-64" />
-                    </CardHeader>
-                     <CardContent>
-                        <Skeleton className="h-40 w-full" />
-                     </CardContent>
-                 </Card>
-            </div>
-        )
-    }
-
+export default function LandingPage() {
     return (
-        <div className="flex flex-col gap-6">
-            <div className="flex items-center justify-between">
-                <h1 className="text-lg font-semibold md:text-2xl">Payouts</h1>
-            </div>
-
-             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Available Balance</CardTitle>
-                        <DollarSign className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">${typeof availableBalance === 'number' ? availableBalance.toFixed(4) : '0.0000'}</div>
-                        <p className="text-xs text-muted-foreground">Ready for withdrawal</p>
-                    </CardContent>
-                </Card>
-                 <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Pending Payouts</CardTitle>
-                        <Wallet className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">${typeof payoutsPending === 'number' ? payoutsPending.toFixed(4) : '0.0000'}</div>
-                        <p className="text-xs text-muted-foreground">Requested but not yet paid</p>
-                    </CardContent>
-                </Card>
-                 <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Lifetime Paid</CardTitle>
-                        <PiggyBank className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">${typeof paidEarnings === 'number' ? paidEarnings.toFixed(4) : '0.0000'}</div>
-                        <p className="text-xs text-muted-foreground">Total earnings paid out to you</p>
-                    </CardContent>
-                </Card>
-            </div>
-            
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogTrigger asChild>
-                    <Button disabled={typeof availableBalance !== 'number' || availableBalance < MIN_PAYOUT_AMOUNT} className="font-semibold">
-                        Request a Payout
+        <div className="flex flex-col min-h-screen bg-background text-foreground">
+            {/* Header */}
+            <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between p-4 bg-background/80 backdrop-blur-sm">
+                <Logo />
+                <div className="flex items-center gap-2">
+                    <ThemeSwitcher />
+                    <Button asChild variant="ghost">
+                        <Link href="/auth">Sign In</Link>
                     </Button>
-                </DialogTrigger>
-                <DialogContent>
-                    <form onSubmit={handlePayoutRequest}>
-                        <DialogHeader>
-                            <DialogTitle>Request a Payout</DialogTitle>
-                            <DialogDescription>
-                                Minimum payout is ${MIN_PAYOUT_AMOUNT}.00. Requests are processed within 3-5 business days.
-                            </DialogDescription>
-                        </DialogHeader>
-                        <div className="grid gap-4 py-4">
-                             <div className="space-y-2">
-                                <Label>Amount ($)</Label>
-                                <Input required type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder={`e.g. ${typeof availableBalance === 'number' ? availableBalance.toFixed(2) : ''}`} step="0.01" />
+                    <Button asChild>
+                        <Link href="/auth">Register</Link>
+                    </Button>
+                </div>
+            </header>
+
+            <main className="flex-1">
+                {/* Hero Section */}
+                <section className="flex flex-col items-center justify-center text-center pt-32 pb-16 px-4">
+                    <h1 className="text-4xl md:text-5xl font-bold tracking-tight">
+                        Shorten, Monetize, and Analyze Your Links
+                    </h1>
+                    <p className="mt-4 max-w-2xl text-lg text-muted-foreground">
+                        YourSubLink is the all-in-one platform to turn your links into a source of income, with powerful analytics and direct support.
+                    </p>
+                    <div className="mt-8 flex gap-4">
+                        <Button asChild size="lg" className="font-semibold">
+                            <Link href="/auth">Get Started for Free</Link>
+                        </Button>
+                    </div>
+                </section>
+
+                {/* Monetization Showcase */}
+                <section className="py-16 px-4">
+                    <div className="container mx-auto text-center">
+                        <h2 className="text-3xl font-bold mb-4">Monetization in Action</h2>
+                        <p className="text-muted-foreground mb-8 max-w-2xl mx-auto">This is what visitors see: a clean interface with clear steps. Each step completed brings you closer to your earnings.</p>
+                        <div className="relative mx-auto max-w-4xl space-y-8">
+                            <Image
+                                src="/pc-interface.png"
+                                alt="PC Interface"
+                                width={1200}
+                                height={675}
+                                className="rounded-xl shadow-2xl"
+                            />
+                             <Image
+                                src="/mobile-interface.jpg"
+                                alt="Mobile Interface"
+                                width={400}
+                                height={800}
+                                className="rounded-xl shadow-2xl mx-auto"
+                            />
+                        </div>
+                    </div>
+                </section>
+                
+                {/* Community Section */}
+                <section className="py-16 px-4">
+                    <div className="container mx-auto text-center">
+                        <h2 className="text-3xl font-bold mb-4">Be Part of Our Community</h2>
+                        <p className="max-w-3xl mx-auto text-lg text-muted-foreground">
+                            We are committed to building a community that is flexible, generous, and focused on our users. Your success is our success, and we're excited to grow with you.
+                        </p>
+                    </div>
+                </section>
+
+                {/* Why us Section */}
+                <section className="py-16 px-4 bg-muted/40">
+                    <div className="container mx-auto">
+                        <h2 className="text-3xl font-bold text-center mb-12">
+                            ¿Por qué usar YourSubLink?
+                        </h2>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                            <Card className="flex flex-col items-center text-center p-6">
+                                <ShieldCheck className="h-12 w-12 text-primary mb-4" />
+                                <h3 className="text-xl font-semibold mb-2">Advanced Monetization</h3>
+                                <p className="text-muted-foreground">
+                                    Maximize your earnings with our rule system and custom CPMs for top-performing users.
+                                </p>
+                            </Card>
+                            <Card className="flex flex-col items-center text-center p-6">
+                                <BarChart3 className="h-12 w-12 text-primary mb-4" />
+                                <h3 className="text-xl font-semibold mb-2">Intuitive Dashboard</h3>
+                                <p className="text-muted-foreground">
+                                    Manage your links, track your earnings, and get insights from a clean, modern interface available on all your devices.
+                                </p>
+                            </Card>
+                            <Card className="flex flex-col items-center text-center p-6">
+                                <Wallet className="h-12 w-12 text-primary mb-4" />
+                                <h3 className="text-xl font-semibold mb-2">Reliable Payouts & Support</h3>
+                                <p className="text-muted-foreground">
+                                    Request your earnings with a few clicks and get help directly from our integrated support chat. We are here for you.
+                                </p>
+                            </Card>
+                        </div>
+                    </div>
+                </section>
+
+                 {/* How it works Section */}
+                <section className="py-16 px-4">
+                    <div className="container mx-auto text-center">
+                        <h2 className="text-3xl font-bold mb-4">Getting Started is Easy</h2>
+                        <p className="text-muted-foreground mb-12 max-w-2xl mx-auto">In just a few simple steps, you can be on your way to earning.</p>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-left">
+                            <div className="flex flex-col items-center md:items-start text-center md:text-left gap-4">
+                                <div className="flex items-center justify-center bg-primary/10 text-primary rounded-full h-12 w-12">
+                                    <Edit className="h-6 w-6"/>
+                                </div>
+                                <h3 className="text-xl font-semibold">1. Create & Customize</h3>
+                                <p className="text-muted-foreground">Shorten any URL and add monetization rules in our simple editor. Choose from different social media actions to engage your audience.</p>
                             </div>
-                            <div className="space-y-2">
-                                <Label>Payment Method</Label>
-                                <Select required onValueChange={setMethod} value={method}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select a method" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="paypal">PayPal</SelectItem>
-                                        <SelectItem value="nequi">Nequi</SelectItem>
-                                        <SelectItem value="daviplata">Daviplata</SelectItem>
-                                    </SelectContent>
-                                </Select>
+                            <div className="flex flex-col items-center md:items-start text-center md:text-left gap-4">
+                                <div className="flex items-center justify-center bg-primary/10 text-primary rounded-full h-12 w-12">
+                                    <Share2 className="h-6 w-6"/>
+                                </div>
+                                <h3 className="text-xl font-semibold">2. Share Your Link</h3>
+                                <p className="text-muted-foreground">Distribute your new, powerful link across your social media, website, or any platform to reach your followers.</p>
                             </div>
-                            <div className="space-y-2">
-                                <Label>Payment Details</Label>
-                                <Input required value={details} onChange={e => setDetails(e.target.value)} placeholder="Your PayPal email or phone number" />
+                            <div className="flex flex-col items-center md:items-start text-center md:text-left gap-4">
+                                <div className="flex items-center justify-center bg-primary/10 text-primary rounded-full h-12 w-12">
+                                    <Award className="h-6 w-6"/>
+                                </div>
+                                <h3 className="text-xl font-semibold">3. Earn & Analyze</h3>
+                                <p className="text-muted-foreground">Watch your earnings grow with every click. Track your performance with our detailed analytics and request payouts easily.</p>
                             </div>
                         </div>
-                        <DialogFooter>
-                             <DialogClose asChild>
-                                <Button type="button" variant="secondary" onClick={resetForm}>Cancel</Button>
-                             </DialogClose>
-                             <Button type="submit" disabled={isSubmitting}>
-                                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                Submit Request
-                             </Button>
-                        </DialogFooter>
-                    </form>
-                </DialogContent>
-            </Dialog>
+                    </div>
+                </section>
+                
+            </main>
 
-             <Card>
-                <CardHeader>
-                    <CardTitle className="text-xl">Payout History</CardTitle>
-                    <CardDescription>A record of all your payout requests.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                   <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead className="w-1/3 sm:w-auto">Date</TableHead>
-                                <TableHead className="hidden sm:table-cell">Amount</TableHead>
-                                <TableHead className="hidden sm:table-cell">Method</TableHead>
-                                <TableHead className="text-right">Status</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {loading && (
-                                <TableRow><TableCell colSpan={4} className="text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
-                            )}
-                            {!loading && payouts.length > 0 ? (
-                                payouts.map(p => (
-                                    <TableRow key={p.id}>
-                                        <TableCell>
-                                            <div className="font-medium">
-                                                {p.requestedAt ? new Date(p.requestedAt.seconds * 1000).toLocaleDateString() : 'Processing...'}
-                                            </div>
-                                            <div className="sm:hidden mt-1 font-semibold">${p.amount.toFixed(4)}</div>
-                                        </TableCell>
-                                        <TableCell className="font-semibold hidden sm:table-cell">${p.amount.toFixed(4)}</TableCell>
-                                        <TableCell className="capitalize hidden sm:table-cell">{p.method}</TableCell>
-                                        <TableCell className="text-right">
-                                            <Badge variant={p.status === 'pending' ? 'secondary' : p.status === 'completed' ? 'default' : 'destructive'}
-                                                className={p.status === 'completed' ? 'bg-green-600' : ''}
-                                            >
-                                                {p.status}
-                                            </Badge>
-                                        </TableCell>
-                                    </TableRow>
-                                ))
-                            ) : (
-                                !loading && <TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">No payout requests yet.</TableCell></TableRow>
-                            )}
-                        </TableBody>
-                   </Table>
-                </CardContent>
-            </Card>
-
+            {/* Footer */}
+            <footer className="py-8 bg-muted/40 border-t">
+                <div className="container mx-auto text-center text-muted-foreground flex flex-col sm:flex-row justify-between items-center gap-4">
+                    <p>&copy; {new Date().getFullYear()} YourSubLink. All rights reserved.</p>
+                    <div className="flex gap-4">
+                        <Link href="#" className="text-sm hover:text-primary transition-colors">Terms of Service</Link>
+                        <Link href="#" className="text-sm hover:text-primary transition-colors">Privacy Policy</Link>
+                    </div>
+                </div>
+            </footer>
         </div>
     );
 }

@@ -1,365 +1,156 @@
-
-
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
-import { useRouter } from '@/navigation';
-import { db } from '@/lib/firebase';
-import { collection, onSnapshot, doc, deleteDoc, getDoc, updateDoc, addDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { toast } from '@/hooks/use-toast';
-import { MoreVertical, Trash2, ExternalLink, BarChart3, Eye, Calendar, ShieldCheck, Loader2, DollarSign, ShieldBan } from 'lucide-react';
-import { Skeleton } from '@/components/ui/skeleton';
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-  } from '@/components/ui/dropdown-menu';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { analyzeLinkSecurity } from '@/ai/flows/analyzeLinkSecurity';
+import { Card } from '@/components/ui/card';
+import { Logo } from '@/components/icons';
+import { BarChart3, Edit, Share2, Award, ShieldCheck, Wallet } from 'lucide-react';
+import Image from 'next/image';
+import { ThemeSwitcher } from '@/components/theme-switcher';
 
 
-type Link = {
-  id: string;
-  title: string;
-  original: string;
-  shortId: string;
-  short: string;
-  clicks: number;
-  monetizable: boolean;
-  monetizationStatus: 'active' | 'suspended';
-  createdAt: any;
-  userId: string;
-  userName?: string;
-  userEmail?: string;
-};
-
-export default function AdminLinksPage() {
-  const [links, setLinks] = useState<Link[]>([]);
-  const [loading, setLoading] = useState(true);
-  const router = useRouter();
-  const [isAnalyzing, startTransition] = useTransition();
-  const [analyzingLinkId, setAnalyzingLinkId] = useState<string | null>(null);
-
-  useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, 'links'), async (snapshot) => {
-      setLoading(true);
-      const linksData: Link[] = [];
-      for (const linkDoc of snapshot.docs) {
-        const data = linkDoc.data();
-        let userName = 'N/A';
-        let userEmail = 'N/A'
-
-        if(data.userId) {
-            const userRef = doc(db, 'users', data.userId);
-            const userSnap = await getDoc(userRef);
-            if(userSnap.exists()){
-                userName = userSnap.data().displayName;
-                userEmail = userSnap.data().email;
-            }
-        }
-
-        linksData.push({
-          id: linkDoc.id,
-          ...data,
-          short: `${window.location.origin}/link/${data.shortId}`,
-          createdAt: data.createdAt,
-          userName,
-          userEmail,
-          monetizationStatus: data.monetizationStatus || 'active',
-        } as Link);
-      }
-      setLinks(linksData.sort((a,b) => b.createdAt.seconds - a.createdAt.seconds));
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  const handleDelete = async (id: string, userId: string, title: string) => {
-    if(!confirm('Are you sure you want to delete this link permanently? This will notify the user.')) return;
-    try {
-        const batch = writeBatch(db);
-
-        // First, create a notification for the user
-        const notificationRef = doc(collection(db, 'notifications'));
-        batch.set(notificationRef, {
-            userId: userId,
-            type: 'link_deleted',
-            message: `Your link "${title}" was deleted by an administrator.`,
-            createdAt: serverTimestamp(),
-            isRead: false,
-        });
-
-        // Then, delete the link
-        const linkRef = doc(db, "links", id);
-        batch.delete(linkRef);
-        
-        await batch.commit();
-
-        toast({
-            title: "Link deleted",
-            description: "The link has been permanently removed and the user has been notified.",
-            variant: "destructive"
-        })
-    } catch (error) {
-        toast({
-            title: "Error deleting link",
-            description: "There was an error deleting the link.",
-            variant: "destructive"
-        })
-    }
-  };
-  
-  const handleToggleMonetization = async (link: Link) => {
-    const newStatus = link.monetizationStatus === 'active' ? 'suspended' : 'active';
-
-    try {
-        const batch = writeBatch(db);
-        const linkRef = doc(db, 'links', link.id);
-        batch.update(linkRef, { monetizationStatus: newStatus });
-
-        // Create a notification only when suspending
-        if (newStatus === 'suspended') {
-            const notificationRef = doc(collection(db, 'notifications'));
-            batch.set(notificationRef, {
-                userId: link.userId,
-                type: 'link_suspension',
-                message: `Monetization for your link "${link.title}" has been suspended due to suspicious activity.`,
-                linkId: link.id,
-                createdAt: serverTimestamp(),
-                isRead: false,
-            });
-        }
-        
-        await batch.commit();
-        
-        // This toast is shown to the admin after the action is successful
-        toast({
-            title: 'Monetization Updated',
-            description: `Monetization for "${link.title}" has been set to ${newStatus}.`,
-        });
-
-    } catch (error) {
-        toast({
-            title: 'Error',
-            description: 'Could not update monetization status.',
-            variant: 'destructive',
-        });
-        console.error("Error toggling monetization: ", error);
-    }
-};
-
-
-  const handleAnalyzeLink = (link: Link) => {
-    startTransition(async () => {
-        setAnalyzingLinkId(link.id);
-        try {
-            const result = await analyzeLinkSecurity({ linkId: link.id });
-            if (result.isSuspicious) {
-                if (result.riskLevel === 'high') {
-                    // Suspend and notify in one go
-                    await handleToggleMonetization(link);
-                    toast({
-                        title: 'Analysis Complete: High Risk',
-                        description: `Monetization for "${link.title}" has been automatically suspended. Reason: ${result.reason}`,
-                        variant: 'destructive',
-                        duration: 8000
-                    });
-                } else {
-                     toast({
-                        title: 'Analysis Complete: Moderate Risk',
-                        description: `Link "${link.title}" shows suspicious activity. Reason: ${result.reason}`,
-                    });
-                }
-            } else {
-                toast({
-                    title: 'Analysis Complete',
-                    description: `No suspicious activity detected for "${link.title}".`,
-                });
-            }
-        } catch (error) {
-             toast({
-                title: "Error during analysis",
-                description: "Could not complete the security analysis.",
-                variant: "destructive"
-            });
-        } finally {
-            setAnalyzingLinkId(null);
-        }
-    });
-  };
-
-  if (loading) {
+export default function LandingPage() {
     return (
-      <div className="flex flex-col gap-4">
-        <h1 className="text-2xl font-bold">Link Management</h1>
-        <Card>
-          <CardHeader>
-             <Skeleton className="h-6 w-48" />
-             <Skeleton className="h-4 w-64" />
-          </CardHeader>
-          <CardContent>
-             <Table>
-                <TableHeader>
-                    <TableRow>
-                        {[...Array(6)].map((_,i) => <TableHead key={i}><Skeleton className="h-5 w-full" /></TableHead>)}
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {[...Array(5)].map((_, i) => (
-                         <TableRow key={i}>
-                             {[...Array(6)].map((_,j) => <TableCell key={j}><Skeleton className="h-5 w-full" /></TableCell>)}
-                         </TableRow>
-                    ))}
-                </TableBody>
-             </Table>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+        <div className="flex flex-col min-h-screen bg-background text-foreground">
+            {/* Header */}
+            <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between p-4 bg-background/80 backdrop-blur-sm">
+                <Logo />
+                <div className="flex items-center gap-2">
+                    <ThemeSwitcher />
+                    <Button asChild variant="ghost">
+                        <Link href="/auth">Sign In</Link>
+                    </Button>
+                    <Button asChild>
+                        <Link href="/auth">Register</Link>
+                    </Button>
+                </div>
+            </header>
 
-  return (
-    <TooltipProvider>
-        <div className="flex flex-col gap-4">
-        <h1 className="text-2xl font-bold">Link Management</h1>
-        <Card>
-            <CardHeader>
-            <CardTitle>All Links</CardTitle>
-            <CardDescription>View and manage all links in the system.</CardDescription>
-            </CardHeader>
-            <CardContent>
-            <Table>
-                <TableHeader>
-                <TableRow>
-                    <TableHead>Link</TableHead>
-                    <TableHead className="hidden md:table-cell">User</TableHead>
-                    <TableHead className="hidden sm:table-cell">Clicks</TableHead>
-                    <TableHead className="hidden md:table-cell">Status</TableHead>
-                    <TableHead className="hidden lg:table-cell">Date</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-                </TableHeader>
-                <TableBody>
-                {links.map((link) => (
-                    <TableRow key={link.id}>
-                        <TableCell>
-                            <div className="font-semibold truncate max-w-[200px] sm:max-w-xs">{link.title}</div>
-                            <a href={link.short} target='_blank' rel='noopener noreferrer' className="text-xs text-muted-foreground hover:underline block truncate max-w-[200px] sm:max-w-xs">{link.short}</a>
-                            {/* Mobile-only details */}
-                            <div className="md:hidden mt-2 space-y-2 text-xs">
-                                <div className="flex items-center gap-2">
-                                    <span className="font-medium">User:</span>
-                                    <div className="text-muted-foreground">{link.userName}</div>
+            <main className="flex-1">
+                {/* Hero Section */}
+                <section className="flex flex-col items-center justify-center text-center pt-32 pb-16 px-4">
+                    <h1 className="text-4xl md:text-5xl font-bold tracking-tight">
+                        Shorten, Monetize, and Analyze Your Links
+                    </h1>
+                    <p className="mt-4 max-w-2xl text-lg text-muted-foreground">
+                        YourSubLink is the all-in-one platform to turn your links into a source of income, with powerful analytics and direct support.
+                    </p>
+                    <div className="mt-8 flex gap-4">
+                        <Button asChild size="lg" className="font-semibold">
+                            <Link href="/auth">Get Started for Free</Link>
+                        </Button>
+                    </div>
+                </section>
+
+                {/* Monetization Showcase */}
+                <section className="py-16 px-4">
+                    <div className="container mx-auto text-center">
+                        <h2 className="text-3xl font-bold mb-4">Monetization in Action</h2>
+                        <p className="text-muted-foreground mb-8 max-w-2xl mx-auto">This is what visitors see: a clean interface with clear steps. Each step completed brings you closer to your earnings.</p>
+                        <div className="relative mx-auto max-w-4xl space-y-8">
+                            <Image
+                                src="/pc-interface.png"
+                                alt="PC Interface"
+                                width={1200}
+                                height={675}
+                                className="rounded-xl shadow-2xl"
+                            />
+                             <Image
+                                src="/mobile-interface.jpg"
+                                alt="Mobile Interface"
+                                width={400}
+                                height={800}
+                                className="rounded-xl shadow-2xl mx-auto"
+                            />
+                        </div>
+                    </div>
+                </section>
+                
+                {/* Community Section */}
+                <section className="py-16 px-4">
+                    <div className="container mx-auto text-center">
+                        <h2 className="text-3xl font-bold mb-4">Be Part of Our Community</h2>
+                        <p className="max-w-3xl mx-auto text-lg text-muted-foreground">
+                            We are committed to building a community that is flexible, generous, and focused on our users. Your success is our success, and we're excited to grow with you.
+                        </p>
+                    </div>
+                </section>
+
+                {/* Why us Section */}
+                <section className="py-16 px-4 bg-muted/40">
+                    <div className="container mx-auto">
+                        <h2 className="text-3xl font-bold text-center mb-12">
+                            ¿Por qué usar YourSubLink?
+                        </h2>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                            <Card className="flex flex-col items-center text-center p-6">
+                                <ShieldCheck className="h-12 w-12 text-primary mb-4" />
+                                <h3 className="text-xl font-semibold mb-2">Advanced Monetization</h3>
+                                <p className="text-muted-foreground">
+                                    Maximize your earnings with our rule system and custom CPMs for top-performing users.
+                                </p>
+                            </Card>
+                            <Card className="flex flex-col items-center text-center p-6">
+                                <BarChart3 className="h-12 w-12 text-primary mb-4" />
+                                <h3 className="text-xl font-semibold mb-2">Intuitive Dashboard</h3>
+                                <p className="text-muted-foreground">
+                                    Manage your links, track your earnings, and get insights from a clean, modern interface available on all your devices.
+                                </p>
+                            </Card>
+                            <Card className="flex flex-col items-center text-center p-6">
+                                <Wallet className="h-12 w-12 text-primary mb-4" />
+                                <h3 className="text-xl font-semibold mb-2">Reliable Payouts & Support</h3>
+                                <p className="text-muted-foreground">
+                                    Request your earnings with a few clicks and get help directly from our integrated support chat. We are here for you.
+                                </p>
+                            </Card>
+                        </div>
+                    </div>
+                </section>
+
+                 {/* How it works Section */}
+                <section className="py-16 px-4">
+                    <div className="container mx-auto text-center">
+                        <h2 className="text-3xl font-bold mb-4">Getting Started is Easy</h2>
+                        <p className="text-muted-foreground mb-12 max-w-2xl mx-auto">In just a few simple steps, you can be on your way to earning.</p>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-left">
+                            <div className="flex flex-col items-center md:items-start text-center md:text-left gap-4">
+                                <div className="flex items-center justify-center bg-primary/10 text-primary rounded-full h-12 w-12">
+                                    <Edit className="h-6 w-6"/>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <span className="font-medium">Status:</span>
-                                    {link.monetizationStatus === 'suspended' ? (
-                                        <Badge variant="secondary" className="bg-yellow-500 text-black">Suspended</Badge>
-                                    ) : (
-                                        <Badge variant={link.monetizable ? 'default' : 'secondary'} className={`h-5 ${link.monetizable ? 'bg-green-600' : ''}`}>
-                                            {link.monetizable ? 'Monetizable' : 'Not Monetizable'}
-                                        </Badge>
-                                    )}
-                                </div>
-                                <div className="flex items-center gap-4 text-xs">
-                                    <div className="flex items-center gap-1 text-muted-foreground">
-                                        <Eye className="h-3 w-3" />
-                                        <span>{link.clicks} Clicks</span>
-                                    </div>
-                                    <div className="flex items-center gap-1 text-muted-foreground">
-                                        <Calendar className="h-3 w-3" />
-                                        <span>{link.createdAt ? new Date(link.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}</span>
-                                    </div>
-                                </div>
+                                <h3 className="text-xl font-semibold">1. Create & Customize</h3>
+                                <p className="text-muted-foreground">Shorten any URL and add monetization rules in our simple editor. Choose from different social media actions to engage your audience.</p>
                             </div>
-                        </TableCell>
-                         <TableCell className="hidden md:table-cell">
-                            <div className="font-medium">{link.userName}</div>
-                            <div className="text-xs text-muted-foreground">{link.userEmail}</div>
-                        </TableCell>
-                        <TableCell className="hidden sm:table-cell">{link.clicks}</TableCell>
-                        <TableCell className="hidden md:table-cell">
-                            {link.monetizationStatus === 'suspended' ? (
-                                <Badge variant="secondary" className="bg-yellow-500 text-black">Suspended</Badge>
-                            ) : (
-                                <Badge variant={link.monetizable ? 'default' : 'secondary'} className={link.monetizable ? 'bg-green-600' : ''}>
-                                    {link.monetizable ? 'Monetizable' : 'Not Monetizable'}
-                                </Badge>
-                            )}
-                        </TableCell>
-                        <TableCell className="hidden lg:table-cell">{link.createdAt ? new Date(link.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}</TableCell>
-                        <TableCell className="text-right">
-                             {isAnalyzing && analyzingLinkId === link.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin ml-auto" />
-                             ) : (
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" size="icon">
-                                            <MoreVertical className="h-4 w-4" />
-                                        </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
-                                        <DropdownMenuItem onClick={() => router.push(`/admin/links/${link.id}`)}>
-                                            <BarChart3 className="mr-2 h-4 w-4" />
-                                            <span>View Stats</span>
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => handleAnalyzeLink(link)}>
-                                            <ShieldCheck className="mr-2 h-4 w-4" />
-                                            <span>Analyze Link</span>
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => window.open(link.short, '_blank')}>
-                                            <ExternalLink className="mr-2 h-4 w-4" />
-                                            <span>View Link</span>
-                                        </DropdownMenuItem>
-                                        <DropdownMenuSeparator />
-                                        {link.monetizationStatus === 'active' ? (
-                                            <DropdownMenuItem onClick={() => handleToggleMonetization(link)}>
-                                                <ShieldBan className="mr-2 h-4 w-4 text-destructive" />
-                                                <span className="text-destructive">Suspend Monetization</span>
-                                            </DropdownMenuItem>
-                                        ) : (
-                                            <DropdownMenuItem onClick={() => handleToggleMonetization(link)}>
-                                                <DollarSign className="mr-2 h-4 w-4 text-green-500" />
-                                                <span className="text-green-500">Re-enable Monetization</span>
-                                            </DropdownMenuItem>
-                                        )}
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(link.id, link.userId, link.title)}>
-                                            <Trash2 className="mr-2 h-4 w-4" />
-                                            <span>Delete</span>
-                                        </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-                             )}
-                        </TableCell>
-                    </TableRow>
-                ))}
-                 {links.length === 0 && (
-                <TableRow>
-                    <TableCell colSpan={6} className="h-24 text-center">
-                    No links found in the system.
-                    </TableCell>
-                </TableRow>
-                )}
-                </TableBody>
-            </Table>
-            </CardContent>
-        </Card>
+                            <div className="flex flex-col items-center md:items-start text-center md:text-left gap-4">
+                                <div className="flex items-center justify-center bg-primary/10 text-primary rounded-full h-12 w-12">
+                                    <Share2 className="h-6 w-6"/>
+                                </div>
+                                <h3 className="text-xl font-semibold">2. Share Your Link</h3>
+                                <p className="text-muted-foreground">Distribute your new, powerful link across your social media, website, or any platform to reach your followers.</p>
+                            </div>
+                            <div className="flex flex-col items-center md:items-start text-center md:text-left gap-4">
+                                <div className="flex items-center justify-center bg-primary/10 text-primary rounded-full h-12 w-12">
+                                    <Award className="h-6 w-6"/>
+                                </div>
+                                <h3 className="text-xl font-semibold">3. Earn & Analyze</h3>
+                                <p className="text-muted-foreground">Watch your earnings grow with every click. Track your performance with our detailed analytics and request payouts easily.</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                
+            </main>
+
+            {/* Footer */}
+            <footer className="py-8 bg-muted/40 border-t">
+                <div className="container mx-auto text-center text-muted-foreground flex flex-col sm:flex-row justify-between items-center gap-4">
+                    <p>&copy; {new Date().getFullYear()} YourSubLink. All rights reserved.</p>
+                    <div className="flex gap-4">
+                        <Link href="#" className="text-sm hover:text-primary transition-colors">Terms of Service</Link>
+                        <Link href="#" className="text-sm hover:text-primary transition-colors">Privacy Policy</Link>
+                    </div>
+                </div>
+            </footer>
         </div>
-    </TooltipProvider>
-  );
+    );
 }
