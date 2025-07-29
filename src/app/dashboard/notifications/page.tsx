@@ -204,27 +204,35 @@ export default function NotificationsPage() {
             }
         };
 
-        const notifsQuery = query(collection(db, "notifications"), where("userId", "==", user.uid));
+        const notifsQuery = query(
+            collection(db, "notifications"), 
+            where("userId", "==", user.uid),
+            orderBy("createdAt", "desc")
+        );
         const unsubNotifs = onSnapshot(notifsQuery, (snapshot) => {
             const notifData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
+            const currentPayouts = payouts; // Capture current state
             notifsLoaded = true;
-            checkAllLoaded(notifData, payouts);
+            checkAllLoaded(notifData, currentPayouts);
         }, (err) => {
             console.error("Error fetching notifications:", err);
+            const currentPayouts = payouts; // Capture current state
             notifsLoaded = true;
-            checkAllLoaded([], payouts);
+            checkAllLoaded([], currentPayouts);
         });
 
         const payoutsQuery = query(collection(db, "payoutRequests"), where("userId", "==", user.uid));
         const unsubPayouts = onSnapshot(payoutsQuery, (snapshot) => {
             const payoutData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PayoutRequest));
             setPayouts(payoutData);
+            const currentNotifications = notifications.filter(n => !['payout_completed', 'payout_rejected', 'payout_requested'].includes(n.type)).map(n => ({...n, createdAt: { seconds: n.timestamp }}) as unknown as Notification)
             payoutsLoaded = true;
-            checkAllLoaded(notifications, payoutData);
+            checkAllLoaded(currentNotifications, payoutData);
         }, (err) => {
             console.error("Error fetching payouts:", err);
+            const currentNotifications = notifications.filter(n => !['payout_completed', 'payout_rejected', 'payout_requested'].includes(n.type)).map(n => ({...n, createdAt: { seconds: n.timestamp }}) as unknown as Notification)
             payoutsLoaded = true;
-            checkAllLoaded(notifications, []);
+            checkAllLoaded(currentNotifications, []);
         });
 
         return () => {
