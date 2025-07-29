@@ -80,10 +80,10 @@ export default function SupportChat() {
     if (!user) return;
 
     setLoading(true);
+    // Query only by userId, as required by Firestore rules. Sorting will be done on the client.
     const ticketsQuery = query(
       collection(db, 'supportTickets'),
-      where('userId', '==', user.uid),
-      orderBy('lastMessageTimestamp', 'desc')
+      where('userId', '==', user.uid)
     );
 
     const unsubscribe = onSnapshot(ticketsQuery, (snapshot) => {
@@ -92,7 +92,8 @@ export default function SupportChat() {
             ...doc.data()
         } as SupportTicket));
         
-        setTickets(ticketsData);
+        // Sort tickets by timestamp on the client side to avoid composite index requirement.
+        setTickets(ticketsData.sort((a, b) => (b.lastMessageTimestamp?.seconds ?? 0) - (a.lastMessageTimestamp?.seconds ?? 0)));
         setLoading(false);
     }, (error) => {
         console.error("Error fetching support tickets: ", error);
