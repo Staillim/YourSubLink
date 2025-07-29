@@ -212,7 +212,7 @@ function AuthForm() {
       await createUserProfile(user);
       await handleRedirectBasedOnRole(user);
 
-    } catch (error: any) => {
+    } catch (error: any) {
       toast({
         title: 'Google Sign-In Error',
         description: error.message,
@@ -487,4 +487,3 @@ export default function AuthenticationPage() {
     
 
     
-

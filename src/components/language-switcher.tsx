@@ -2,7 +2,7 @@
 'use client';
 
 import { useLocale } from 'next-intl';
-import { useRouter, usePathname } from '@/navigation';
+import { useRouter, usePathname } from 'next-intl/navigation';
 import {
     DropdownMenu,
     DropdownMenuContent,

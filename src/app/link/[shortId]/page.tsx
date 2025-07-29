@@ -1,3 +1,4 @@
+
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import ClientComponent from './ClientComponent';
@@ -30,3 +31,5 @@ export default async function ShortLinkPage({ params }: { params: { shortId: str
 
   return <ClientComponent shortId={params.shortId} linkId={linkId} />;
 }
+
+    
