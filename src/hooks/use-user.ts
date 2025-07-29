@@ -70,14 +70,15 @@ export function useUser() {
       return;
     }
 
-    // Set loading to true when starting to fetch data for a new user
     setLoading(true);
+    let isSubscribed = true;
 
     const unsubscribers: (() => void)[] = [];
     
     // Subscribe to User Profile
     const userDocRef = doc(db, 'users', authUser.uid);
-    unsubscribers.push(onSnapshot(userDocRef, async (userDoc) => {
+    const unsubProfile = onSnapshot(userDocRef, async (userDoc) => {
+      if (!isSubscribed) return;
       if (userDoc.exists()) {
         const userData = userDoc.data();
         const linksQuery = query(collection(db, 'links'), where('userId', '==', authUser.uid));
@@ -101,7 +102,8 @@ export function useUser() {
       } else {
         await createUserProfile(authUser);
       }
-    }));
+    });
+    unsubscribers.push(unsubProfile);
 
     // Subscribe to Payouts
     const payoutsQuery = query(
@@ -109,35 +111,39 @@ export function useUser() {
       where("userId", "==", authUser.uid),
       orderBy('requestedAt', 'desc')
     );
-    unsubscribers.push(onSnapshot(payoutsQuery, (snapshot) => {
+    const unsubPayouts = onSnapshot(payoutsQuery, (snapshot) => {
+      if (!isSubscribed) return;
       const requests: PayoutRequest[] = [];
       snapshot.forEach(doc => {
           requests.push({ id: doc.id, ...doc.data() } as PayoutRequest);
       });
       setPayouts(requests);
-    }));
+    }, (error) => {
+        console.error("Error fetching payouts:", error);
+    });
+    unsubscribers.push(unsubPayouts);
     
     // Subscribe to CPM History
     const cpmQuery = query(collection(db, 'cpmHistory'), orderBy('startDate', 'desc'));
-    unsubscribers.push(onSnapshot(cpmQuery, (snapshot) => {
+    const unsubCpm = onSnapshot(cpmQuery, (snapshot) => {
+        if (!isSubscribed) return;
         const historyData: CpmHistory[] = snapshot.docs.map(doc => doc.data() as CpmHistory);
         setCpmHistory(historyData);
-    }));
-
-    // Since loading state depends on auth and profile, we can simplify its logic.
-    // The main `loading` will be true as long as `authLoading` is true.
-    // Once `authLoading` is false, and we have an `authUser`, `onSnapshot` will provide the data.
-    // We can consider loading complete once the profile is loaded for the first time.
-    const unsubProfileForLoading = onSnapshot(userDocRef, (doc) => {
-      if (doc.exists()) {
-        setLoading(false);
-        unsubProfileForLoading(); // Unsubscribe after first load to prevent multiple sets
-      }
+    }, (error) => {
+        console.error("Error fetching CPM history:", error);
     });
+    unsubscribers.push(unsubCpm);
 
+    const unsubProfileForLoading = onSnapshot(userDocRef, (doc) => {
+        if(isSubscribed) {
+            setLoading(false);
+        }
+    });
     unsubscribers.push(unsubProfileForLoading);
 
+
     return () => {
+      isSubscribed = false;
       unsubscribers.forEach(unsub => unsub());
     };
   }, [authUser, authLoading]);
