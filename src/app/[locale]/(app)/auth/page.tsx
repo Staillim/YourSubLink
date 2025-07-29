@@ -11,7 +11,7 @@
 
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -212,7 +212,7 @@ function AuthForm() {
       await createUserProfile(user);
       await handleRedirectBasedOnRole(user);
 
-    } catch (error: any) => {
+    } catch (error: any) {
       toast({
         title: 'Google Sign-In Error',
         description: error.message,
