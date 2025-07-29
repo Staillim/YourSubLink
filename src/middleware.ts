@@ -6,7 +6,10 @@ export default createMiddleware({
   locales,
  
   // Used when no locale matches
-  defaultLocale: 'en'
+  defaultLocale: 'en',
+
+  // Specify public routes that shouldn't be prefixed
+  publicPages: ['/auth']
 });
  
 export const config = {
@@ -15,7 +18,6 @@ export const config = {
   // - /_next/… routes
   // - /_vercel/… routes
   // - /link/… routes (for short links)
-  // - /auth... routes
   // - files with an extension (e.g. favicon.ico)
-  matcher: ['/((?!api|_next|_vercel|link|auth|.*\\..*).*)']
+  matcher: ['/((?!api|_next|_vercel|link|.*\\..*).*)']
 };
