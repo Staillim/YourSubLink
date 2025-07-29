@@ -103,16 +103,19 @@ export function useUser() {
     unsubscribers.push(unsubProfile);
 
     // Subscribe to Payouts for the current user
+    // **FIX**: Removed orderBy from the query to avoid needing a composite index.
+    // Sorting will be done on the client side after fetching.
     const payoutsQuery = query(
       collection(db, "payoutRequests"),
-      where("userId", "==", authUser.uid),
-      orderBy('requestedAt', 'desc')
+      where("userId", "==", authUser.uid)
     );
     const unsubPayouts = onSnapshot(payoutsQuery, (snapshot) => {
       const requests: PayoutRequest[] = [];
       snapshot.forEach(doc => {
           requests.push({ id: doc.id, ...doc.data() } as PayoutRequest);
       });
+       // Sort on the client
+      requests.sort((a, b) => (b.requestedAt?.seconds ?? 0) - (a.requestedAt?.seconds ?? 0));
       setPayouts(requests);
     }, (error) => {
         console.error("Error fetching payouts:", error);
