@@ -180,7 +180,6 @@ const processPayouts = (payouts: PayoutRequest[]): Notification[] => {
 export default function NotificationsPage() {
     const { user, loading: userLoading } = useUser();
     const [notifications, setNotifications] = useState<FormattedNotification[]>([]);
-    const [payouts, setPayouts] = useState<PayoutRequest[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -190,10 +189,13 @@ export default function NotificationsPage() {
         }
 
         setLoading(true);
+        const allNotifs: Notification[] = [];
+        const allPayouts: PayoutRequest[] = [];
+
         let notifsLoaded = false;
         let payoutsLoaded = false;
 
-        const checkAllLoaded = (allNotifs: Notification[], allPayouts: PayoutRequest[]) => {
+        const checkAllLoaded = () => {
             if (notifsLoaded && payoutsLoaded) {
                  const payoutNotifications = processPayouts(allPayouts);
                  const allNotificationsData = [...allNotifs, ...payoutNotifications];
@@ -210,29 +212,26 @@ export default function NotificationsPage() {
             orderBy("createdAt", "desc")
         );
         const unsubNotifs = onSnapshot(notifsQuery, (snapshot) => {
-            const notifData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
-            const currentPayouts = payouts; // Capture current state
+            snapshot.docs.forEach(doc => {
+                const data = { id: doc.id, ...doc.data() } as Notification;
+                const index = allNotifs.findIndex(n => n.id === doc.id);
+                if (index > -1) allNotifs[index] = data;
+                else allNotifs.push(data);
+            });
             notifsLoaded = true;
-            checkAllLoaded(notifData, currentPayouts);
-        }, (err) => {
-            console.error("Error fetching notifications:", err);
-            const currentPayouts = payouts; // Capture current state
-            notifsLoaded = true;
-            checkAllLoaded([], currentPayouts);
+            checkAllLoaded();
         });
 
         const payoutsQuery = query(collection(db, "payoutRequests"), where("userId", "==", user.uid));
         const unsubPayouts = onSnapshot(payoutsQuery, (snapshot) => {
-            const payoutData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PayoutRequest));
-            setPayouts(payoutData);
-            const currentNotifications = notifications.filter(n => !['payout_completed', 'payout_rejected', 'payout_requested'].includes(n.type)).map(n => ({...n, createdAt: { seconds: n.timestamp }}) as unknown as Notification)
+            snapshot.docs.forEach(doc => {
+                 const data = { id: doc.id, ...doc.data() } as PayoutRequest;
+                 const index = allPayouts.findIndex(p => p.id === doc.id);
+                 if(index > -1) allPayouts[index] = data;
+                 else allPayouts.push(data);
+            });
             payoutsLoaded = true;
-            checkAllLoaded(currentNotifications, payoutData);
-        }, (err) => {
-            console.error("Error fetching payouts:", err);
-            const currentNotifications = notifications.filter(n => !['payout_completed', 'payout_rejected', 'payout_requested'].includes(n.type)).map(n => ({...n, createdAt: { seconds: n.timestamp }}) as unknown as Notification)
-            payoutsLoaded = true;
-            checkAllLoaded(currentNotifications, []);
+            checkAllLoaded();
         });
 
         return () => {

@@ -71,14 +71,11 @@ export function useUser() {
     }
 
     setLoading(true);
-    let isSubscribed = true;
-
     const unsubscribers: (() => void)[] = [];
     
     // Subscribe to User Profile
     const userDocRef = doc(db, 'users', authUser.uid);
     const unsubProfile = onSnapshot(userDocRef, async (userDoc) => {
-      if (!isSubscribed) return;
       if (userDoc.exists()) {
         const userData = userDoc.data();
         const linksQuery = query(collection(db, 'links'), where('userId', '==', authUser.uid));
@@ -105,14 +102,13 @@ export function useUser() {
     });
     unsubscribers.push(unsubProfile);
 
-    // Subscribe to Payouts
+    // Subscribe to Payouts for the current user
     const payoutsQuery = query(
       collection(db, "payoutRequests"),
       where("userId", "==", authUser.uid),
       orderBy('requestedAt', 'desc')
     );
     const unsubPayouts = onSnapshot(payoutsQuery, (snapshot) => {
-      if (!isSubscribed) return;
       const requests: PayoutRequest[] = [];
       snapshot.forEach(doc => {
           requests.push({ id: doc.id, ...doc.data() } as PayoutRequest);
@@ -126,7 +122,6 @@ export function useUser() {
     // Subscribe to CPM History
     const cpmQuery = query(collection(db, 'cpmHistory'), orderBy('startDate', 'desc'));
     const unsubCpm = onSnapshot(cpmQuery, (snapshot) => {
-        if (!isSubscribed) return;
         const historyData: CpmHistory[] = snapshot.docs.map(doc => doc.data() as CpmHistory);
         setCpmHistory(historyData);
     }, (error) => {
@@ -135,15 +130,12 @@ export function useUser() {
     unsubscribers.push(unsubCpm);
 
     const unsubProfileForLoading = onSnapshot(userDocRef, (doc) => {
-        if(isSubscribed) {
-            setLoading(false);
-        }
+        setLoading(false);
     });
     unsubscribers.push(unsubProfileForLoading);
 
 
     return () => {
-      isSubscribed = false;
       unsubscribers.forEach(unsub => unsub());
     };
   }, [authUser, authLoading]);

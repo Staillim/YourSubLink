@@ -82,7 +82,8 @@ export default function SupportChat() {
     setLoading(true);
     const ticketsQuery = query(
       collection(db, 'supportTickets'),
-      where('userId', '==', user.uid)
+      where('userId', '==', user.uid),
+      orderBy('lastMessageTimestamp', 'desc')
     );
 
     const unsubscribe = onSnapshot(ticketsQuery, (snapshot) => {
@@ -91,8 +92,7 @@ export default function SupportChat() {
             ...doc.data()
         } as SupportTicket));
         
-        // Sort tickets on the client-side
-        setTickets(ticketsData.sort((a, b) => (b.lastMessageTimestamp?.seconds ?? 0) - (a.lastMessageTimestamp?.seconds ?? 0)));
+        setTickets(ticketsData);
         setLoading(false);
     }, (error) => {
         console.error("Error fetching support tickets: ", error);
