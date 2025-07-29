@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -67,9 +68,11 @@ service cloud.firestore {
       // Create: Only the owner of the request can create it.
       allow create: if isOwner(request.resource.data.userId);
 
-      // Read: Admins can read any request. Users can only read their own requests.
-      // This is more flexible than a 'list' rule and prevents index-related permission errors.
-      allow read: if isAdmin() || isOwner(resource.data.userId);
+      // Get: Admins or the owner can get a specific request.
+      allow get: if isAdmin() || isOwner(resource.data.userId);
+
+      // List: Admins can list all requests. Users can list ONLY their own requests by providing their UID in the query.
+      allow list: if isAdmin() || (isAuth() && request.query.where.userId == request.auth.uid);
       
       // Update: Only admins can approve or reject requests.
       allow update: if isAdmin();
@@ -91,8 +94,8 @@ service cloud.firestore {
 
     // NOTIFICATIONS Collection
     match /notifications/{notificationId} {
-      // Read: Admins can read any notification. Users can only read their own.
-      allow read: if isAdmin() || isOwner(resource.data.userId);
+      // Admins can read any notification. Users can list/read their own.
+      allow get, list: if isAdmin() || (isAuth() && resource.data.userId == request.auth.uid);
 
       // Create: System/admins can create notifications. This rule allows server-side processes to create notifications.
       allow create: if isAdmin() || isAuth();
@@ -106,8 +109,8 @@ service cloud.firestore {
 
     // SUPPORT TICKETS Collection
     match /supportTickets/{ticketId} {
-      // Read: Admins can access any ticket. Users can only access their own.
-      allow read: if isAdmin() || isOwner(resource.data.userId);
+      // Get/List: Admins can access any ticket. Users can only access their own.
+      allow get, list: if isAdmin() || (isAuth() && resource.data.userId == request.auth.uid);
 
       // Create: Users can create tickets for themselves.
       allow create: if isOwner(request.resource.data.userId);
@@ -117,8 +120,8 @@ service cloud.firestore {
 
       // Nested Messages Subcollection
       match /messages/{messageId} {
-        // Read: Admins or the owner of the parent ticket can read messages.
-        allow read: if isAdmin() || isOwner(get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId);
+        // Get/List: Admins or the owner of the parent ticket can read messages.
+        allow get, list: if isAdmin() || isOwner(get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId);
 
         // Create: Admins or the owner of the parent ticket can create messages.
         allow create: if isAdmin() || isOwner(get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId);
