@@ -1,4 +1,3 @@
-
 rules_version = '2';
 
 service cloud.firestore {
@@ -45,13 +44,17 @@ service cloud.firestore {
       // Create: Only authenticated users can create links for themselves.
       allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
 
-      // Update: 
-      // 1. Admins can update anything.
-      // 2. Owners can update their own links.
-      allow update: if isAdmin() || (isAuth() && resource.data.userId == request.auth.uid);
+      // Update:
+      // A visitor can ONLY increment clicks and generatedEarnings. They cannot change any other field.
+      // The owner or an admin can update any field.
+      allow update: if (
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['clicks', 'generatedEarnings']) &&
+        request.resource.data.clicks == resource.data.clicks + 1
+      ) || isAdmin() || isOwner(resource.data.userId);
       
       // Delete: Admins or owners can delete links.
-      allow delete: if isAdmin() || (isAuth() && resource.data.userId == request.auth.uid);
+      allow delete: if isAdmin() || isOwner(resource.data.userId);
     }
     
     // CLICKS Collection (for logging individual clicks)
@@ -68,11 +71,9 @@ service cloud.firestore {
       // Create: Only the owner of the request can create it.
       allow create: if isOwner(request.resource.data.userId);
 
-      // Get: Admins or the owner can get a specific request.
-      allow get: if isAdmin() || isOwner(resource.data.userId);
-
-      // List: Admins can list all requests. Users can list ONLY their own requests by providing their UID in the query.
-      allow list: if isAdmin() || (isAuth() && request.query.where.userId == request.auth.uid);
+      // Read: Admins can read any request. Users can only read their own requests.
+      // This is more flexible than a 'list' rule and prevents index-related permission errors.
+      allow read: if isAdmin() || isOwner(resource.data.userId);
       
       // Update: Only admins can approve or reject requests.
       allow update: if isAdmin();
@@ -94,8 +95,8 @@ service cloud.firestore {
 
     // NOTIFICATIONS Collection
     match /notifications/{notificationId} {
-      // Admins can read any notification. Users can list/read their own.
-      allow get, list: if isAdmin() || (isAuth() && resource.data.userId == request.auth.uid);
+      // Read: Admins can read any notification. Users can only read their own.
+      allow read: if isAdmin() || isOwner(resource.data.userId);
 
       // Create: System/admins can create notifications. This rule allows server-side processes to create notifications.
       allow create: if isAdmin() || isAuth();
@@ -109,8 +110,8 @@ service cloud.firestore {
 
     // SUPPORT TICKETS Collection
     match /supportTickets/{ticketId} {
-      // Get/List: Admins can access any ticket. Users can only access their own.
-      allow get, list: if isAdmin() || (isAuth() && resource.data.userId == request.auth.uid);
+      // Read: Admins can access any ticket. Users can only access their own.
+      allow read: if isAdmin() || isOwner(resource.data.userId);
 
       // Create: Users can create tickets for themselves.
       allow create: if isOwner(request.resource.data.userId);
@@ -120,8 +121,8 @@ service cloud.firestore {
 
       // Nested Messages Subcollection
       match /messages/{messageId} {
-        // Get/List: Admins or the owner of the parent ticket can read messages.
-        allow get, list: if isAdmin() || isOwner(get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId);
+        // Read: Admins or the owner of the parent ticket can read messages.
+        allow read: if isAdmin() || isOwner(get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId);
 
         // Create: Admins or the owner of the parent ticket can create messages.
         allow create: if isAdmin() || isOwner(get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId);
@@ -132,5 +133,3 @@ service cloud.firestore {
     }
   }
 }
-
-    
