@@ -16,7 +16,7 @@ import { Loader2 } from 'lucide-react';
 import LinkGate from '@/components/link-gate'; 
 import type { LinkData } from '@/types'; 
 import { db } from '@/lib/firebase';
-import { collection, doc, writeBatch, increment, serverTimestamp, getDoc, query, where, getDocs, limit } from 'firebase/firestore';
+import { collection, doc, writeBatch, serverTimestamp, getDoc, query, where, getDocs, limit } from 'firebase/firestore';
 import type { Rule } from '@/components/rule-editor';
 
 export default function ClientComponent({ shortId, linkId }: { shortId: string, linkId: string }) {
@@ -98,12 +98,9 @@ export default function ClientComponent({ shortId, linkId }: { shortId: string, 
 
     try {
         const batch = writeBatch(db);
-        const linkRef = doc(db, 'links', dataToUse.id);
         
-        // 1. Increment the raw click counter on the link document
-        batch.update(linkRef, { clicks: increment(1) });
-        
-        // 2. Create a log of the click to be processed later by a backend flow
+        // The client's only responsibility is to log the click.
+        // It does NOT increment the counter directly. This is handled by a backend flow.
         const clickLogRef = doc(collection(db, 'clicks'));
         batch.set(clickLogRef, {
             linkId: dataToUse.id,
@@ -156,5 +153,3 @@ export default function ClientComponent({ shortId, linkId }: { shortId: string, 
     </div>
   );
 }
-
-    
