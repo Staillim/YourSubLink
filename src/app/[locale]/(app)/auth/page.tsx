@@ -1,5 +1,3 @@
-
-
 /**
  * !! ANTES DE EDITAR ESTE ARCHIVO, REVISA LAS DIRECTRICES EN LOS SIGUIENTES DOCUMENTOS: !!
  * - /README.md
@@ -11,7 +9,7 @@
 
 'use client';
 
-import { useRouter } from '@/navigation';
+import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -483,8 +481,3 @@ export default function AuthenticationPage() {
         </main>
     )
 }
-
-    
-
-    
-

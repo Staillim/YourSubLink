@@ -15,6 +15,7 @@ export const config = {
   // - /_next/… routes
   // - /_vercel/… routes
   // - /link/… routes (for short links)
+  // - /auth... routes
   // - files with an extension (e.g. favicon.ico)
-  matcher: ['/((?!api|_next|_vercel|link|.*\\..*).*)']
+  matcher: ['/((?!api|_next|_vercel|link|auth|.*\\..*).*)']
 };

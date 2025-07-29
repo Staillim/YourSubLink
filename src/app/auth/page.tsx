@@ -483,7 +483,3 @@ export default function AuthenticationPage() {
         </main>
     )
 }
-
-    
-
-    
