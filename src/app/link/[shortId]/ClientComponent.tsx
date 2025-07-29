@@ -16,7 +16,7 @@ import { Loader2 } from 'lucide-react';
 import LinkGate from '@/components/link-gate'; 
 import type { LinkData } from '@/types'; 
 import { db } from '@/lib/firebase';
-import { collection, doc, writeBatch, serverTimestamp, getDoc, query, where, getDocs, limit } from 'firebase/firestore';
+import { collection, doc, writeBatch, serverTimestamp, getDoc, query, where, getDocs, increment, limit } from 'firebase/firestore';
 import type { Rule } from '@/components/rule-editor';
 
 export default function ClientComponent({ shortId, linkId }: { shortId: string, linkId: string }) {
@@ -47,7 +47,9 @@ export default function ClientComponent({ shortId, linkId }: { shortId: string, 
         const userSnap = await getDoc(userRef);
         
         if (!userSnap.exists() || userSnap.data()?.accountStatus === 'suspended' || currentLink.monetizationStatus === 'suspended') {
-            setStatus('invalid');
+            // Redirect without counting if user or link is suspended
+            window.location.href = currentLink.original;
+            setStatus('invalid'); // Set status but redirect immediately
             return;
         }
         
@@ -97,33 +99,69 @@ export default function ClientComponent({ shortId, linkId }: { shortId: string, 
     setStatus('redirecting');
 
     try {
+        const linkRef = doc(db, 'links', dataToUse.id);
         const batch = writeBatch(db);
+
+        // 1. Increment the click counter
+        batch.update(linkRef, { clicks: increment(1) });
         
-        // The client's only responsibility is to log the click.
-        // It does NOT increment the counter directly. This is handled by a backend flow.
+        let cpmUsed = 0;
+        let earningsGenerated = 0;
+
+        // 2. If monetizable AND not suspended, calculate and increment earnings
+        if (dataToUse.monetizable && dataToUse.monetizationStatus !== 'suspended') {
+            // Check for a custom CPM on the user's profile
+            const userRef = doc(db, 'users', dataToUse.userId);
+            const userSnap = await getDoc(userRef);
+            const userData = userSnap.data();
+            const customCpm = userData?.customCpm;
+
+            if (customCpm != null && customCpm > 0) {
+                // Use custom CPM because it's defined and greater than 0
+                cpmUsed = customCpm;
+            } else {
+                // Use global CPM if custom is null, undefined, or 0
+                const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null), limit(1));
+                const cpmSnapshot = await getDocs(cpmQuery);
+                let activeCpm = 3.00; // Default fallback CPM
+                if (!cpmSnapshot.empty) {
+                    activeCpm = cpmSnapshot.docs[0].data().rate;
+                }
+                cpmUsed = activeCpm;
+            }
+            
+            earningsGenerated = cpmUsed / 1000;
+            batch.update(linkRef, { generatedEarnings: increment(earningsGenerated) });
+        }
+        
+        // 3. Create a log of the click with earnings info
         const clickLogRef = doc(collection(db, 'clicks'));
         batch.set(clickLogRef, {
             linkId: dataToUse.id,
             userId: dataToUse.userId,
             timestamp: serverTimestamp(),
-            processed: false, // Mark for backend processing
-            userAgent: navigator.userAgent, // Collect basic info
+            earningsGenerated: earningsGenerated,
+            cpmUsed: cpmUsed,
+            processed: true, // Mark as processed immediately
+            processedAt: serverTimestamp(),
+            userAgent: navigator.userAgent,
         });
 
         await batch.commit();
 
     } catch(error) {
-        console.error("Failed to log click:", error);
+        console.error("Failed to count click:", error);
     } finally {
         window.location.href = dataToUse.original;
     }
   }
 
   if (status === 'invalid') {
+    // A redirect is triggered in useEffect, but we can show a message as a fallback.
     return (
         <div className="flex h-screen w-full flex-col items-center justify-center bg-background text-foreground p-4">
             <h1 className="text-2xl font-bold">Link Not Available</h1>
-            <p className="mt-2 text-muted-foreground">This link has been disabled by the creator or an administrator.</p>
+            <p className="mt-2 text-muted-foreground">This link has been disabled.</p>
         </div>
     )
   }
