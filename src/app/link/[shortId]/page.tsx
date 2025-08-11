@@ -12,15 +12,16 @@ import { notFound } from 'next/navigation';
  * complex queries are handled on the server, and the client only needs simple
  * read permissions.
  */
-export default async function ShortLinkPage({ params }: { params: { shortId: string } }) {
+export default async function ShortLinkPage({ params }: { params: Promise<{ shortId: string }> }) {
+  const { shortId } = await params;
   
-  if (!params.shortId) {
+  if (!shortId) {
     notFound();
   }
 
   // Server-side query to find the document ID from the shortId
   const linksRef = collection(db, 'links');
-  const q = query(linksRef, where('shortId', '==', params.shortId), limit(1));
+  const q = query(linksRef, where('shortId', '==', shortId), limit(1));
   const querySnapshot = await getDocs(q);
 
   if (querySnapshot.empty) {
@@ -29,7 +30,7 @@ export default async function ShortLinkPage({ params }: { params: { shortId: str
 
   const linkId = querySnapshot.docs[0].id;
 
-  return <ClientComponent shortId={params.shortId} linkId={linkId} />;
+  return <ClientComponent shortId={shortId} linkId={linkId} />;
 }
 
     

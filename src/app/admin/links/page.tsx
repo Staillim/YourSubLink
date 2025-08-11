@@ -5,7 +5,7 @@
 import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, doc, deleteDoc, getDoc, updateDoc, addDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { collection, onSnapshot, doc, deleteDoc, getDoc, updateDoc, addDoc, serverTimestamp, writeBatch, query, where, getDocs } from 'firebase/firestore';
 import {
   Table,
   TableBody,
@@ -18,7 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
-import { MoreVertical, Trash2, ExternalLink, BarChart3, Eye, Calendar, ShieldCheck, Loader2, DollarSign, ShieldBan } from 'lucide-react';
+import { MoreVertical, Trash2, ExternalLink, BarChart3, Eye, Calendar, ShieldCheck, Loader2, DollarSign, ShieldBan, Plus, Target } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
     DropdownMenu,
@@ -29,6 +29,9 @@ import {
   } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { analyzeLinkSecurity } from '@/ai/flows/analyzeLinkSecurity';
+import { AddSponsorDialog } from '@/components/add-sponsor-dialog';
+import type { SponsorRule } from '@/types';
+import { isSponsorExpired, getActiveSponsors } from '@/types';
 
 
 type Link = {
@@ -52,6 +55,47 @@ export default function AdminLinksPage() {
   const router = useRouter();
   const [isAnalyzing, startTransition] = useTransition();
   const [analyzingLinkId, setAnalyzingLinkId] = useState<string | null>(null);
+
+  // Estados para sponsors
+  const [sponsors, setSponsors] = useState<Record<string, SponsorRule[]>>({});
+  const [sponsorsLoading, setSponsorsLoading] = useState<Record<string, boolean>>({});
+  const [sponsorDialogOpen, setSponsorDialogOpen] = useState(false);
+  const [selectedLinkId, setSelectedLinkId] = useState<string | null>(null);
+
+  // Función para cargar sponsors de un enlace específico
+  const loadSponsorsForLink = async (linkId: string) => {
+    setSponsorsLoading(prev => ({ ...prev, [linkId]: true }));
+    try {
+      const sponsorsQuery = query(
+        collection(db, 'sponsorRules'),
+        where('linkId', '==', linkId)
+      );
+      const sponsorsSnapshot = await getDocs(sponsorsQuery);
+      const sponsorsData = sponsorsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as SponsorRule));
+      
+      setSponsors(prev => ({ ...prev, [linkId]: sponsorsData }));
+    } catch (error) {
+      console.error('Error loading sponsors for link:', linkId, error);
+    } finally {
+      setSponsorsLoading(prev => ({ ...prev, [linkId]: false }));
+    }
+  };
+
+  // Función para abrir el diálogo de sponsor
+  const handleAddSponsor = (linkId: string) => {
+    setSelectedLinkId(linkId);
+    setSponsorDialogOpen(true);
+  };
+
+  // Función para refrescar sponsors después de añadir uno nuevo
+  const handleSponsorAdded = () => {
+    if (selectedLinkId) {
+      loadSponsorsForLink(selectedLinkId);
+    }
+  };
 
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, 'links'), async (snapshot) => {
@@ -82,6 +126,12 @@ export default function AdminLinksPage() {
         } as Link);
       }
       setLinks(linksData.sort((a,b) => b.createdAt.seconds - a.createdAt.seconds));
+      
+      // Cargar sponsors para cada enlace
+      for (const link of linksData) {
+        loadSponsorsForLink(link.id);
+      }
+      
       setLoading(false);
     });
 
@@ -215,13 +265,13 @@ export default function AdminLinksPage() {
              <Table>
                 <TableHeader>
                     <TableRow>
-                        {[...Array(6)].map((_,i) => <TableHead key={i}><Skeleton className="h-5 w-full" /></TableHead>)}
+                        {[...Array(7)].map((_,i) => <TableHead key={i}><Skeleton className="h-5 w-full" /></TableHead>)}
                     </TableRow>
                 </TableHeader>
                 <TableBody>
                     {[...Array(5)].map((_, i) => (
                          <TableRow key={i}>
-                             {[...Array(6)].map((_,j) => <TableCell key={j}><Skeleton className="h-5 w-full" /></TableCell>)}
+                             {[...Array(7)].map((_,j) => <TableCell key={j}><Skeleton className="h-5 w-full" /></TableCell>)}
                          </TableRow>
                     ))}
                 </TableBody>
@@ -249,6 +299,7 @@ export default function AdminLinksPage() {
                     <TableHead className="hidden md:table-cell">User</TableHead>
                     <TableHead className="hidden sm:table-cell">Clicks</TableHead>
                     <TableHead className="hidden md:table-cell">Status</TableHead>
+                    <TableHead className="hidden lg:table-cell">Sponsors</TableHead>
                     <TableHead className="hidden lg:table-cell">Date</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -301,6 +352,46 @@ export default function AdminLinksPage() {
                                 </Badge>
                             )}
                         </TableCell>
+                        <TableCell className="hidden lg:table-cell">
+                            {sponsorsLoading[link.id] ? (
+                                <Skeleton className="h-6 w-16" />
+                            ) : (
+                                <div className="flex items-center gap-2">
+                                    {(() => {
+                                        const linkSponsors = sponsors[link.id] || [];
+                                        const activeSponsors = getActiveSponsors(linkSponsors);
+                                        const expiredCount = linkSponsors.filter(s => s.isActive && isSponsorExpired(s)).length;
+                                        const totalActiveCount = linkSponsors.filter(s => s.isActive).length;
+                                        
+                                        return (
+                                            <>
+                                                <Badge 
+                                                    variant={expiredCount > 0 ? "destructive" : "default"}
+                                                    className="text-xs"
+                                                >
+                                                    {activeSponsors.length}/{totalActiveCount}
+                                                </Badge>
+                                                {expiredCount > 0 && (
+                                                    <Badge variant="outline" className="text-xs text-orange-600">
+                                                        {expiredCount} exp.
+                                                    </Badge>
+                                                )}
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => handleAddSponsor(link.id)}
+                                                    disabled={totalActiveCount >= 3}
+                                                    className="h-6 px-2 text-xs"
+                                                >
+                                                    <Plus className="h-3 w-3 mr-1" />
+                                                    Sponsor
+                                                </Button>
+                                            </>
+                                        );
+                                    })()}
+                                </div>
+                            )}
+                        </TableCell>
                         <TableCell className="hidden lg:table-cell">{link.createdAt ? new Date(link.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}</TableCell>
                         <TableCell className="text-right">
                              {isAnalyzing && analyzingLinkId === link.id ? (
@@ -350,7 +441,7 @@ export default function AdminLinksPage() {
                 ))}
                  {links.length === 0 && (
                 <TableRow>
-                    <TableCell colSpan={6} className="h-24 text-center">
+                    <TableCell colSpan={7} className="h-24 text-center">
                     No links found in the system.
                     </TableCell>
                 </TableRow>
@@ -359,6 +450,19 @@ export default function AdminLinksPage() {
             </Table>
             </CardContent>
         </Card>
+
+        {/* Diálogo para añadir sponsors */}
+        {selectedLinkId && (
+            <AddSponsorDialog
+                linkId={selectedLinkId}
+                isOpen={sponsorDialogOpen}
+                onClose={() => {
+                    setSponsorDialogOpen(false);
+                    setSelectedLinkId(null);
+                }}
+                onSponsorAdded={handleSponsorAdded}
+            />
+        )}
         </div>
     </TooltipProvider>
   );

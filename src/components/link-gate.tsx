@@ -1,15 +1,19 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import type { LinkData } from '@/types';
+import type { LinkData, SponsorRule } from '@/types';
+import { getActiveSponsors } from '@/types';
 import { Loader2, ArrowRight, CheckCircle, ExternalLink, LogIn, UserPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Facebook, Instagram, Youtube,Globe, MessageCircle, ThumbsUp } from 'lucide-react';
 import { Logo, TikTokIcon } from '@/components/icons';
+import { SponsorRuleItem } from '@/components/sponsor-rule-item';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -68,16 +72,16 @@ const getRuleDetails = (rule: LinkData['rules'][0]) => {
     const platformStyle = getPlatformStyle(rule.url);
     switch (rule.type) {
         case 'like':
-            return { icon: ThumbsUp, text: `Like this ${platformStyle.platformName} content`, ...platformStyle };
+            return { ...platformStyle, icon: ThumbsUp, text: `Like this ${platformStyle.platformName} content` };
         case 'comment':
-            return { icon: MessageCircle, text: `Comment on this ${platformStyle.platformName} content`, ...platformStyle };
+            return { ...platformStyle, icon: MessageCircle, text: `Comment on this ${platformStyle.platformName} content` };
         case 'subscribe':
-            return { icon: Youtube, text: `Subscribe on ${platformStyle.platformName}`, ...platformStyle };
+            return { ...platformStyle, icon: Youtube, text: `Subscribe on ${platformStyle.platformName}` };
         case 'follow':
-            return { icon: platformStyle.icon, text: `Follow on ${platformStyle.platformName}`, ...platformStyle };
+            return { ...platformStyle, text: `Follow on ${platformStyle.platformName}` };
         case 'visit':
         default:
-            return { icon: Globe, text: 'Visit this Website', ...platformStyle };
+            return { ...platformStyle, icon: Globe, text: 'Visit this Website' };
     }
 };
 
@@ -92,6 +96,51 @@ export default function LinkGate({ linkData, onAllStepsCompleted }: { linkData: 
   const [ruleStates, setRuleStates] = useState<('pending' | 'loading' | 'completed')[]>(
     () => Array((linkData.rules || []).length).fill('pending')
   );
+
+  // NUEVO: Estado para sponsors
+  const [allSponsors, setAllSponsors] = useState<SponsorRule[]>([]);
+  const [sponsorStates, setSponsorStates] = useState<Record<string, 'pending' | 'loading' | 'completed'>>({});
+  const [sponsorTracking, setSponsorTracking] = useState<{
+    views: Record<string, boolean>;
+    completions: Record<string, boolean>;
+  }>({ views: {}, completions: {} });
+
+  // Filtrar sponsors activos (no expirados)
+  const activeSponsors = useMemo(() => getActiveSponsors(allSponsors), [allSponsors]);
+
+  // Inicializar estados de sponsors cuando se cargan
+  useEffect(() => {
+    const initialStates: Record<string, 'pending' | 'loading' | 'completed'> = {};
+    activeSponsors.forEach(sponsor => {
+      initialStates[sponsor.id] = 'pending';
+    });
+    setSponsorStates(initialStates);
+  }, [activeSponsors]);
+
+  // Cargar sponsors del enlace
+  useEffect(() => {
+    const loadSponsors = async () => {
+      try {
+        const sponsorsQuery = query(
+          collection(db, 'sponsorRules'),
+          where('linkId', '==', linkData.id),
+          where('isActive', '==', true)
+        );
+        const sponsorsSnapshot = await getDocs(sponsorsQuery);
+        const sponsors: SponsorRule[] = sponsorsSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        } as SponsorRule));
+        
+        setAllSponsors(sponsors);
+      } catch (error) {
+        console.error('Error loading sponsors:', error);
+        setAllSponsors([]);
+      }
+    };
+
+    loadSponsors();
+  }, [linkData.id]);
 
   useEffect(() => {
     if (step === 'countdown') {
@@ -134,7 +183,35 @@ export default function LinkGate({ linkData, onAllStepsCompleted }: { linkData: 
     }, 10000); // 10 seconds
   };
   
+  // NUEVO: Funciones para manejar sponsors
+  const handleSponsorView = (sponsor: SponsorRule) => {
+    setSponsorTracking(prev => ({
+      ...prev,
+      views: { ...prev.views, [sponsor.id]: true }
+    }));
+  };
+
+  const handleSponsorComplete = (sponsor: SponsorRule) => {
+    setSponsorTracking(prev => ({
+      ...prev,
+      completions: { ...prev.completions, [sponsor.id]: true }
+    }));
+  };
+
+  const handleSponsorStateChange = (index: number, state: 'pending' | 'loading' | 'completed') => {
+    const sponsor = activeSponsors[index];
+    if (sponsor) {
+      setSponsorStates(prev => ({
+        ...prev,
+        [sponsor.id]: state
+      }));
+    }
+  };
+
   const allRulesCompleted = ruleStates.every(state => state === 'completed');
+  const allSponsorsCompleted = activeSponsors.length === 0 || 
+    activeSponsors.every(sponsor => sponsorStates[sponsor.id] === 'completed');
+  const allTasksCompleted = allRulesCompleted && allSponsorsCompleted;
 
   return (
     <div className="relative flex min-h-screen w-full flex-col items-center justify-center bg-background p-4">
@@ -213,9 +290,37 @@ export default function LinkGate({ linkData, onAllStepsCompleted }: { linkData: 
                         })}
                     </div>
 
+                    {/* NUEVO: Sección de Sponsors */}
+                    {activeSponsors.length > 0 && (
+                      <>
+                        <div className="pt-4 border-t border-gray-200">
+                          <div className="flex items-center gap-2 mb-3">
+                            <div className="h-2 w-2 rounded-full bg-gradient-to-r from-amber-400 to-yellow-400"></div>
+                            <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+                              Patrocinadores
+                            </h3>
+                            <div className="flex-1 h-px bg-gradient-to-r from-amber-200 to-transparent"></div>
+                          </div>
+                          <div className="space-y-3">
+                            {activeSponsors.map((sponsor, index) => (
+                              <SponsorRuleItem
+                                key={sponsor.id}
+                                sponsor={sponsor}
+                                index={index}
+                                state={sponsorStates[sponsor.id] || 'pending'}
+                                onStateChange={handleSponsorStateChange}
+                                onView={handleSponsorView}
+                                onComplete={handleSponsorComplete}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      </>
+                    )}
+
                     <Button
                         onClick={handleUnlock}
-                        disabled={!allRulesCompleted}
+                        disabled={!allTasksCompleted}
                         className="w-full font-bold text-base py-5 sm:py-6 mt-4 bg-primary hover:bg-primary/90 disabled:bg-gray-800 disabled:text-muted-foreground disabled:cursor-not-allowed"
                         size="lg"
                     >
