@@ -6,6 +6,9 @@ import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { db } from '@/lib/firebase';
 import { collection, onSnapshot, doc, deleteDoc, getDoc, updateDoc, addDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import type { LinkData, SponsorRule } from '../../../types';
+import { AddSponsorDialog } from '../../../components/add-sponsor-dialog';
+import { MultiSponsorDialog } from '../../../components/multi-sponsor-dialog';
 import {
   Table,
   TableBody,
@@ -17,8 +20,9 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from '@/hooks/use-toast';
-import { MoreVertical, Trash2, ExternalLink, BarChart3, Eye, Calendar, ShieldCheck, Loader2, DollarSign, ShieldBan } from 'lucide-react';
+import { MoreVertical, Trash2, ExternalLink, BarChart3, Eye, Calendar, ShieldCheck, Loader2, DollarSign, ShieldBan, Plus, Target } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
     DropdownMenu,
@@ -29,6 +33,7 @@ import {
   } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { analyzeLinkSecurity } from '@/ai/flows/analyzeLinkSecurity';
+import { isSponsorExpired } from '../../../types';
 
 
 type Link = {
@@ -52,6 +57,15 @@ export default function AdminLinksPage() {
   const router = useRouter();
   const [isAnalyzing, startTransition] = useTransition();
   const [analyzingLinkId, setAnalyzingLinkId] = useState<string | null>(null);
+  
+  // Estados para sponsors
+  const [sponsors, setSponsors] = useState<Record<string, SponsorRule[]>>({});
+  const [sponsorDialogOpen, setSponsorDialogOpen] = useState(false);
+  const [selectedLinkId, setSelectedLinkId] = useState<string | null>(null);
+  
+  // Estados para selección múltiple
+  const [selectedLinks, setSelectedLinks] = useState<Set<string>>(new Set());
+  const [isMultiSponsorDialogOpen, setIsMultiSponsorDialogOpen] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, 'links'), async (snapshot) => {
@@ -86,6 +100,25 @@ export default function AdminLinksPage() {
     });
 
     return () => unsubscribe();
+  }, []);
+
+  // Cargar sponsors de todos los enlaces
+  useEffect(() => {
+    const unsubscribeSponsors = onSnapshot(collection(db, 'sponsorRules'), (snapshot) => {
+      const sponsorsData: Record<string, SponsorRule[]> = {};
+      
+      snapshot.docs.forEach(doc => {
+        const sponsor = { id: doc.id, ...doc.data() } as SponsorRule;
+        if (!sponsorsData[sponsor.linkId]) {
+          sponsorsData[sponsor.linkId] = [];
+        }
+        sponsorsData[sponsor.linkId].push(sponsor);
+      });
+      
+      setSponsors(sponsorsData);
+    });
+
+    return () => unsubscribeSponsors();
   }, []);
 
   const handleDelete = async (id: string, userId: string, title: string) => {
@@ -202,6 +235,75 @@ export default function AdminLinksPage() {
     });
   };
 
+  // Funciones para sponsors
+  const getSponsorStats = (linkId: string) => {
+    const linkSponsors = sponsors[linkId] || [];
+    const totalSponsors = linkSponsors.length;
+    const activeSponsors = linkSponsors.filter((s: SponsorRule) => s.isActive && !isSponsorExpired(s));
+    const expiredSponsors = linkSponsors.filter((s: SponsorRule) => isSponsorExpired(s));
+    
+    return {
+      total: totalSponsors,
+      active: activeSponsors.length,
+      expired: expiredSponsors.length,
+      canAddMore: activeSponsors.length < 3
+    };
+  };
+
+  // Funciones para diálogo de sponsor individual
+  const handleAddSponsor = (linkId: string) => {
+    setSelectedLinkId(linkId);
+    setSponsorDialogOpen(true);
+  };
+
+  const handleSponsorAdded = () => {
+    // Los sponsors se actualizan automáticamente por el listener
+    toast({
+      title: "Sponsor Creado",
+      description: "El sponsor ha sido agregado exitosamente al enlace.",
+    });
+  };
+
+  // Funciones para selección múltiple
+  const handleSelectLink = (linkId: string, checked: boolean) => {
+    const newSelected = new Set(selectedLinks);
+    if (checked) {
+      newSelected.add(linkId);
+    } else {
+      newSelected.delete(linkId);
+    }
+    setSelectedLinks(newSelected);
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedLinks(new Set(links.map(link => link.id)));
+    } else {
+      setSelectedLinks(new Set());
+    }
+  };
+
+  const handleMultiSponsorAdd = () => {
+    if (selectedLinks.size === 0) {
+      toast({
+        title: "Sin selección",
+        description: "Selecciona al menos un enlace para agregar sponsors.",
+        variant: "destructive"
+      });
+      return;
+    }
+    setIsMultiSponsorDialogOpen(true);
+  };
+
+  const handleMultiSponsorAdded = () => {
+    setSelectedLinks(new Set());
+    setIsMultiSponsorDialogOpen(false);
+    toast({
+      title: "Sponsors Creados",
+      description: `El sponsor ha sido agregado a ${selectedLinks.size} enlaces seleccionados.`,
+    });
+  };
+
   if (loading) {
     return (
       <div className="flex flex-col gap-4">
@@ -215,13 +317,13 @@ export default function AdminLinksPage() {
              <Table>
                 <TableHeader>
                     <TableRow>
-                        {[...Array(6)].map((_,i) => <TableHead key={i}><Skeleton className="h-5 w-full" /></TableHead>)}
+                        {[...Array(7)].map((_,i) => <TableHead key={i}><Skeleton className="h-5 w-full" /></TableHead>)}
                     </TableRow>
                 </TableHeader>
                 <TableBody>
                     {[...Array(5)].map((_, i) => (
                          <TableRow key={i}>
-                             {[...Array(6)].map((_,j) => <TableCell key={j}><Skeleton className="h-5 w-full" /></TableCell>)}
+                             {[...Array(7)].map((_,j) => <TableCell key={j}><Skeleton className="h-5 w-full" /></TableCell>)}
                          </TableRow>
                     ))}
                 </TableBody>
@@ -235,7 +337,28 @@ export default function AdminLinksPage() {
   return (
     <TooltipProvider>
         <div className="flex flex-col gap-4">
-        <h1 className="text-2xl font-bold">Link Management</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold">Link Management</h1>
+          
+          {/* Botón para agregar sponsor a múltiples enlaces */}
+          <div className="flex items-center gap-4">
+            {selectedLinks.size > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">
+                  {selectedLinks.size} enlace(s) seleccionado(s)
+                </span>
+                <Button 
+                  onClick={handleMultiSponsorAdd}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  <Target className="h-4 w-4 mr-2" />
+                  Agregar Sponsor a Seleccionados
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+        
         <Card>
             <CardHeader>
             <CardTitle>All Links</CardTitle>
@@ -245,9 +368,17 @@ export default function AdminLinksPage() {
             <Table>
                 <TableHeader>
                 <TableRow>
+                    <TableHead className="w-12">
+                      <Checkbox
+                        checked={selectedLinks.size === links.length && links.length > 0}
+                        onCheckedChange={handleSelectAll}
+                        aria-label="Seleccionar todos los enlaces"
+                      />
+                    </TableHead>
                     <TableHead>Link</TableHead>
                     <TableHead className="hidden md:table-cell">User</TableHead>
                     <TableHead className="hidden sm:table-cell">Clicks</TableHead>
+                    <TableHead className="hidden md:table-cell">Sponsors</TableHead>
                     <TableHead className="hidden md:table-cell">Status</TableHead>
                     <TableHead className="hidden lg:table-cell">Date</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -256,6 +387,13 @@ export default function AdminLinksPage() {
                 <TableBody>
                 {links.map((link) => (
                     <TableRow key={link.id}>
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedLinks.has(link.id)}
+                            onCheckedChange={(checked) => handleSelectLink(link.id, checked as boolean)}
+                            aria-label={`Seleccionar enlace ${link.title}`}
+                          />
+                        </TableCell>
                         <TableCell>
                             <div className="font-semibold truncate max-w-[200px] sm:max-w-xs">{link.title}</div>
                             <a href={link.short} target='_blank' rel='noopener noreferrer' className="text-xs text-muted-foreground hover:underline block truncate max-w-[200px] sm:max-w-xs">{link.short}</a>
@@ -285,6 +423,25 @@ export default function AdminLinksPage() {
                                         <span>{link.createdAt ? new Date(link.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}</span>
                                     </div>
                                 </div>
+                                {/* Mobile sponsors info */}
+                                <div className="flex items-center gap-2">
+                                    <span className="font-medium">Sponsors:</span>
+                                    {(() => {
+                                      const sponsorStats = getSponsorStats(link.id);
+                                      return (
+                                        <div className="flex items-center gap-2">
+                                          <Badge variant={sponsorStats.expired > 0 ? "destructive" : "default"}>
+                                            {sponsorStats.active}/{sponsorStats.total}
+                                          </Badge>
+                                          {sponsorStats.expired > 0 && (
+                                            <Badge variant="outline" className="text-orange-600">
+                                              {sponsorStats.expired} exp.
+                                            </Badge>
+                                          )}
+                                        </div>
+                                      );
+                                    })()}
+                                </div>
                             </div>
                         </TableCell>
                          <TableCell className="hidden md:table-cell">
@@ -292,6 +449,23 @@ export default function AdminLinksPage() {
                             <div className="text-xs text-muted-foreground">{link.userEmail}</div>
                         </TableCell>
                         <TableCell className="hidden sm:table-cell">{link.clicks}</TableCell>
+                        <TableCell className="hidden md:table-cell">
+                          {(() => {
+                            const sponsorStats = getSponsorStats(link.id);
+                            return (
+                              <div className="flex items-center gap-2">
+                                <Badge variant={sponsorStats.expired > 0 ? "destructive" : "default"}>
+                                  {sponsorStats.active}/{sponsorStats.total}
+                                </Badge>
+                                {sponsorStats.expired > 0 && (
+                                  <Badge variant="outline" className="text-orange-600">
+                                    {sponsorStats.expired} exp.
+                                  </Badge>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </TableCell>
                         <TableCell className="hidden md:table-cell">
                             {link.monetizationStatus === 'suspended' ? (
                                 <Badge variant="secondary" className="bg-yellow-500 text-black">Suspended</Badge>
@@ -301,6 +475,7 @@ export default function AdminLinksPage() {
                                 </Badge>
                             )}
                         </TableCell>
+                        
                         <TableCell className="hidden lg:table-cell">{link.createdAt ? new Date(link.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}</TableCell>
                         <TableCell className="text-right">
                              {isAnalyzing && analyzingLinkId === link.id ? (
@@ -326,6 +501,17 @@ export default function AdminLinksPage() {
                                             <span>View Link</span>
                                         </DropdownMenuItem>
                                         <DropdownMenuSeparator />
+                                        
+                                        {/* Opción para agregar sponsor */}
+                                        <DropdownMenuItem 
+                                            onClick={() => handleAddSponsor(link.id)}
+                                            disabled={!getSponsorStats(link.id).canAddMore}
+                                        >
+                                            <Plus className="mr-2 h-4 w-4 text-amber-600" />
+                                            <span>Agregar Sponsor</span>
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        
                                         {link.monetizationStatus === 'active' ? (
                                             <DropdownMenuItem onClick={() => handleToggleMonetization(link)}>
                                                 <ShieldBan className="mr-2 h-4 w-4 text-destructive" />
@@ -350,7 +536,7 @@ export default function AdminLinksPage() {
                 ))}
                  {links.length === 0 && (
                 <TableRow>
-                    <TableCell colSpan={6} className="h-24 text-center">
+                    <TableCell colSpan={7} className="h-24 text-center">
                     No links found in the system.
                     </TableCell>
                 </TableRow>
@@ -360,6 +546,29 @@ export default function AdminLinksPage() {
             </CardContent>
         </Card>
         </div>
+
+        {/* Diálogo para agregar sponsor individual */}
+        {selectedLinkId && (
+          <AddSponsorDialog
+            linkId={selectedLinkId}
+            isOpen={sponsorDialogOpen}
+            onClose={() => {
+              setSponsorDialogOpen(false);
+              setSelectedLinkId(null);
+            }}
+            onSponsorAdded={handleSponsorAdded}
+          />
+        )}
+
+        {/* Diálogo para agregar sponsor a múltiples enlaces */}
+        {isMultiSponsorDialogOpen && (
+          <MultiSponsorDialog
+            linkIds={Array.from(selectedLinks)}
+            isOpen={isMultiSponsorDialogOpen}
+            onClose={() => setIsMultiSponsorDialogOpen(false)}
+            onSponsorAdded={handleMultiSponsorAdded}
+          />
+        )}
     </TooltipProvider>
   );
 }

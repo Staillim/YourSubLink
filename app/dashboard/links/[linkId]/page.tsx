@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, getMonth, getYear } from 'date-fns';
+import { ClicksTooltip } from '@/components/charts/enhanced-tooltips';
 
 type LinkData = {
     userId: string;
@@ -192,7 +193,12 @@ export default function UserLinkStatsPage() {
                                 <CartesianGrid strokeDasharray="3 3" />
                                 <XAxis dataKey="name" />
                                 <YAxis allowDecimals={false} />
-                                <Tooltip />
+                                <Tooltip 
+                                    content={<ClicksTooltip 
+                                        showTotal={true}
+                                        totalData={dailyStats.reduce((sum, item) => sum + item.total, 0)}
+                                    />}
+                                />
                                 <Bar dataKey="total" fill="hsl(var(--primary))" name="Clicks" />
                             </RechartsBarChart>
                         </ResponsiveContainer>
@@ -209,7 +215,12 @@ export default function UserLinkStatsPage() {
                                 <CartesianGrid strokeDasharray="3 3" />
                                 <XAxis dataKey="name" />
                                 <YAxis allowDecimals={false} />
-                                <Tooltip />
+                                <Tooltip 
+                                    content={<ClicksTooltip 
+                                        showTotal={true}
+                                        totalData={monthlyStats.reduce((sum, item) => sum + item.total, 0)}
+                                    />}
+                                />
                                 <Bar dataKey="total" fill="hsl(var(--primary))" name="Clicks" />
                             </RechartsBarChart>
                         </ResponsiveContainer>

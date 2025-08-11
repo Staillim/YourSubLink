@@ -7,11 +7,13 @@ import { db } from '@/lib/firebase';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ArrowLeft, Eye, User, Calendar, BarChart } from 'lucide-react';
+import { ArrowLeft, Eye, User, Calendar, BarChart, Target, MousePointer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, getMonth, getYear } from 'date-fns';
+import type { SponsorRule } from '../../../../types';
+import { ClicksTooltip } from '../../../../components/charts/enhanced-tooltips';
 
 type LinkData = {
     title: string;
@@ -74,6 +76,7 @@ export default function LinkStatsPage() {
     const [linkData, setLinkData] = useState<LinkData | null>(null);
     const [dailyStats, setDailyStats] = useState<any[]>([]);
     const [monthlyStats, setMonthlyStats] = useState<any[]>([]);
+    const [sponsorStats, setSponsorStats] = useState<SponsorRule[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -110,9 +113,21 @@ export default function LinkStatsPage() {
                 const clicksData = clicksSnapshot.docs.map(doc => doc.data() as Click);
                 clicksData.sort((a, b) => a.timestamp.seconds - b.timestamp.seconds);
 
-
                 setDailyStats(processDailyData(clicksData));
                 setMonthlyStats(processMonthlyData(clicksData));
+
+                // Fetch sponsors data for this link
+                const sponsorsQuery = query(
+                    collection(db, 'sponsorRules'), 
+                    where('linkId', '==', linkId)
+                );
+                const sponsorsSnapshot = await getDocs(sponsorsQuery);
+                const sponsorsData = sponsorsSnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                } as SponsorRule));
+                
+                setSponsorStats(sponsorsData);
 
 
             } catch (error) {
@@ -178,6 +193,54 @@ export default function LinkStatsPage() {
                     </CardContent>
                 </Card>
             </div>
+
+            {/* Sponsor Statistics Section */}
+            {sponsorStats.length > 0 && (
+                <>
+                    <div className="flex items-center gap-2">
+                        <Target className="h-5 w-5 text-amber-600" />
+                        <h2 className="text-lg font-semibold">Sponsor Statistics</h2>
+                    </div>
+                    
+                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                        {sponsorStats.map((sponsor) => (
+                            <Card key={sponsor.id}>
+                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                    <CardTitle className="text-sm font-medium truncate">{sponsor.title}</CardTitle>
+                                    <Target className="h-4 w-4 text-amber-600" />
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-1">
+                                                <Eye className="h-3 w-3 text-muted-foreground" />
+                                                <span className="text-sm text-muted-foreground">Views:</span>
+                                            </div>
+                                            <span className="font-bold">{sponsor.views || 0}</span>
+                                        </div>
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-1">
+                                                <MousePointer className="h-3 w-3 text-muted-foreground" />
+                                                <span className="text-sm text-muted-foreground">Clicks:</span>
+                                            </div>
+                                            <span className="font-bold">{sponsor.clicks || 0}</span>
+                                        </div>
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs text-muted-foreground">CTR:</span>
+                                            <span className="text-xs font-medium">
+                                                {sponsor.views > 0 
+                                                    ? `${((sponsor.clicks || 0) / sponsor.views * 100).toFixed(1)}%`
+                                                    : '0%'
+                                                }
+                                            </span>
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        ))}
+                    </div>
+                </>
+            )}
             
             <div className="grid gap-4 md:grid-cols-2">
                  <Card>
@@ -191,7 +254,7 @@ export default function LinkStatsPage() {
                                 <CartesianGrid strokeDasharray="3 3" />
                                 <XAxis dataKey="name" />
                                 <YAxis allowDecimals={false} />
-                                <Tooltip />
+                                <Tooltip content={<ClicksTooltip />} />
                                 <Bar dataKey="total" fill="hsl(var(--primary))" name="Clicks" />
                             </RechartsBarChart>
                         </ResponsiveContainer>
@@ -208,7 +271,7 @@ export default function LinkStatsPage() {
                                 <CartesianGrid strokeDasharray="3 3" />
                                 <XAxis dataKey="name" />
                                 <YAxis allowDecimals={false} />
-                                <Tooltip />
+                                <Tooltip content={<ClicksTooltip />} />
                                 <Bar dataKey="total" fill="hsl(var(--primary))" name="Clicks" />
                             </RechartsBarChart>
                         </ResponsiveContainer>

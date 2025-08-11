@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from '@/hooks/use-toast';
 import { Loader2, DollarSign } from 'lucide-react';
+import { SponsorStatsMigrator } from '@/components/sponsor-stats-migrator';
 
 export default function AdminSettingsPage() {
     const [activeCpm, setActiveCpm] = useState<number | null>(null);
@@ -150,6 +151,8 @@ export default function AdminSettingsPage() {
                         </CardContent>
                      </form>
                 </Card>
+
+                <SponsorStatsMigrator />
 
             </div>
         </div>

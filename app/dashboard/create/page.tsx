@@ -63,22 +63,7 @@ export default function CreateLinkPage() {
           monetizable: rules.length >= 3,
           generatedEarnings: 0,
         };
-        // Crear el link y obtener el id real
-        const linkDocRef = await addDoc(collection(db, "links"), newLink);
-        const linkId = linkDocRef.id;
-
-        // Crear sponsor por defecto para este link usando el id real
-        const defaultSponsor = {
-          linkId: linkId,
-          title: "Apoya a tu creador",
-          sponsorUrl: "https://otieu.com/4/9701308",
-          isActive: true,
-          createdBy: user.uid,
-          createdAt: serverTimestamp(),
-          // No se agrega expiresAt para que nunca expire
-        };
-        await addDoc(collection(db, "sponsorRules"), defaultSponsor);
-
+        await addDoc(collection(db, "links"), newLink);
         const url = `${window.location.origin}/link/${shortId}`;
         setShortenedUrl(url);
 

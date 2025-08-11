@@ -27,6 +27,9 @@ import { ExternalLink, DollarSign, Eye } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { LinkItem } from '../page';
 import { format, getMonth, getYear } from 'date-fns';
+import { EarningsTooltip } from '@/components/charts/enhanced-tooltips';
+import { useUser } from '@/hooks/use-user';
+import { CustomCpmNotificationCard } from '@/components/dashboard/custom-cpm-card';
 
 const chartConfig = {
   earnings: {
@@ -44,6 +47,7 @@ type CpmHistory = {
 
 export default function AnalyticsPage() {
   const [user, loading] = useAuthState(auth);
+  const { activeCpm, globalActiveCpm, hasCustomCpm } = useUser();
   const [links, setLinks] = useState<LinkItem[]>([]);
   const [cpmHistory, setCpmHistory] = useState<CpmHistory[]>([]);
   const [linksLoading, setLinksLoading] = useState(true);
@@ -79,6 +83,7 @@ export default function AnalyticsPage() {
             monetizable: data.monetizable || false,
             rules: data.rules || [],
             generatedEarnings: data.generatedEarnings || 0,
+            monetizationStatus: data.monetizationStatus || 'active',
           });
         });
         setLinks(linksData);
@@ -108,7 +113,7 @@ export default function AnalyticsPage() {
 
   const totalClicks = links.reduce((acc, link) => acc + link.clicks, 0);
   const totalEarnings = links.reduce((acc, link) => acc + (link.generatedEarnings || 0), 0);
-  const activeCpm = cpmHistory.find(c => !c.endDate)?.rate || 0;
+  const globalCpm = cpmHistory.find(c => !c.endDate)?.rate || 0;
 
   const getMonthlyChartData = () => {
     const monthlyEarnings: { [key: string]: number } = {};
@@ -198,10 +203,22 @@ export default function AnalyticsPage() {
                   </CardHeader>
                   <CardContent>
                       <div className="text-2xl font-bold">${activeCpm.toFixed(4)}</div>
-                      <p className="text-xs text-muted-foreground">Current rate per 1000 monetized views</p>
+                      <p className="text-xs text-muted-foreground">
+                        {hasCustomCpm ? 'Your personalized rate' : 'Current rate per 1000 monetized views'}
+                      </p>
                   </CardContent>
               </Card>
           </div>
+          
+          {/* Tarjeta CPM Custom - Solo se muestra si el usuario tiene CPM personalizado */}
+          {hasCustomCpm && (
+            <CustomCpmNotificationCard
+              customCpm={activeCpm}
+              globalCpm={globalActiveCpm}
+              hasCustomCpm={hasCustomCpm}
+            />
+          )}
+          
         <Card>
           <CardHeader>
             <CardTitle>Monthly Earnings Overview</CardTitle>
@@ -225,7 +242,10 @@ export default function AnalyticsPage() {
                 />
                 <YAxis tickFormatter={(value) => `$${Number(value).toFixed(4)}`} />
                 <ChartTooltip
-                  content={<ChartTooltipContent formatter={(value) => `$${Number(value).toFixed(4)}`} />}
+                  content={<EarningsTooltip 
+                    showTotal={true}
+                    totalData={getMonthlyChartData().reduce((sum, item) => sum + item.earnings, 0)}
+                  />}
                 />
                 <Bar dataKey="earnings" fill="var(--color-earnings)" radius={4} />
               </BarChart>

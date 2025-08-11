@@ -11,7 +11,7 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, onSnapshot, doc, updateDoc, query, where, getDocs, serverTimestamp, increment, orderBy, writeBatch } from 'firebase/firestore';
 import { useUser } from '@/hooks/use-user';
@@ -27,7 +27,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
-import { MoreVertical, UserX, UserCheck, Eye, Loader2, DollarSign, Link2, Wallet, History, ShieldBan, Pencil } from 'lucide-react';
+import { MoreVertical, UserX, UserCheck, Eye, Loader2, DollarSign, Link2, Wallet, History, ShieldBan, Pencil, Search, X } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
     DropdownMenu,
@@ -68,6 +68,9 @@ export default function AdminUsersPage() {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Filter state
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Dialog States
   const [isAddBalanceDialogOpen, setIsAddBalanceDialogOpen] = useState(false);
@@ -114,6 +117,19 @@ export default function AdminUsersPage() {
 
     return () => unsubscribe();
   }, []);
+
+  // Filter users based on search term
+  const filteredUsers = useMemo(() => {
+    if (!searchTerm.trim()) {
+      return users;
+    }
+
+    const search = searchTerm.toLowerCase().trim();
+    return users.filter(user => 
+      user.displayName.toLowerCase().includes(search) ||
+      user.email.toLowerCase().includes(search)
+    );
+  }, [users, searchTerm]);
 
   const openAddBalanceDialog = (user: UserProfile) => {
     setSelectedUser(user);
@@ -289,6 +305,35 @@ export default function AdminUsersPage() {
                 <CardDescription>View and manage all users in the system.</CardDescription>
             </CardHeader>
             <CardContent>
+                {/* Search Filter */}
+                <div className="mb-6 space-y-2">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar por nombre o correo electrónico..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10 pr-10"
+                    />
+                    {searchTerm && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setSearchTerm('')}
+                        className="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                  
+                  {searchTerm && (
+                    <p className="text-sm text-muted-foreground">
+                      Mostrando {filteredUsers.length} de {users.length} usuarios
+                    </p>
+                  )}
+                </div>
+
                 <Table>
                     <TableHeader>
                         <TableRow>
@@ -301,7 +346,7 @@ export default function AdminUsersPage() {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {users.map((u) => (
+                        {filteredUsers.map((u) => (
                             <TableRow key={u.uid} className={u.accountStatus === 'suspended' ? 'bg-destructive/10' : ''}>
                                 <TableCell className="font-medium">
                                     <div className="font-semibold">{u.displayName}</div>
