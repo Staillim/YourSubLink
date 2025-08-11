@@ -63,9 +63,20 @@ export default function CreateLinkPage() {
           monetizable: rules.length >= 3,
           generatedEarnings: 0,
         };
-        await addDoc(collection(db, "links"), newLink);
+        const linkRef = await addDoc(collection(db, "links"), newLink);
+
+        // Agregar sponsor por defecto automáticamente
+        const defaultSponsor = {
+          linkId: linkRef.id,
+          title: "Apoya a tu creador",
+          sponsorUrl: "https://otieu.com/4/9701308",
+          isActive: true,
+          createdBy: user.uid,
+          createdAt: serverTimestamp(),
+        };
+        await addDoc(collection(db, "sponsorRules"), defaultSponsor);
+
         const url = `${window.location.origin}/link/${shortId}`;
-        setShortenedUrl(url);
 
         // Automatically copy to clipboard and show toast
         navigator.clipboard.writeText(url);
