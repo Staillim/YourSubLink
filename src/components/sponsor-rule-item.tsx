@@ -97,14 +97,10 @@ export function SponsorRuleItem({
         return;
       }
 
-      // REPLICAR EXACTAMENTE EL PATRÓN DE INCREMENTO EXITOSO (ClientComponent.tsx línea 88-90)
+      // Incrementar contador de clicks
       const sponsorRef = doc(db, 'sponsorRules', sponsor.id);
       const batch = writeBatch(db);
-      
-      // 1. Increment the click counter (igual que se hace con clicks en links)
       batch.update(sponsorRef, { clicks: increment(1) });
-      
-      // Commit atomically (igual que en ClientComponent)
       await batch.commit();
 
       console.log(`✅ Click incrementado para sponsor: ${sponsor.title} (ID: ${sponsor.id})`);
@@ -112,11 +108,25 @@ export function SponsorRuleItem({
       // Abrir enlace del sponsor
       window.open(sponsor.sponsorUrl, '_blank');
 
-      // Simular tiempo de procesamiento (2-3 segundos)
-      setTimeout(() => {
-        onStateChange(index, 'completed');
-        onComplete(sponsor);
-      }, 2500);
+      // Iniciar cuenta regresiva invisible de 7 segundos
+      let timerDone = false;
+      const timer = setTimeout(() => {
+        timerDone = true;
+      }, 7000);
+
+      // Handler para cuando el usuario regresa a la página
+      const focusHandler = () => {
+        clearTimeout(timer);
+        window.removeEventListener('focus', focusHandler);
+        if (timerDone) {
+          onStateChange(index, 'completed');
+          onComplete(sponsor);
+        } else {
+          onStateChange(index, 'pending');
+          alert('Debes permanecer al menos 7 segundos en el sponsor para desbloquear. Intenta de nuevo.');
+        }
+      };
+      window.addEventListener('focus', focusHandler);
     } catch (error) {
       console.error('Error handling sponsor click:', error);
       onStateChange(index, 'pending');
