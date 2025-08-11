@@ -131,5 +131,44 @@ service cloud.firestore {
         allow update, delete: if false;
       }
     }
+
+    // CLICKS Collection (for analytics and sponsor tracking)
+    match /clicks/{clickId} {
+      // Read: Admins can read any click. Link owners can read clicks for their links.
+      allow read: if isAdmin() || (isAuth() && resource.data.userId == request.auth.uid);
+
+      // List: Admins can list all clicks for analytics.
+      allow list: if isAdmin();
+
+      // Create: Anyone can create click records (for tracking).
+      allow create: if true;
+
+      // Update: Admins can update clicks. Link owners can update clicks for their links.
+      allow update: if isAdmin() || (isAuth() && resource.data.userId == request.auth.uid);
+
+      // Delete: Only admins can delete click records.
+      allow delete: if isAdmin();
+    }
+
+    // SPONSOR RULES Collection (for sponsor monetization system)
+    match /sponsorRules/{sponsorId} {
+      // Read: Anyone can read sponsors (needed for public link gates).
+      allow read: if true;
+
+      // List: Admins can list all sponsors.
+      allow list: if isAdmin();
+
+      // Create: Admins can create sponsors for any link.
+      allow create: if isAdmin();
+
+      // Update: Admins can update any sponsor. Link owners can update sponsors for their links.
+      // Anyone can update view/click counters for tracking (visitors increment these).
+      allow update: if isAdmin() || 
+                      (isAuth() && resource.data.userId == request.auth.uid) ||
+                      (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views', 'clicks']));
+
+      // Delete: Admins can delete any sponsor. Link owners can delete sponsors for their links.
+      allow delete: if isAdmin() || (isAuth() && resource.data.userId == request.auth.uid);
+    }
   }
 }

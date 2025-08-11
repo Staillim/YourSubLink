@@ -113,7 +113,58 @@ Define las interfaces de TypeScript personalizadas utilizadas en la aplicación,
 
 ---
 
-## 3. Funcionalidades Clave y Técnicas
+## 3. Nuevas Implementaciones y Mejoras (Últimas Actualizaciones)
+
+### 3.1. Sistema de Análisis de Seguridad con IA (NUEVO)
+
+Se ha implementado un **agente de seguridad con IA** para detectar actividad fraudulenta en los enlaces:
+
+- **Archivo**: `src/ai/flows/analyzeLinkSecurity.ts`
+- **Funcionalidad**: Utiliza Genkit y modelos de IA para analizar patrones de clics sospechosos
+- **Detecta**: Clics robotizados, intervalos uniformes, ráfagas de actividad anormales
+- **Integración**: Los administradores pueden ejecutar análisis desde el panel de enlaces (`src/app/admin/links/page.tsx`)
+- **Acción automática**: Si el riesgo es "alto", suspende automáticamente la monetización del enlace
+
+### 3.2. Sistema de CPM Personalizado (NUEVO)
+
+Implementado un sistema que permite **CPM individual por usuario**:
+
+- **Funcionalidad**: Los administradores pueden asignar una tasa CPM específica a usuarios particulares
+- **Prioridad**: CPM personalizado > CPM global
+- **Gestión**: Panel de administración de usuarios con diálogo dedicado
+- **Notificaciones**: Los usuarios reciben notificaciones cuando se les asigna o remueve un CPM personalizado
+- **Implementación**: `src/app/admin/users/page.tsx` y lógica en `src/hooks/use-user.ts`
+
+### 3.3. Sistema de Reglas Globales (NUEVO)
+
+Se añadió la capacidad de crear **reglas que se aplican a todos los enlaces**:
+
+- **Ubicación**: Panel de configuración del administrador (`src/app/admin/settings/page.tsx`)
+- **Funcionalidad**: Reglas que se combinan automáticamente con las reglas específicas de cada enlace
+- **Estados**: Activo/Inactivo para cada regla global
+- **Implementación**: Se consultan y fusionan en `ClientComponent.tsx` durante el proceso de visita
+
+### 3.4. Mejoras en el Sistema de Suspensiones
+
+**Suspensión de usuarios y enlaces mejorada**:
+
+- **Suspensión de usuarios**: Campo `accountStatus` en perfil de usuario
+- **Suspensión de enlaces**: Campo `monetizationStatus` en cada enlace
+- **Comportamiento**: Enlaces/usuarios suspendidos redirigen sin contar clics ni generar ganancias
+- **Integración**: Verificación automática en `ClientComponent.tsx` antes del procesamiento
+
+### 3.5. Optimizaciones en el Conteo de Clics
+
+**Mejoras significativas en la lógica de conteo**:
+
+- **Validación temporal**: Detecta clics completados muy rápido (< 10 segundos) y los rechaza
+- **Procesamiento atómico**: Uso de `writeBatch` para garantizar consistencia
+- **CPM dinámico**: Soporte para CPM personalizado por usuario con fallback al global
+- **Logging mejorado**: Registros más detallados con información de CPM usado y ganancias generadas
+
+---
+
+## 4. Funcionalidades Clave y Técnicas
 
 ### 3.1. Proceso de Acortamiento de Enlaces
 
