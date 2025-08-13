@@ -16,42 +16,20 @@ import { Loader2 } from 'lucide-react';
 import LinkGate from '@/components/link-gate'; 
 import type { LinkData } from '@/types'; 
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, writeBatch, increment, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
+import { collection, doc, writeBatch, serverTimestamp, getDoc, query, where, getDocs, increment, limit, setDoc } from 'firebase/firestore';
+import type { Rule } from '@/components/rule-editor';
 
-export default function ClientComponent({ shortId }: { shortId: string }) {
-  // Inyectar los scripts exactamente como los proporcionó el usuario, sin id, sin div, justo después del <head>
-  if (typeof window !== 'undefined') {
-    const adsScripts = `\n<script src="https://upskittyan.com/act/files/tag.min.js?z=9688577" data-cfasync="false" async></script>\n<script>(function(d,z,s){s.src='https://'+d+'/400/'+z;try{(document.body||document.documentElement).appendChild(s)}catch(e){}})('vemtoutcheeg.com',9688580,document.createElement('script'))</script>\n<script>(function(d,z,s){s.src='https://'+d+'/401/'+z;try{(document.body||document.documentElement).appendChild(s)}catch(e){}})('groleegni.net',9688582,document.createElement('script'))</script>\n<script>(function(d,z,s){s.src='https://'+d+'/401/'+z;try{(document.body||document.documentElement).appendChild(s)}catch(e){}})('gizokraijaw.net',9688583,document.createElement('script'))</script>\n`;
-    if (!document.head.hasAttribute('data-ads-injected')) {
-      document.head.insertAdjacentHTML('afterbegin', adsScripts);
-      document.head.setAttribute('data-ads-injected', 'true');
-    }
-  }
-  const [status, setStatus] = useState<'loading' | 'gate' | 'redirecting' | 'not-found' | 'invalid'>('loading');
-  const [linkData, setLinkData] = useState<LinkData | null>(null);
-  const [gateStartTime, setGateStartTime] = useState<number | null>(null);
-  // IP cache para evitar múltiples requests
-  const [visitorIP, setVisitorIP] = useState<string | null>(null);
-
-  // Helper para obtener la IP del visitante
-  async function fetchVisitorIP() {
-    try {
-      const res = await fetch('https://api.ipify.org?format=json');
-      const data = await res.json();
-      return data.ip;
-    } catch {
-      return null;
-    }
-  }
-
+export default function ClientComponent({ shortId, linkId }: { shortId: string, linkId: string }) {
   // Helpers para cookies
   function getCookie(name: string) {
+    if (typeof document === 'undefined') return null;
     const value = `; ${document.cookie}`;
     const parts = value.split(`; ${name}=`);
     if (parts.length === 2) return parts.pop()?.split(';').shift();
     return null;
   }
   function setCookie(name: string, value: string, days: number) {
+    if (typeof document === 'undefined') return;
     let expires = '';
     if (days) {
       const date = new Date();
@@ -60,72 +38,85 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
     }
     document.cookie = name + '=' + value + expires + '; path=/';
   }
+
+  // Helper para obtener la IP pública
+  // Puedes cambiar esta función para usar un endpoint propio, ej: /api/get-ip
+  async function fetchVisitorIP() {
+    try {
+      // Reemplaza la URL por tu backend si lo implementas
+      const res = await fetch('https://api.ipify.org?format=json');
+      const data = await res.json();
+      return data.ip;
+    } catch {
+      return null;
+    }
+  }
+  const [status, setStatus] = useState<'loading' | 'gate' | 'redirecting' | 'not-found' | 'invalid'>('loading');
+  const [linkData, setLinkData] = useState<LinkData | null>(null);
+  const [gateStartTime, setGateStartTime] = useState<number | null>(null);
+  const [finalRules, setFinalRules] = useState<Rule[]>([]);
+
   useEffect(() => {
-    if (!shortId) {
+    if (!linkId) {
       setStatus('not-found');
       return;
     }
 
     const processLinkVisit = async () => {
-      // Obtener IP del visitante
-      let ip = visitorIP;
-      if (!ip) {
-        ip = await fetchVisitorIP();
-        setVisitorIP(ip);
-      }
+        const linkRef = doc(db, 'links', linkId);
+        const linkDoc = await getDoc(linkRef);
 
-      const linksRef = collection(db, 'links');
-      const q = query(linksRef, where('shortId', '==', shortId));
-      const querySnapshot = await getDocs(q);
+        if (!linkDoc.exists()) {
+            setStatus('not-found');
+            return;
+        }
 
-      if (querySnapshot.empty) {
-        setStatus('not-found');
-        return;
-      }
+        const data = linkDoc.data() as Omit<LinkData, 'id'>;
+        const currentLink: LinkData = { id: linkDoc.id, ...data };
 
-      const linkDoc = querySnapshot.docs[0];
-      const data = linkDoc.data() as Omit<LinkData, 'id'>;
-      const link: LinkData = { id: linkDoc.id, ...data };
-      setLinkData(link);
+        const userRef = doc(db, 'users', currentLink.userId);
+        const userSnap = await getDoc(userRef);
+        
+        if (!userSnap.exists() || userSnap.data()?.accountStatus === 'suspended' || currentLink.monetizationStatus === 'suspended') {
+            // Redirect without counting if user or link is suspended
+            window.location.href = currentLink.original;
+            setStatus('invalid'); // Set status but redirect immediately
+            return;
+        }
+        
+        setLinkData(currentLink);
 
-      // --- VALIDACIÓN GLOBAL DE VISTA MONETIZADA ---
-      const cookieName = 'last_visit_global';
-      const now = Date.now();
-      const cookieLastVisit = Number(getCookie(cookieName)) || 0;
-      let dbLastVisit = 0;
-      if (ip) {
-        const visitRef = doc(db, 'global_visits', ip);
-        const visitSnap = await getDoc(visitRef);
-        dbLastVisit = visitSnap.exists() ? Number(visitSnap.data().last_visit) : 0;
-      }
-      const lastVisit = Math.max(cookieLastVisit, dbLastVisit);
-      const canMonetize = !lastVisit || (now - lastVisit) >= 1800_000;
+        // Fetch global rules
+        const globalRulesQuery = query(collection(db, 'globalRules'), where('status', '==', 'active'));
+        const globalRulesSnapshot = await getDocs(globalRulesQuery);
+        const globalRules = globalRulesSnapshot.docs.map(doc => {
+            const ruleData = doc.data();
+            return { type: ruleData.type, url: ruleData.url };
+        }).filter(rule => rule.type && rule.url); // Ensure valid rule structure
 
-      // Guardar en el estado para usar en el registro del click
-      (window as any)._canMonetize = canMonetize;
-      (window as any)._visitorIP = ip;
+        // Merge user rules and applicable global rules
+        const mergedRules = [...(currentLink.rules || []), ...globalRules];
+        setFinalRules(mergedRules);
 
-      const hasRules = link.rules && link.rules.length > 0;
-      if (hasRules) {
-        setGateStartTime(Date.now());
-        setStatus('gate');
-      } else {
-        setStatus('redirecting');
-        await handleAllStepsCompleted(link);
-      }
+        if (mergedRules.length > 0) {
+            setGateStartTime(Date.now());
+            setStatus('gate');
+        } else {
+            setStatus('redirecting');
+            await handleAllStepsCompleted(currentLink);
+        }
     };
 
     processLinkVisit().catch(err => {
-      console.error("Error processing link visit:", err);
-      setStatus('not-found');
+        console.error("Error processing link visit:", err);
+        setStatus('not-found');
     });
-  }, [shortId, visitorIP]);
+  }, [linkId]);
   
   const handleAllStepsCompleted = async (finalLinkData?: LinkData) => {
     const dataToUse = finalLinkData || linkData;
     if (!dataToUse) return;
 
-    // Security check: Interaction Speed
     if (gateStartTime) {
       const completionTime = Date.now();
       const durationInSeconds = (completionTime - gateStartTime) / 1000;
@@ -139,31 +130,39 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
     setStatus('redirecting');
 
     // --- VALIDACIÓN GLOBAL DE VISTA MONETIZADA ---
-    const canMonetize = (window as any)._canMonetize ?? true;
-    const ip = (window as any)._visitorIP ?? null;
     const cookieName = 'last_visit_global';
     const now = Date.now();
-    // Obtener lastVisit para el motivo si no se monetiza
+    let ip = '';
+    let canMonetize = true;
     let lastVisit = 0;
-    if (typeof window !== 'undefined') {
+    let reason = '';
+
+    try {
+      ip = await fetchVisitorIP();
       const cookieLastVisit = Number(getCookie(cookieName)) || 0;
       let dbLastVisit = 0;
+      let fallbackReason = '';
       if (ip) {
+        // Si hay IP, usar validación global normal
         const visitRef = doc(db, 'global_visits', ip);
         const visitSnap = await getDoc(visitRef);
         dbLastVisit = visitSnap.exists() ? Number(visitSnap.data().last_visit) : 0;
+        lastVisit = Math.max(cookieLastVisit, dbLastVisit);
+        canMonetize = !lastVisit || (now - lastVisit) >= 1800_000;
+        fallbackReason = '';
+      } else {
+        // Si no hay IP, fallback a solo cookie
+        lastVisit = cookieLastVisit;
+        canMonetize = !lastVisit || (now - lastVisit) >= 1800_000;
+        fallbackReason = 'ip_unavailable';
       }
-      lastVisit = Math.max(cookieLastVisit, dbLastVisit);
-    }
 
-    try {
       const linkRef = doc(db, 'links', dataToUse.id);
       const batch = writeBatch(db);
 
       let cpmUsed = 0;
       let earningsGenerated = 0;
       let monetized = false;
-      let reason = '';
 
       // 1. Incrementar el contador de clicks siempre
       batch.update(linkRef, { clicks: increment(1) });
@@ -178,7 +177,7 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
         if (customCpm && customCpm > 0) {
           cpmUsed = customCpm;
         } else {
-          const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
+          const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null), limit(1));
           const cpmSnapshot = await getDocs(cpmQuery);
           let activeCpm = 3.00;
           if (!cpmSnapshot.empty) {
@@ -189,7 +188,7 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
         earningsGenerated = cpmUsed / 1000;
         batch.update(linkRef, { generatedEarnings: increment(earningsGenerated) });
         monetized = true;
-        reason = '';
+        reason = fallbackReason;
         // Actualizar cookie y Firestore
         setCookie(cookieName, String(now), 30);
         if (ip) {
@@ -198,7 +197,7 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
         }
       } else {
         monetized = false;
-        reason = lastVisit && (now - lastVisit) < 1800_000 ? 'visit within 30min window' : 'not monetizable';
+        reason = fallbackReason || (lastVisit && (now - lastVisit) < 1800_000 ? 'visit within 30min window' : 'not monetizable');
       }
 
       // 3. Registrar el click con toda la info
@@ -224,12 +223,21 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
     }
   }
 
+  if (status === 'invalid') {
+    // A redirect is triggered in useEffect, but we can show a message as a fallback.
+    return (
+        <div className="flex h-screen w-full flex-col items-center justify-center bg-background text-foreground p-4">
+            <h1 className="text-2xl font-bold">Link Not Available</h1>
+            <p className="mt-2 text-muted-foreground">This link has been disabled.</p>
+        </div>
+    )
+  }
 
   if (status === 'not-found') {
     return notFound();
   }
 
-  if (status === 'loading' || status === 'redirecting') {
+  if (status === 'loading' || status === 'redirecting' || !linkData) {
     return (
       <div className="flex h-screen w-full flex-col items-center justify-center bg-background text-foreground p-4">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -238,12 +246,11 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
     );
   }
 
-  // Render the gate, passing the handleAllStepsCompleted function to be called on button click.
-  if (status === 'gate' && linkData) {
-    return <LinkGate linkData={linkData} onAllStepsCompleted={() => handleAllStepsCompleted()} />;
+  if (status === 'gate') {
+    const gateLinkData = { ...linkData, rules: finalRules };
+    return <LinkGate linkData={gateLinkData} onAllStepsCompleted={() => handleAllStepsCompleted()} />;
   }
   
-  // Fallback loading state
   return (
     <div className="flex h-screen w-full flex-col items-center justify-center bg-background text-foreground p-4">
       <Loader2 className="h-12 w-12 animate-spin text-primary" />
