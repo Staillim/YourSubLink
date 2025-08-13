@@ -40,8 +40,10 @@ export default function ClientComponent({ shortId, linkId }: { shortId: string, 
   }
 
   // Helper para obtener la IP pública
+  // Puedes cambiar esta función para usar un endpoint propio, ej: /api/get-ip
   async function fetchVisitorIP() {
     try {
+      // Reemplaza la URL por tu backend si lo implementas
       const res = await fetch('https://api.ipify.org?format=json');
       const data = await res.json();
       return data.ip;
@@ -139,13 +141,21 @@ export default function ClientComponent({ shortId, linkId }: { shortId: string, 
       ip = await fetchVisitorIP();
       const cookieLastVisit = Number(getCookie(cookieName)) || 0;
       let dbLastVisit = 0;
+      let fallbackReason = '';
       if (ip) {
+        // Si hay IP, usar validación global normal
         const visitRef = doc(db, 'global_visits', ip);
         const visitSnap = await getDoc(visitRef);
         dbLastVisit = visitSnap.exists() ? Number(visitSnap.data().last_visit) : 0;
+        lastVisit = Math.max(cookieLastVisit, dbLastVisit);
+        canMonetize = !lastVisit || (now - lastVisit) >= 1800_000;
+        fallbackReason = '';
+      } else {
+        // Si no hay IP, fallback a solo cookie
+        lastVisit = cookieLastVisit;
+        canMonetize = !lastVisit || (now - lastVisit) >= 1800_000;
+        fallbackReason = 'ip_unavailable';
       }
-      lastVisit = Math.max(cookieLastVisit, dbLastVisit);
-      canMonetize = !lastVisit || (now - lastVisit) >= 1800_000;
 
       const linkRef = doc(db, 'links', dataToUse.id);
       const batch = writeBatch(db);
@@ -178,7 +188,7 @@ export default function ClientComponent({ shortId, linkId }: { shortId: string, 
         earningsGenerated = cpmUsed / 1000;
         batch.update(linkRef, { generatedEarnings: increment(earningsGenerated) });
         monetized = true;
-        reason = '';
+        reason = fallbackReason;
         // Actualizar cookie y Firestore
         setCookie(cookieName, String(now), 30);
         if (ip) {
@@ -187,7 +197,7 @@ export default function ClientComponent({ shortId, linkId }: { shortId: string, 
         }
       } else {
         monetized = false;
-        reason = lastVisit && (now - lastVisit) < 1800_000 ? 'visit within 30min window' : 'not monetizable';
+        reason = fallbackReason || (lastVisit && (now - lastVisit) < 1800_000 ? 'visit within 30min window' : 'not monetizable');
       }
 
       // 3. Registrar el click con toda la info
