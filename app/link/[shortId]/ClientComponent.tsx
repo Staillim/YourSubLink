@@ -16,7 +16,7 @@ import { Loader2 } from 'lucide-react';
 import LinkGate from '@/components/link-gate'; 
 import type { LinkData } from '@/types'; 
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, writeBatch, increment, serverTimestamp, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, writeBatch, increment, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
 
 export default function ClientComponent({ shortId }: { shortId: string }) {
   // Inyectar los scripts exactamente como los proporcionó el usuario, sin id, sin div, justo después del <head>
@@ -30,7 +30,36 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
   const [status, setStatus] = useState<'loading' | 'gate' | 'redirecting' | 'not-found' | 'invalid'>('loading');
   const [linkData, setLinkData] = useState<LinkData | null>(null);
   const [gateStartTime, setGateStartTime] = useState<number | null>(null);
+  // IP cache para evitar múltiples requests
+  const [visitorIP, setVisitorIP] = useState<string | null>(null);
 
+  // Helper para obtener la IP del visitante
+  async function fetchVisitorIP() {
+    try {
+      const res = await fetch('https://api.ipify.org?format=json');
+      const data = await res.json();
+      return data.ip;
+    } catch {
+      return null;
+    }
+  }
+
+  // Helpers para cookies
+  function getCookie(name: string) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop()?.split(';').shift();
+    return null;
+  }
+  function setCookie(name: string, value: string, days: number) {
+    let expires = '';
+    if (days) {
+      const date = new Date();
+      date.setTime(date.getTime() + (days*24*60*60*1000));
+      expires = '; expires=' + date.toUTCString();
+    }
+    document.cookie = name + '=' + value + expires + '; path=/';
+  }
   useEffect(() => {
     if (!shortId) {
       setStatus('not-found');
@@ -38,39 +67,59 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
     }
 
     const processLinkVisit = async () => {
-        const linksRef = collection(db, 'links');
-        const q = query(linksRef, where('shortId', '==', shortId));
-        const querySnapshot = await getDocs(q);
+      // Obtener IP del visitante
+      let ip = visitorIP;
+      if (!ip) {
+        ip = await fetchVisitorIP();
+        setVisitorIP(ip);
+      }
 
-        if (querySnapshot.empty) {
-            setStatus('not-found');
-            return;
-        }
+      const linksRef = collection(db, 'links');
+      const q = query(linksRef, where('shortId', '==', shortId));
+      const querySnapshot = await getDocs(q);
 
-        const linkDoc = querySnapshot.docs[0];
-        const data = linkDoc.data() as Omit<LinkData, 'id'>;
-        const link: LinkData = { id: linkDoc.id, ...data };
-        
-        setLinkData(link);
+      if (querySnapshot.empty) {
+        setStatus('not-found');
+        return;
+      }
 
-        const hasRules = link.rules && link.rules.length > 0;
+      const linkDoc = querySnapshot.docs[0];
+      const data = linkDoc.data() as Omit<LinkData, 'id'>;
+      const link: LinkData = { id: linkDoc.id, ...data };
+      setLinkData(link);
 
-        if (hasRules) {
-            setGateStartTime(Date.now());
-            setStatus('gate');
-        } else {
-            // If no rules, count the click and redirect immediately.
-            setStatus('redirecting');
-            await handleAllStepsCompleted(link);
-        }
+      // --- VALIDACIÓN GLOBAL DE VISTA MONETIZADA ---
+      const cookieName = 'last_visit_global';
+      const now = Date.now();
+      const cookieLastVisit = Number(getCookie(cookieName)) || 0;
+      let dbLastVisit = 0;
+      if (ip) {
+        const visitRef = doc(db, 'global_visits', ip);
+        const visitSnap = await getDoc(visitRef);
+        dbLastVisit = visitSnap.exists() ? Number(visitSnap.data().last_visit) : 0;
+      }
+      const lastVisit = Math.max(cookieLastVisit, dbLastVisit);
+      const canMonetize = !lastVisit || (now - lastVisit) >= 1800_000;
 
+      // Guardar en el estado para usar en el registro del click
+      (window as any)._canMonetize = canMonetize;
+      (window as any)._visitorIP = ip;
+
+      const hasRules = link.rules && link.rules.length > 0;
+      if (hasRules) {
+        setGateStartTime(Date.now());
+        setStatus('gate');
+      } else {
+        setStatus('redirecting');
+        await handleAllStepsCompleted(link);
+      }
     };
 
     processLinkVisit().catch(err => {
-        console.error("Error processing link visit:", err);
-        setStatus('not-found');
+      console.error("Error processing link visit:", err);
+      setStatus('not-found');
     });
-  }, [shortId]);
+  }, [shortId, visitorIP]);
   
   const handleAllStepsCompleted = async (finalLinkData?: LinkData) => {
     const dataToUse = finalLinkData || linkData;
@@ -78,72 +127,100 @@ export default function ClientComponent({ shortId }: { shortId: string }) {
 
     // Security check: Interaction Speed
     if (gateStartTime) {
-        const completionTime = Date.now();
-        const durationInSeconds = (completionTime - gateStartTime) / 1000;
-        // If it took less than 10 seconds, it's likely a bot. Don't count the click.
-        if (durationInSeconds < 10) {
-            console.warn(`Invalid click detected: completed too fast (${durationInSeconds}s). Redirecting without counting.`);
-            window.location.href = dataToUse.original;
-            return;
-        }
+      const completionTime = Date.now();
+      const durationInSeconds = (completionTime - gateStartTime) / 1000;
+      if (durationInSeconds < 10) {
+        console.warn(`Invalid click detected: completed too fast (${durationInSeconds}s). Redirecting without counting.`);
+        window.location.href = dataToUse.original;
+        return;
+      }
     }
 
     setStatus('redirecting');
 
+    // --- VALIDACIÓN GLOBAL DE VISTA MONETIZADA ---
+    const canMonetize = (window as any)._canMonetize ?? true;
+    const ip = (window as any)._visitorIP ?? null;
+    const cookieName = 'last_visit_global';
+    const now = Date.now();
+    // Obtener lastVisit para el motivo si no se monetiza
+    let lastVisit = 0;
+    if (typeof window !== 'undefined') {
+      const cookieLastVisit = Number(getCookie(cookieName)) || 0;
+      let dbLastVisit = 0;
+      if (ip) {
+        const visitRef = doc(db, 'global_visits', ip);
+        const visitSnap = await getDoc(visitRef);
+        dbLastVisit = visitSnap.exists() ? Number(visitSnap.data().last_visit) : 0;
+      }
+      lastVisit = Math.max(cookieLastVisit, dbLastVisit);
+    }
+
     try {
-        const linkRef = doc(db, 'links', dataToUse.id);
-        const batch = writeBatch(db);
+      const linkRef = doc(db, 'links', dataToUse.id);
+      const batch = writeBatch(db);
 
-        // 1. Increment the click counter
-        batch.update(linkRef, { clicks: increment(1) });
-        
-        let cpmUsed = 0;
-        let earningsGenerated = 0;
+      let cpmUsed = 0;
+      let earningsGenerated = 0;
+      let monetized = false;
+      let reason = '';
 
-        // 2. If monetizable AND not suspended, calculate and increment earnings
-        if (dataToUse.monetizable && dataToUse.monetizationStatus !== 'suspended') {
-            // Check for a custom CPM on the user's profile
-            const userRef = doc(db, 'users', dataToUse.userId);
-            const userSnap = await getDoc(userRef);
-            const userData = userSnap.data();
-            const customCpm = userData?.customCpm;
+      // 1. Incrementar el contador de clicks siempre
+      batch.update(linkRef, { clicks: increment(1) });
 
-            if (customCpm && customCpm > 0) {
-                // Use custom CPM because it's defined and greater than 0
-                cpmUsed = customCpm;
-            } else {
-                // Use global CPM if custom is null, undefined, or 0
-                const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
-                const cpmSnapshot = await getDocs(cpmQuery);
-                let activeCpm = 3.00; // Default fallback CPM
-                if (!cpmSnapshot.empty) {
-                    activeCpm = cpmSnapshot.docs[0].data().rate;
-                }
-                cpmUsed = activeCpm;
-            }
-            
-            earningsGenerated = cpmUsed / 1000;
-            batch.update(linkRef, { generatedEarnings: increment(earningsGenerated) });
+      // 2. Si se puede monetizar, calcular ingresos y actualizar cookie + Firestore
+      if (canMonetize && dataToUse.monetizable && dataToUse.monetizationStatus !== 'suspended') {
+        // CPM personalizado o global
+        const userRef = doc(db, 'users', dataToUse.userId);
+        const userSnap = await getDoc(userRef);
+        const userData = userSnap.data();
+        const customCpm = userData?.customCpm;
+        if (customCpm && customCpm > 0) {
+          cpmUsed = customCpm;
+        } else {
+          const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null));
+          const cpmSnapshot = await getDocs(cpmQuery);
+          let activeCpm = 3.00;
+          if (!cpmSnapshot.empty) {
+            activeCpm = cpmSnapshot.docs[0].data().rate;
+          }
+          cpmUsed = activeCpm;
         }
-        
-        // 3. Create a log of the click with earnings info
-        const clickLogRef = doc(collection(db, 'clicks'));
-        batch.set(clickLogRef, {
-            linkId: dataToUse.id,
-            userId: dataToUse.userId,
-            timestamp: serverTimestamp(),
-            cpmUsed,
-            earningsGenerated,
-        });
+        earningsGenerated = cpmUsed / 1000;
+        batch.update(linkRef, { generatedEarnings: increment(earningsGenerated) });
+        monetized = true;
+        reason = '';
+        // Actualizar cookie y Firestore
+        setCookie(cookieName, String(now), 30);
+        if (ip) {
+          const visitRef = doc(db, 'global_visits', ip);
+          await setDoc(visitRef, { last_visit: now }, { merge: true });
+        }
+      } else {
+        monetized = false;
+        reason = lastVisit && (now - lastVisit) < 1800_000 ? 'visit within 30min window' : 'not monetizable';
+      }
 
-        // Commit all operations atomically
-        await batch.commit();
+      // 3. Registrar el click con toda la info
+      const clickLogRef = doc(collection(db, 'clicks'));
+      batch.set(clickLogRef, {
+        linkId: dataToUse.id,
+        userId: dataToUse.userId,
+        ip: ip || '',
+        timestamp: serverTimestamp(),
+        cpmUsed,
+        earningsGenerated,
+        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+        monetized,
+        reason,
+      });
+
+      await batch.commit();
 
     } catch(error) {
-        console.error("Failed to count click:", error);
+      console.error("Failed to count click:", error);
     } finally {
-        // Redirect to the final destination
-        window.location.href = dataToUse.original;
+      window.location.href = dataToUse.original;
     }
   }
 
