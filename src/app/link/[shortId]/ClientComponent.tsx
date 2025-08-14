@@ -16,41 +16,10 @@ import { Loader2 } from 'lucide-react';
 import LinkGate from '@/components/link-gate'; 
 import type { LinkData } from '@/types'; 
 import { db } from '@/lib/firebase';
-import { collection, doc, writeBatch, serverTimestamp, getDoc, query, where, getDocs, increment, limit, setDoc } from 'firebase/firestore';
+import { collection, doc, writeBatch, serverTimestamp, getDoc, query, where, getDocs, increment, limit } from 'firebase/firestore';
 import type { Rule } from '@/components/rule-editor';
 
 export default function ClientComponent({ shortId, linkId }: { shortId: string, linkId: string }) {
-  // Helpers para cookies
-  function getCookie(name: string) {
-    if (typeof document === 'undefined') return null;
-    const value = `; ${document.cookie}`;
-    const parts = value.split(`; ${name}=`);
-    if (parts.length === 2) return parts.pop()?.split(';').shift();
-    return null;
-  }
-  function setCookie(name: string, value: string, days: number) {
-    if (typeof document === 'undefined') return;
-    let expires = '';
-    if (days) {
-      const date = new Date();
-      date.setTime(date.getTime() + (days*24*60*60*1000));
-      expires = '; expires=' + date.toUTCString();
-    }
-    document.cookie = name + '=' + value + expires + '; path=/';
-  }
-
-  // Helper para obtener la IP pública
-  // Puedes cambiar esta función para usar un endpoint propio, ej: /api/get-ip
-  async function fetchVisitorIP() {
-    try {
-      // Reemplaza la URL por tu backend si lo implementas
-      const res = await fetch('https://api.ipify.org?format=json');
-      const data = await res.json();
-      return data.ip;
-    } catch {
-      return null;
-    }
-  }
   const [status, setStatus] = useState<'loading' | 'gate' | 'redirecting' | 'not-found' | 'invalid'>('loading');
   const [linkData, setLinkData] = useState<LinkData | null>(null);
   const [gateStartTime, setGateStartTime] = useState<number | null>(null);
@@ -118,108 +87,72 @@ export default function ClientComponent({ shortId, linkId }: { shortId: string, 
     if (!dataToUse) return;
 
     if (gateStartTime) {
-      const completionTime = Date.now();
-      const durationInSeconds = (completionTime - gateStartTime) / 1000;
-      if (durationInSeconds < 10) {
-        console.warn(`Invalid click detected: completed too fast (${durationInSeconds}s). Redirecting without counting.`);
-        window.location.href = dataToUse.original;
-        return;
-      }
+        const completionTime = Date.now();
+        const durationInSeconds = (completionTime - gateStartTime) / 1000;
+        if (durationInSeconds < 10) {
+            console.warn(`Invalid click detected: completed too fast (${durationInSeconds}s). Redirecting without counting.`);
+            window.location.href = dataToUse.original;
+            return;
+        }
     }
 
     setStatus('redirecting');
 
-    // --- VALIDACIÓN GLOBAL DE VISTA MONETIZADA ---
-    const cookieName = 'last_visit_global';
-    const now = Date.now();
-    let ip = '';
-    let canMonetize = true;
-    let lastVisit = 0;
-    let reason = '';
-
     try {
-      ip = await fetchVisitorIP();
-      const cookieLastVisit = Number(getCookie(cookieName)) || 0;
-      let dbLastVisit = 0;
-      let fallbackReason = '';
-      if (ip) {
-        // Si hay IP, usar validación global normal
-        const visitRef = doc(db, 'global_visits', ip);
-        const visitSnap = await getDoc(visitRef);
-        dbLastVisit = visitSnap.exists() ? Number(visitSnap.data().last_visit) : 0;
-        lastVisit = Math.max(cookieLastVisit, dbLastVisit);
-        canMonetize = !lastVisit || (now - lastVisit) >= 1800_000;
-        fallbackReason = '';
-      } else {
-        // Si no hay IP, fallback a solo cookie
-        lastVisit = cookieLastVisit;
-        canMonetize = !lastVisit || (now - lastVisit) >= 1800_000;
-        fallbackReason = 'ip_unavailable';
-      }
+        const linkRef = doc(db, 'links', dataToUse.id);
+        const batch = writeBatch(db);
 
-      const linkRef = doc(db, 'links', dataToUse.id);
-      const batch = writeBatch(db);
+        // 1. Increment the click counter
+        batch.update(linkRef, { clicks: increment(1) });
+        
+        let cpmUsed = 0;
+        let earningsGenerated = 0;
 
-      let cpmUsed = 0;
-      let earningsGenerated = 0;
-      let monetized = false;
+        // 2. If monetizable AND not suspended, calculate and increment earnings
+        if (dataToUse.monetizable && dataToUse.monetizationStatus !== 'suspended') {
+            // Check for a custom CPM on the user's profile
+            const userRef = doc(db, 'users', dataToUse.userId);
+            const userSnap = await getDoc(userRef);
+            const userData = userSnap.data();
+            const customCpm = userData?.customCpm;
 
-      // 1. Incrementar el contador de clicks siempre
-      batch.update(linkRef, { clicks: increment(1) });
-
-      // 2. Si se puede monetizar, calcular ingresos y actualizar cookie + Firestore
-      if (canMonetize && dataToUse.monetizable && dataToUse.monetizationStatus !== 'suspended') {
-        // CPM personalizado o global
-        const userRef = doc(db, 'users', dataToUse.userId);
-        const userSnap = await getDoc(userRef);
-        const userData = userSnap.data();
-        const customCpm = userData?.customCpm;
-        if (customCpm && customCpm > 0) {
-          cpmUsed = customCpm;
-        } else {
-          const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null), limit(1));
-          const cpmSnapshot = await getDocs(cpmQuery);
-          let activeCpm = 3.00;
-          if (!cpmSnapshot.empty) {
-            activeCpm = cpmSnapshot.docs[0].data().rate;
-          }
-          cpmUsed = activeCpm;
+            if (customCpm != null && customCpm > 0) {
+                // Use custom CPM because it's defined and greater than 0
+                cpmUsed = customCpm;
+            } else {
+                // Use global CPM if custom is null, undefined, or 0
+                const cpmQuery = query(collection(db, 'cpmHistory'), where('endDate', '==', null), limit(1));
+                const cpmSnapshot = await getDocs(cpmQuery);
+                let activeCpm = 3.00; // Default fallback CPM
+                if (!cpmSnapshot.empty) {
+                    activeCpm = cpmSnapshot.docs[0].data().rate;
+                }
+                cpmUsed = activeCpm;
+            }
+            
+            earningsGenerated = cpmUsed / 1000;
+            batch.update(linkRef, { generatedEarnings: increment(earningsGenerated) });
         }
-        earningsGenerated = cpmUsed / 1000;
-        batch.update(linkRef, { generatedEarnings: increment(earningsGenerated) });
-        monetized = true;
-        reason = fallbackReason;
-        // Actualizar cookie y Firestore
-        setCookie(cookieName, String(now), 30);
-        if (ip) {
-          const visitRef = doc(db, 'global_visits', ip);
-          await setDoc(visitRef, { last_visit: now }, { merge: true });
-        }
-      } else {
-        monetized = false;
-        reason = fallbackReason || (lastVisit && (now - lastVisit) < 1800_000 ? 'visit within 30min window' : 'not monetizable');
-      }
+        
+        // 3. Create a log of the click with earnings info
+        const clickLogRef = doc(collection(db, 'clicks'));
+        batch.set(clickLogRef, {
+            linkId: dataToUse.id,
+            userId: dataToUse.userId,
+            timestamp: serverTimestamp(),
+            earningsGenerated: earningsGenerated,
+            cpmUsed: cpmUsed,
+            processed: true, // Mark as processed immediately
+            processedAt: serverTimestamp(),
+            userAgent: navigator.userAgent,
+        });
 
-      // 3. Registrar el click con toda la info
-      const clickLogRef = doc(collection(db, 'clicks'));
-      batch.set(clickLogRef, {
-        linkId: dataToUse.id,
-        userId: dataToUse.userId,
-        ip: ip || '',
-        timestamp: serverTimestamp(),
-        cpmUsed,
-        earningsGenerated,
-        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
-        monetized,
-        reason,
-      });
-
-      await batch.commit();
+        await batch.commit();
 
     } catch(error) {
-      console.error("Failed to count click:", error);
+        console.error("Failed to count click:", error);
     } finally {
-      window.location.href = dataToUse.original;
+        window.location.href = dataToUse.original;
     }
   }
 

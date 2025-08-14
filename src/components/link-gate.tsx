@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 import { Facebook, Instagram, Youtube,Globe, MessageCircle, ThumbsUp } from 'lucide-react';
 import { Logo, TikTokIcon } from '@/components/icons';
 import { SponsorRuleItem } from '@/components/sponsor-rule-item';
+import { MonetagAds } from '@/components/monetag-ads';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import {
@@ -87,6 +88,7 @@ const getRuleDetails = (rule: LinkData['rules'][0]) => {
 
 
 export default function LinkGate({ linkData, onAllStepsCompleted }: { linkData: LinkData, onAllStepsCompleted: () => void }) {
+  // Mostrar anuncios Monetag al entrar a la página
   const [step, setStep] = useState<'rules' | 'countdown'>('rules');
   const [countdown, setCountdown] = useState(5);
   const [isReady, setIsReady] = useState(false);
@@ -214,8 +216,10 @@ export default function LinkGate({ linkData, onAllStepsCompleted }: { linkData: 
   const allTasksCompleted = allRulesCompleted && allSponsorsCompleted;
 
   return (
-    <div className="relative flex min-h-screen w-full flex-col items-center justify-center bg-background p-4">
-      <div className="absolute top-4 left-4 sm:top-8 sm:left-8">
+    <>
+      <MonetagAds />
+      <div className="relative flex min-h-screen w-full flex-col items-center justify-center bg-background p-4">
+  <div className="absolute top-4 left-4 sm:top-8 sm:left-8">
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
                 <button className="focus:outline-none">
@@ -374,6 +378,7 @@ export default function LinkGate({ linkData, onAllStepsCompleted }: { linkData: 
             </>
         )}
       </Card>
-    </div>
+      </div>
+    </>
   );
 }

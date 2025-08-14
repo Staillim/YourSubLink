@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useToast } from '@/hooks/use-toast';
 import { ExternalLink, CheckCircle, Target, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { SponsorRule } from '@/types';
@@ -35,6 +36,7 @@ export function SponsorRuleItem({
   onComplete 
 }: SponsorRuleItemProps) {
   const [hasViewed, setHasViewed] = useState(false);
+  const { toast } = useToast();
 
   const handleView = async () => {
     try {
@@ -123,7 +125,11 @@ export function SponsorRuleItem({
           onComplete(sponsor);
         } else {
           onStateChange(index, 'pending');
-          alert('Debes permanecer al menos 7 segundos en el sponsor para desbloquear. Intenta de nuevo.');
+          toast({
+            title: 'Debes permanecer al menos 7 segundos en el sponsor',
+            description: 'Intenta de nuevo para desbloquear.',
+            variant: 'destructive',
+          });
         }
       };
       window.addEventListener('focus', focusHandler);
