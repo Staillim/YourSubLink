@@ -3,9 +3,12 @@
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';
+import { RefreshCw } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, doc, deleteDoc, getDoc, updateDoc, addDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { collection, onSnapshot, doc, deleteDoc, getDoc, getDocs, updateDoc, addDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import type { LinkData, SponsorRule } from '../../../types';
 import { AddSponsorDialog } from '../../../components/add-sponsor-dialog';
 import { MultiSponsorDialog } from '../../../components/multi-sponsor-dialog';
@@ -49,6 +52,7 @@ type Link = {
   userId: string;
   userName?: string;
   userEmail?: string;
+  generatedEarnings?: number;
 };
 
 export default function AdminLinksPage() {
@@ -60,6 +64,7 @@ export default function AdminLinksPage() {
   
   // Estados para sponsors
   const [sponsors, setSponsors] = useState<Record<string, SponsorRule[]>>({});
+  const [search, setSearch] = useState('');
   const [sponsorDialogOpen, setSponsorDialogOpen] = useState(false);
   const [selectedLinkId, setSelectedLinkId] = useState<string | null>(null);
   
@@ -67,39 +72,41 @@ export default function AdminLinksPage() {
   const [selectedLinks, setSelectedLinks] = useState<Set<string>>(new Set());
   const [isMultiSponsorDialogOpen, setIsMultiSponsorDialogOpen] = useState(false);
 
-  useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, 'links'), async (snapshot) => {
-      setLoading(true);
-      const linksData: Link[] = [];
-      for (const linkDoc of snapshot.docs) {
-        const data = linkDoc.data();
-        let userName = 'N/A';
-        let userEmail = 'N/A'
-
-        if(data.userId) {
-            const userRef = doc(db, 'users', data.userId);
-            const userSnap = await getDoc(userRef);
-            if(userSnap.exists()){
-                userName = userSnap.data().displayName;
-                userEmail = userSnap.data().email;
-            }
+  // Función para obtener los links manualmente
+  const fetchLinks = async () => {
+    setLoading(true);
+    const snapshot = await getDocs(collection(db, 'links'));
+    const linksData: Link[] = [];
+    for (const linkDoc of snapshot.docs) {
+      const data = linkDoc.data();
+      let userName = 'N/A';
+      let userEmail = 'N/A';
+      if (data.userId) {
+        const userRef = doc(db, 'users', data.userId);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+          userName = userSnap.data().displayName;
+          userEmail = userSnap.data().email;
         }
-
-        linksData.push({
-          id: linkDoc.id,
-          ...data,
-          short: `${window.location.origin}/link/${data.shortId}`,
-          createdAt: data.createdAt,
-          userName,
-          userEmail,
-          monetizationStatus: data.monetizationStatus || 'active',
-        } as Link);
       }
-      setLinks(linksData.sort((a,b) => b.createdAt.seconds - a.createdAt.seconds));
-      setLoading(false);
-    });
+      linksData.push({
+        id: linkDoc.id,
+        ...data,
+        short: `${window.location.origin}/link/${data.shortId}`,
+        createdAt: data.createdAt,
+        userName,
+        userEmail,
+        monetizationStatus: data.monetizationStatus || 'active',
+        generatedEarnings: data.generatedEarnings || 0,
+      } as Link);
+    }
+    setLinks(linksData.sort((a, b) => b.createdAt.seconds - a.createdAt.seconds));
+    setLoading(false);
+  };
 
-    return () => unsubscribe();
+  // Cargar los links solo al montar el componente o cuando se refresca
+  useEffect(() => {
+    fetchLinks();
   }, []);
 
   // Cargar sponsors de todos los enlaces
@@ -308,6 +315,16 @@ export default function AdminLinksPage() {
     return (
       <div className="flex flex-col gap-4">
         <h1 className="text-2xl font-bold">Link Management</h1>
+        {/* Input de búsqueda también visible en loading para UX consistente */}
+        <div className="mb-4 flex flex-col sm:flex-row gap-2 items-start sm:items-center">
+          <Input
+            placeholder="Buscar por ID, usuario o enlace acortado..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full sm:w-80"
+            disabled
+          />
+        </div>
         <Card>
           <CardHeader>
              <Skeleton className="h-6 w-48" />
@@ -334,12 +351,23 @@ export default function AdminLinksPage() {
     );
   }
 
+  // Lógica de filtrado avanzada
+  const filteredLinks = links.filter(link => {
+    const q = search.toLowerCase();
+    return (
+      link.id.toLowerCase().includes(q) ||
+      (link.userName && link.userName.toLowerCase().includes(q)) ||
+      (link.userEmail && link.userEmail.toLowerCase().includes(q)) ||
+      (link.shortId && link.shortId.toLowerCase().includes(q)) ||
+      (link.short && link.short.toLowerCase().includes(q))
+    );
+  });
+
   return (
     <TooltipProvider>
-        <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">Link Management</h1>
-          
           {/* Botón para agregar sponsor a múltiples enlaces */}
           <div className="flex items-center gap-4">
             {selectedLinks.size > 0 && (
@@ -358,7 +386,26 @@ export default function AdminLinksPage() {
             )}
           </div>
         </div>
-        
+        {/* Input de búsqueda avanzado */}
+        <div className="mb-4 flex flex-col sm:flex-row gap-2 items-start sm:items-center">
+          <div className="flex w-full sm:w-auto gap-2 items-center">
+            <Input
+              placeholder="Buscar por ID, usuario o enlace acortado..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full sm:w-80"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              onClick={fetchLinks}
+              title="Refrescar links"
+              className="h-10 px-3"
+            >
+              <RefreshCw className="h-5 w-5" />
+            </Button>
+          </div>
+        </div>
         <Card>
             <CardHeader>
             <CardTitle>All Links</CardTitle>
@@ -379,13 +426,14 @@ export default function AdminLinksPage() {
                     <TableHead className="hidden md:table-cell">User</TableHead>
                     <TableHead className="hidden sm:table-cell">Clicks</TableHead>
                     <TableHead className="hidden md:table-cell">Sponsors</TableHead>
+                    <TableHead className="hidden sm:table-cell">Earnings</TableHead>
                     <TableHead className="hidden md:table-cell">Status</TableHead>
                     <TableHead className="hidden lg:table-cell">Date</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
                 </TableHeader>
                 <TableBody>
-                {links.map((link) => (
+                {filteredLinks.map((link) => (
                     <TableRow key={link.id}>
                         <TableCell>
                           <Checkbox
@@ -395,41 +443,61 @@ export default function AdminLinksPage() {
                           />
                         </TableCell>
                         <TableCell>
-                            <div className="font-semibold truncate max-w-[200px] sm:max-w-xs">{link.title}</div>
-                            <a href={link.short} target='_blank' rel='noopener noreferrer' className="text-xs text-muted-foreground hover:underline block truncate max-w-[200px] sm:max-w-xs">{link.short}</a>
-                            {/* Mobile-only details */}
-                            <div className="md:hidden mt-2 space-y-2 text-xs">
-                                <div className="flex items-center gap-2">
-                                    <span className="font-medium">User:</span>
-                                    <div className="text-muted-foreground">{link.userName}</div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <span className="font-medium">Status:</span>
-                                    {link.monetizationStatus === 'suspended' ? (
-                                        <Badge variant="secondary" className="bg-yellow-500 text-black">Suspended</Badge>
-                                    ) : (
-                                        <Badge variant={link.monetizable ? 'default' : 'secondary'} className={`h-5 ${link.monetizable ? 'bg-green-600' : ''}`}>
-                                            {link.monetizable ? 'Monetizable' : 'Not Monetizable'}
-                                        </Badge>
-                                    )}
-                                </div>
-                                <div className="flex items-center gap-4 text-xs">
-                                    <div className="flex items-center gap-1 text-muted-foreground">
-                                        <Eye className="h-3 w-3" />
-                                        <span>{link.clicks} Clicks</span>
-                                    </div>
-                                    <div className="flex items-center gap-1 text-muted-foreground">
-                                        <Calendar className="h-3 w-3" />
-                                        <span>{link.createdAt ? new Date(link.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}</span>
-                                    </div>
-                                </div>
-                                {/* Mobile sponsors info */}
-                                <div className="flex items-center gap-2">
-                                    <span className="font-medium">Sponsors:</span>
+                          <div className="font-semibold truncate max-w-[200px] sm:max-w-xs">{link.title}</div>
+                          <a href={link.short} target='_blank' rel='noopener noreferrer' className="text-xs text-blue-600 hover:underline block truncate max-w-[200px] sm:max-w-xs">{link.short}</a>
+                          {/* Mobile-only details */}
+                          <div className="md:hidden mt-2 space-y-2 text-xs">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">User:</span>
+                              {link.userId ? (
+                                <Link href={`/admin/users/${link.userId}`} className="text-blue-600 hover:underline">
+                                  {link.userName}
+                                </Link>
+                              ) : (
+                                <span className="text-muted-foreground">{link.userName}</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">Status:</span>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  {link.monetizationStatus === 'suspended' ? (
+                                    <Badge variant="secondary" className="bg-yellow-500 text-black">Suspended</Badge>
+                                  ) : (
+                                    <Badge variant={link.monetizable ? 'default' : 'secondary'} className={`h-5 ${link.monetizable ? 'bg-green-600' : ''}`}>
+                                      {link.monetizable ? 'Monetizable' : 'Not Monetizable'}
+                                    </Badge>
+                                  )}
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  {link.monetizationStatus === 'suspended'
+                                    ? 'La monetización de este enlace está suspendida.'
+                                    : link.monetizable
+                                    ? 'Este enlace es monetizable.'
+                                    : 'Este enlace no es monetizable.'}
+                                </TooltipContent>
+                              </Tooltip>
+                            </div>
+                            <div className="flex items-center gap-4 text-xs">
+                              <div className="flex items-center gap-1 text-muted-foreground">
+                                <Eye className="h-3 w-3" />
+                                <span>{link.clicks} Clicks</span>
+                              </div>
+                              <div className="flex items-center gap-1 text-muted-foreground">
+                                <Calendar className="h-3 w-3" />
+                                <span>{link.createdAt ? new Date(link.createdAt.seconds * 1000).toLocaleString() : 'N/A'}</span>
+                              </div>
+                            </div>
+                            {/* Mobile sponsors info */}
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">Sponsors:</span>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="flex items-center gap-2">
                                     {(() => {
                                       const sponsorStats = getSponsorStats(link.id);
                                       return (
-                                        <div className="flex items-center gap-2">
+                                        <>
                                           <Badge variant={sponsorStats.expired > 0 ? "destructive" : "default"}>
                                             {sponsorStats.active}/{sponsorStats.total}
                                           </Badge>
@@ -438,42 +506,85 @@ export default function AdminLinksPage() {
                                               {sponsorStats.expired} exp.
                                             </Badge>
                                           )}
-                                        </div>
+                                        </>
                                       );
                                     })()}
-                                </div>
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  {(() => {
+                                    const s = getSponsorStats(link.id);
+                                    return `Activos: ${s.active}, Expirados: ${s.expired}, Total: ${s.total}`;
+                                  })()}
+                                </TooltipContent>
+                              </Tooltip>
                             </div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">Earnings:</span>
+                              <span className="font-bold">${(link.generatedEarnings || 0).toFixed(4)}</span>
+                            </div>
+                          </div>
                         </TableCell>
-                         <TableCell className="hidden md:table-cell">
-                            <div className="font-medium">{link.userName}</div>
-                            <div className="text-xs text-muted-foreground">{link.userEmail}</div>
+                        <TableCell className="hidden md:table-cell">
+                          {link.userId ? (
+                            <Link href={`/admin/users/${link.userId}`} className="font-medium text-blue-600 hover:underline">
+                              {link.userName}
+                            </Link>
+                          ) : (
+                            <span className="font-medium">{link.userName}</span>
+                          )}
+                          <div className="text-xs text-muted-foreground">{link.userEmail}</div>
                         </TableCell>
                         <TableCell className="hidden sm:table-cell">{link.clicks}</TableCell>
                         <TableCell className="hidden md:table-cell">
-                          {(() => {
-                            const sponsorStats = getSponsorStats(link.id);
-                            return (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
                               <div className="flex items-center gap-2">
-                                <Badge variant={sponsorStats.expired > 0 ? "destructive" : "default"}>
-                                  {sponsorStats.active}/{sponsorStats.total}
-                                </Badge>
-                                {sponsorStats.expired > 0 && (
-                                  <Badge variant="outline" className="text-orange-600">
-                                    {sponsorStats.expired} exp.
-                                  </Badge>
-                                )}
+                                {(() => {
+                                  const sponsorStats = getSponsorStats(link.id);
+                                  return (
+                                    <>
+                                      <Badge variant={sponsorStats.expired > 0 ? "destructive" : "default"}>
+                                        {sponsorStats.active}/{sponsorStats.total}
+                                      </Badge>
+                                      {sponsorStats.expired > 0 && (
+                                        <Badge variant="outline" className="text-orange-600">
+                                          {sponsorStats.expired} exp.
+                                        </Badge>
+                                      )}
+                                    </>
+                                  );
+                                })()}
                               </div>
-                            );
-                          })()}
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {(() => {
+                                const s = getSponsorStats(link.id);
+                                return `Activos: ${s.active}, Expirados: ${s.expired}, Total: ${s.total}`;
+                              })()}
+                            </TooltipContent>
+                          </Tooltip>
                         </TableCell>
+                        <TableCell className="hidden sm:table-cell font-bold">${(link.generatedEarnings || 0).toFixed(4)}</TableCell>
                         <TableCell className="hidden md:table-cell">
-                            {link.monetizationStatus === 'suspended' ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              {link.monetizationStatus === 'suspended' ? (
                                 <Badge variant="secondary" className="bg-yellow-500 text-black">Suspended</Badge>
-                            ) : (
+                              ) : (
                                 <Badge variant={link.monetizable ? 'default' : 'secondary'} className={link.monetizable ? 'bg-green-600' : ''}>
-                                    {link.monetizable ? 'Monetizable' : 'Not Monetizable'}
+                                  {link.monetizable ? 'Monetizable' : 'Not Monetizable'}
                                 </Badge>
-                            )}
+                              )}
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {link.monetizationStatus === 'suspended'
+                                ? 'La monetización de este enlace está suspendida.'
+                                : link.monetizable
+                                ? 'Este enlace es monetizable.'
+                                : 'Este enlace no es monetizable.'}
+                            </TooltipContent>
+                          </Tooltip>
                         </TableCell>
                         
                         <TableCell className="hidden lg:table-cell">{link.createdAt ? new Date(link.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}</TableCell>
@@ -534,12 +645,12 @@ export default function AdminLinksPage() {
                         </TableCell>
                     </TableRow>
                 ))}
-                 {links.length === 0 && (
-                <TableRow>
+                {filteredLinks.length === 0 && (
+                  <TableRow>
                     <TableCell colSpan={7} className="h-24 text-center">
-                    No links found in the system.
+                      No links found in the system.
                     </TableCell>
-                </TableRow>
+                  </TableRow>
                 )}
                 </TableBody>
             </Table>
