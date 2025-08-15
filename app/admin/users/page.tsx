@@ -12,6 +12,7 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
+import Link from 'next/link';
 import { db } from '@/lib/firebase';
 import { collection, onSnapshot, doc, updateDoc, query, where, getDocs, serverTimestamp, increment, orderBy, writeBatch } from 'firebase/firestore';
 import { useUser } from '@/hooks/use-user';
@@ -349,7 +350,9 @@ export default function AdminUsersPage() {
                         {filteredUsers.map((u) => (
                             <TableRow key={u.uid} className={u.accountStatus === 'suspended' ? 'bg-destructive/10' : ''}>
                                 <TableCell className="font-medium">
-                                    <div className="font-semibold">{u.displayName}</div>
+                                    <Link href={`/admin/users/${u.uid}`} className="font-semibold text-blue-600 hover:underline">
+                                        {u.displayName}
+                                    </Link>
                                     <div className="text-sm text-muted-foreground">{u.email}</div>
                                     <div className="sm:hidden mt-2 space-y-2 text-xs">
                                         <div className="flex items-center gap-2">
