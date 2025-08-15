@@ -522,9 +522,18 @@ export default function AdminSponsorsPage() {
                         <div className="md:hidden mt-2 space-y-1 text-xs">
                           <div className="flex items-center gap-2">
                             <span className="font-medium">Enlace:</span>
-                            <span className="text-muted-foreground">
-                              {sponsor.linkTitle || 'Sin título'}
-                            </span>
+                            {sponsor.linkShortId ? (
+                              <a
+                                href={`/${sponsor.linkShortId}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:underline block truncate max-w-[120px]"
+                              >
+                                /{sponsor.linkShortId}
+                              </a>
+                            ) : (
+                              <span className="text-muted-foreground">Sin enlace</span>
+                            )}
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="font-medium">Estado:</span>
@@ -546,13 +555,17 @@ export default function AdminSponsorsPage() {
                       </TableCell>
 
                       <TableCell className="hidden md:table-cell">
-                        <div className="font-medium truncate max-w-[150px]">
-                          {sponsor.linkTitle || 'Sin título'}
-                        </div>
-                        {sponsor.linkShortId && (
-                          <div className="text-xs text-muted-foreground">
-                            /{sponsor.linkShortId}
-                          </div>
+                        {sponsor.linkShortId ? (
+                          <a
+                            href={`${window?.location?.origin ?? ''}/${sponsor.linkShortId}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:underline block truncate max-w-[200px]"
+                          >
+                            {`${window?.location?.origin ?? ''}/${sponsor.linkShortId}`}
+                          </a>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">Sin enlace</span>
                         )}
                       </TableCell>
 
@@ -581,7 +594,18 @@ export default function AdminSponsorsPage() {
                       <TableCell className="hidden lg:table-cell">
                         {sponsor.expiresAt ? (
                           <div className="text-sm">
-                            {format(sponsor.expiresAt.toDate(), 'dd/MM/yyyy', { locale: es })}
+                            {(() => {
+                              const expDate = sponsor.expiresAt.toDate();
+                              const createdAt = sponsor.createdAt?.toDate ? sponsor.createdAt.toDate() : new Date(sponsor.createdAt);
+                              const diffMs = expDate.getTime() - createdAt.getTime();
+                              const diffH = diffMs / (1000 * 60 * 60);
+                              // Si la expiración es menor a 24h desde la creación, mostrar solo la hora
+                              if (diffH < 24) {
+                                return format(expDate, 'HH:mm', { locale: es });
+                              } else {
+                                return format(expDate, 'dd/MM/yyyy', { locale: es });
+                              }
+                            })()}
                             {isSponsorExpired(sponsor) && (
                               <div className="text-xs text-red-500">Expirado</div>
                             )}
