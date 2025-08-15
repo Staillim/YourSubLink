@@ -45,6 +45,10 @@ export default function PayoutsPage() {
             toast({ title: 'Invalid Amount', description: 'Please enter a valid amount.', variant: 'destructive' });
             return;
         }
+        if (payoutAmount < MIN_PAYOUT_AMOUNT) {
+             toast({ title: 'Amount too low', description: `The minimum payout amount is $${MIN_PAYOUT_AMOUNT}.`, variant: 'destructive' });
+            return;
+        }
         if (payoutAmount > availableBalance) {
             toast({ title: 'Insufficient Balance', description: 'You cannot request more than your available balance.', variant: 'destructive' });
             return;
@@ -95,19 +99,6 @@ export default function PayoutsPage() {
             <div className="flex items-center justify-between">
                 <h1 className="text-lg font-semibold md:text-2xl">Payouts</h1>
             </div>
-
-            {/* Card informativo sobre fechas de pago */}
-            <Card className="bg-green-50 border-green-200">
-                <CardHeader>
-                    <CardTitle className="text-base text-green-900">Fechas recomendadas para solicitar pagos</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <p className="text-sm text-green-800">
-                        <span className="font-semibold text-green-700">Recuerda:</span> para optimizar el procesamiento de pagos, te sugerimos <span className="font-semibold text-green-700">acumular tus ingresos</span> y solicitar tus pagos únicamente entre los días 
-                        <span className="inline-block font-extrabold text-white bg-green-600 rounded px-2 mx-1 shadow">1-5</span> y <span className="inline-block font-extrabold text-white bg-green-600 rounded px-2 mx-1 shadow">14-18</span> de cada mes.
-                    </p>
-                </CardContent>
-            </Card>
 
              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 <Card>

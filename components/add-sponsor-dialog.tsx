@@ -37,6 +37,7 @@ export function AddSponsorDialog({
   const [sponsorUrl, setSponsorUrl] = useState('');
   const [expiresAt, setExpiresAt] = useState<Date | undefined>(undefined);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [expireInHours, setExpireInHours] = useState<string>('');
   
   // Estados de UI
   const [isLoading, setIsLoading] = useState(false);
@@ -77,14 +78,16 @@ export function AddSponsorDialog({
       newErrors.sponsorUrl = 'Debe ser una URL válida (http:// o https://)';
     }
 
-    // Validar fecha de expiración
-    if (expiresAt) {
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      tomorrow.setHours(0, 0, 0, 0);
-      
-      if (expiresAt < tomorrow) {
-        newErrors.expiresAt = 'La fecha debe ser al menos mañana';
+    // Validar expiración por horas
+    if (expireInHours) {
+      const hours = Number(expireInHours);
+      if (isNaN(hours) || hours <= 0) {
+        newErrors.expiresAt = 'Las horas deben ser un número mayor a 0';
+      }
+    } else if (expiresAt) {
+      const now = new Date();
+      if (expiresAt < now) {
+        newErrors.expiresAt = 'La fecha debe ser futura';
       }
     }
 
@@ -134,6 +137,18 @@ export function AddSponsorDialog({
         return;
       }
 
+
+      // Calcular expiración
+      let expiresAtValue: Date | undefined = undefined;
+      if (expireInHours) {
+        const hours = Number(expireInHours);
+        if (!isNaN(hours) && hours > 0) {
+          expiresAtValue = new Date(Date.now() + hours * 60 * 60 * 1000);
+        }
+      } else if (expiresAt) {
+        expiresAtValue = expiresAt;
+      }
+
       // Preparar datos del sponsor
       const sponsorData: Omit<SponsorRule, 'id'> = {
         linkId,
@@ -144,7 +159,7 @@ export function AddSponsorDialog({
         createdAt: new Date(),
         views: 0,
         clicks: 0,
-        ...(expiresAt && { expiresAt })
+        ...(expiresAtValue && { expiresAt: expiresAtValue })
       };
 
       // Crear sponsor en Firestore
@@ -248,10 +263,31 @@ export function AddSponsorDialog({
             </p>
           </div>
 
+          {/* Campo: Expiración por horas (opcional) */}
+          <div className="space-y-2">
+            <Label htmlFor="sponsor-expire-hours">
+              Expiración en horas (opcional, para sponsors de menos de 24h)
+            </Label>
+            <Input
+              id="sponsor-expire-hours"
+              type="number"
+              min="1"
+              max="24"
+              placeholder="Ej: 3"
+              value={expireInHours}
+              onChange={e => setExpireInHours(e.target.value)}
+              className={cn(errors.expiresAt && "border-red-500")}
+              disabled={isLoading}
+            />
+            <p className="text-xs text-muted-foreground">
+              Si se especifica, el sponsor expirará en ese número de horas desde ahora.
+            </p>
+          </div>
+
           {/* Campo: Fecha de Expiración (Opcional) */}
           <div className="space-y-2">
             <Label htmlFor="sponsor-expires">
-              Fecha de Expiración (Opcional)
+              Fecha de Expiración (opcional)
             </Label>
             <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
               <PopoverTrigger asChild>
@@ -280,11 +316,7 @@ export function AddSponsorDialog({
                     setExpiresAt(date);
                     setIsCalendarOpen(false);
                   }}
-                  disabled={(date) => {
-                    const tomorrow = new Date();
-                    tomorrow.setDate(tomorrow.getDate() + 1);
-                    return date < tomorrow;
-                  }}
+                  disabled={(date) => date < new Date()}
                   initialFocus
                   locale={es}
                 />
@@ -309,7 +341,7 @@ export function AddSponsorDialog({
               <p className="text-sm text-red-500">{errors.expiresAt}</p>
             )}
             <p className="text-xs text-muted-foreground">
-              Si no estableces una fecha, el sponsor nunca expirará
+              Si no estableces una fecha ni horas, el sponsor nunca expirará
             </p>
           </div>
 

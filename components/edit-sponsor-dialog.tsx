@@ -46,6 +46,7 @@ const editSponsorSchema = z.object({
     .url('Debe ser una URL válida')
     .min(1, 'La URL es requerida'),
   expiresAt: z.date().optional(),
+  expireInHours: z.string().optional(),
 });
 
 type EditSponsorForm = z.infer<typeof editSponsorSchema>;
@@ -66,12 +67,13 @@ export function EditSponsorDialog({
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
-  const form = useForm<EditSponsorForm>({
+  const form = useForm<EditSponsorForm & { expireInHours?: string }>({
     resolver: zodResolver(editSponsorSchema),
     defaultValues: {
       title: sponsor?.title || '',
       sponsorUrl: sponsor?.sponsorUrl || '',
       expiresAt: sponsor?.expiresAt?.toDate(),
+      expireInHours: '',
     },
   });
 
@@ -86,7 +88,7 @@ export function EditSponsorDialog({
     }
   });
 
-  const onSubmit = async (data: EditSponsorForm) => {
+  const onSubmit = async (data: EditSponsorForm & { expireInHours?: string }) => {
     if (!sponsor?.id) {
       toast({
         title: 'Error',
@@ -100,18 +102,18 @@ export function EditSponsorDialog({
 
     try {
       const sponsorRef = doc(db, 'sponsorRules', sponsor.id);
-      
       const updateData: any = {
         title: data.title,
         sponsorUrl: data.sponsorUrl,
         updatedAt: new Date(),
       };
 
-      // Handle expiration date
-      if (data.expiresAt) {
+      // Expiración por horas tiene prioridad
+      if (data.expireInHours && Number(data.expireInHours) > 0) {
+        updateData.expiresAt = new Date(Date.now() + Number(data.expireInHours) * 60 * 60 * 1000);
+      } else if (data.expiresAt) {
         updateData.expiresAt = data.expiresAt;
       } else {
-        // If no expiration date is set, remove the field
         updateData.expiresAt = null;
       }
 
@@ -180,12 +182,37 @@ export function EditSponsorDialog({
               )}
             />
 
+            {/* Campo: Expiración por horas (opcional) */}
+            <FormField
+              control={form.control}
+              name="expireInHours"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Expiración en horas (opcional, para sponsors de menos de 24h)</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="24"
+                      placeholder="Ej: 3"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                  <p className="text-xs text-muted-foreground">
+                    Si se especifica, el sponsor expirará en ese número de horas desde ahora.
+                  </p>
+                </FormItem>
+              )}
+            />
+
+            {/* Campo: Fecha de Expiración (opcional) */}
             <FormField
               control={form.control}
               name="expiresAt"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel>Fecha de Expiración (Opcional)</FormLabel>
+                  <FormLabel>Fecha de Expiración (opcional)</FormLabel>
                   <Popover>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -229,6 +256,9 @@ export function EditSponsorDialog({
                     </PopoverContent>
                   </Popover>
                   <FormMessage />
+                  <p className="text-xs text-muted-foreground">
+                    Si no estableces una fecha ni horas, el sponsor nunca expirará
+                  </p>
                 </FormItem>
               )}
             />
