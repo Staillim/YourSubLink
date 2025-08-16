@@ -62,6 +62,11 @@ const navItems = [
         href: '/admin/settings',
         label: 'Settings',
         icon: Settings,
+    },
+    {
+        href: '/admin/referrals',
+        label: 'Referrals',
+        icon: Users,
     }
 ]
 
