@@ -71,6 +71,14 @@ export function useUser() {
         }
     }
 
+    // Obtener referrerId de la URL si existe
+    let referrerId: string | null = null;
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const ref = params.get('ref');
+      if (ref) referrerId = ref;
+    }
+
     // Subscribe to User Profile
     const userDocRef = doc(db, 'users', authUser.uid);
     const unsubProfile = onSnapshot(userDocRef, async (userDoc) => {
@@ -78,6 +86,10 @@ export function useUser() {
 
       if (userDoc.exists()) {
         const userData = userDoc.data();
+        // Si el usuario no tiene referrerId y hay uno en la URL, lo guardamos
+        if ((typeof userData.referrerId === 'undefined' || userData.referrerId === null || userData.referrerId === '') && referrerId) {
+          await createUserProfile(authUser, { referrerId });
+        }
         const linksQuery = query(collection(db, 'links'), where('userId', '==', authUser.uid));
         const linksSnapshot = await getDocs(linksQuery);
         const totalGeneratedEarnings = linksSnapshot.docs.reduce((acc, doc) => {
@@ -97,7 +109,7 @@ export function useUser() {
             linksCount: linksSnapshot.size, 
         });
       } else {
-        await createUserProfile(authUser);
+        await createUserProfile(authUser, referrerId ? { referrerId } : undefined);
       }
       profileLoaded = true;
       checkLoadingComplete();
