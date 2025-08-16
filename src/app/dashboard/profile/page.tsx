@@ -5,6 +5,7 @@ import { useState, useEffect, ChangeEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateProfile } from 'firebase/auth';
 import { auth, db, storage } from '@/lib/firebase';
+import { collection, getDocs, where, query as fsQuery } from 'firebase/firestore';
 import { doc, setDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,6 +25,8 @@ export default function ProfilePage() {
 
   const [displayName, setDisplayName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [referralCode, setReferralCode] = useState<string | null>(null);
+  const [invitees, setInvitees] = useState<any[]>([]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -34,6 +37,18 @@ export default function ProfilePage() {
   useEffect(() => {
     if (user && profile) {
       setDisplayName(profile.displayName || user.displayName || '');
+      let code = profile.referralCode || user.uid;
+      setReferralCode(code);
+      // Si el usuario no tiene referralCode en Firestore, lo actualizamos
+      if (!profile.referralCode && user.uid) {
+        const userRef = doc(db, 'users', user.uid);
+        setDoc(userRef, { referralCode: user.uid }, { merge: true });
+      }
+      // Buscar usuarios referidos
+      const q = fsQuery(collection(db, 'users'), where('referrerId', '==', code));
+      getDocs(q).then(snapshot => {
+        setInvitees(snapshot.docs.map(doc => doc.data()));
+      });
     }
   }, [user, profile]);
 
@@ -91,9 +106,56 @@ export default function ProfilePage() {
 
   return (
     <>
-      <div className="flex items-center">
+      <div className="flex items-center mb-6">
         <h1 className="text-xl sm:text-2xl font-semibold">Profile</h1>
       </div>
+      {/* Sección de referidos */}
+      <div className="mb-8">
+        <Card>
+          <CardHeader>
+            <CardTitle>Invita y gana</CardTitle>
+            <CardDescription>
+              Comparte tu código o link de invitación para invitar a otros usuarios.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="mb-2">
+              <Label>Código de invitación:</Label>
+              <div className="flex items-center gap-2">
+                <span className="font-mono bg-muted px-2 py-1 rounded">{referralCode || '...'}</span>
+                {referralCode && (
+                  <Button size="sm" variant="outline" onClick={() => navigator.clipboard.writeText(referralCode)}>
+                    Copiar
+                  </Button>
+                )}
+              </div>
+            </div>
+            <div className="mb-2">
+              <Label>Link de invitación:</Label>
+              <div className="flex items-center gap-2">
+                <span className="font-mono bg-muted px-2 py-1 rounded">
+                  {referralCode ? `${window.location.origin}/auth?ref=${referralCode}` : '...'}
+                </span>
+                {referralCode && (
+                  <Button size="sm" variant="outline" onClick={() => navigator.clipboard.writeText(`${window.location.origin}/auth?ref=${referralCode}`)}>
+                    Copiar
+                  </Button>
+                )}
+              </div>
+            </div>
+            <div>
+              <Label>Usuarios invitados:</Label>
+              <ul className="list-disc ml-6 mt-1">
+                {invitees.length === 0 && <li className="text-muted-foreground">Aún no tienes invitados.</li>}
+                {invitees.map((u, i) => (
+                  <li key={i}>{u.displayName || u.name || u.email || u.uid}</li>
+                ))}
+              </ul>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+      {/* Información de perfil */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
         <div className="md:col-span-2 space-y-8">
             <Card>
