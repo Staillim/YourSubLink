@@ -11,7 +11,7 @@
 
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -65,6 +65,7 @@ const signUpSchema = z.object({
     .regex(/[A-Z]/, { message: 'Password must contain at least one uppercase letter.' })
     .regex(/[0-9]/, { message: 'Password must contain at least one number.' })
     .regex(/[^a-zA-Z0-9]/, { message: 'Password must contain at least one special character.' }),
+  invitationCode: z.string().optional(),
 });
 
 const resetPasswordSchema = z.object({
@@ -74,6 +75,8 @@ const resetPasswordSchema = z.object({
 function AuthForm() {
   const router = useRouter();
   const { toast } = useToast();
+  const searchParams = useSearchParams();
+  const referrerId = searchParams.get('ref');
   const [activeTab, setActiveTab] = useState('signin');
   const [showResetForm, setShowResetForm] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -91,7 +94,7 @@ function AuthForm() {
 
   const signUpForm = useForm<z.infer<typeof signUpSchema>>({
     resolver: zodResolver(signUpSchema),
-    defaultValues: { name: '', email: '', password: '' },
+    defaultValues: { name: '', email: '', password: '', invitationCode: referrerId || '' },
   });
   
   const resetPasswordForm = useForm<z.infer<typeof resetPasswordSchema>>({
@@ -149,6 +152,14 @@ function AuthForm() {
           return;
       }
 
+      // Si el usuario es viejo y no tiene referrerId, y hay uno en la URL o formulario, se lo asignamos
+      const profile = await getUserProfile(user.uid);
+      const invitationCode = signUpForm.getValues ? signUpForm.getValues('invitationCode') : null;
+      const refId = invitationCode || referrerId;
+      if (typeof profile.referrerId === 'undefined' && refId) {
+        await createUserProfile(user, { referrerId: refId });
+      }
+
       await handleRedirectBasedOnRole(user);
     } catch (error: any) {
       toast({
@@ -167,36 +178,38 @@ function AuthForm() {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
-      
+
       await updateProfile(user, { displayName: values.name });
-      await createUserProfile(user);
-      
+  // Si el usuario ingresó un código de invitación manualmente, úsalo como referrerId, si no, usa el de la URL
+  const finalReferrerId = values.invitationCode || referrerId;
+  await createUserProfile(user, { referrerId: finalReferrerId });
+
       await sendEmailVerification(user);
 
       signUpForm.reset();
 
       toast({
-          title: 'Verification Email Sent',
-          description: 'Please check your inbox (and spam folder) to verify your email address before signing in.',
-          duration: 8000
+        title: 'Verification Email Sent',
+        description: 'Please check your inbox (and spam folder) to verify your email address before signing in.',
+        duration: 8000
       });
 
       setActiveTab('signin');
 
     } catch (error: any) {
-        if (error.code === 'auth/email-already-in-use') {
-            toast({
-                title: 'Registration Error',
-                description: 'This email address is already registered. Please sign in.',
-                variant: 'destructive',
-            });
-        } else {
-            toast({
-                title: 'Authentication Error',
-                description: error.message,
-                variant: 'destructive',
-            });
-        }
+      if (error.code === 'auth/email-already-in-use') {
+        toast({
+          title: 'Registration Error',
+          description: 'This email address is already registered. Please sign in.',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Authentication Error',
+          description: error.message,
+          variant: 'destructive',
+        });
+      }
     } finally {
       setIsSigningUp(false);
     }
@@ -208,10 +221,11 @@ function AuthForm() {
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
-      
-      await createUserProfile(user);
+      // Obtener el valor actual del campo invitationCode del formulario
+      const invitationCode = signUpForm.getValues('invitationCode');
+      const refId = invitationCode || referrerId;
+      await createUserProfile(user, { referrerId: refId });
       await handleRedirectBasedOnRole(user);
-
     } catch (error: any) {
       toast({
         title: 'Google Sign-In Error',
@@ -366,36 +380,49 @@ function AuthForm() {
                             onSubmit={signUpForm.handleSubmit(handleSignUp)}
                             className="space-y-4 pt-4"
                             >
-                            <FormField
-                                control={signUpForm.control}
-                                name="name"
-                                render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Name</FormLabel>
-                                    <FormControl>
-                                    <Input placeholder="Max Robinson" {...field} />
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                                )}
-                            />
-                            <FormField
-                                control={signUpForm.control}
-                                name="email"
-                                render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Email</FormLabel>
-                                    <FormControl>
-                                    <Input
-                                        type="email"
-                                        placeholder="m@example.com"
-                                        {...field}
-                                    />
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                                )}
-                            />
+              <FormField
+                control={signUpForm.control}
+                name="name"
+                render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Name</FormLabel>
+                  <FormControl>
+                  <Input placeholder="Max Robinson" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+                )}
+              />
+              <FormField
+                control={signUpForm.control}
+                name="email"
+                render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Email</FormLabel>
+                  <FormControl>
+                  <Input
+                    type="email"
+                    placeholder="m@example.com"
+                    {...field}
+                  />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+                )}
+              />
+              <FormField
+                control={signUpForm.control}
+                name="invitationCode"
+                render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Código de invitación (opcional)</FormLabel>
+                  <FormControl>
+                  <Input placeholder="Código de referido" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+                )}
+              />
                             <FormField
                                 control={signUpForm.control}
                                 name="password"
