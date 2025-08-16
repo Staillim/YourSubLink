@@ -66,8 +66,6 @@ export interface UserProfile {
   isActive: boolean;
   joinedAt: any;          // Firestore Timestamp
   lastSeen: any;          // Firestore Timestamp
-  referralCode?: string;  // Código único de referido
-  referrerId?: string;    // Código de referido del usuario que lo invitó
 }
 
 // Actualizar ClickData existente con campos de sponsor
