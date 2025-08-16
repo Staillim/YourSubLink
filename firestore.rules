@@ -23,8 +23,8 @@ service cloud.firestore {
       // This is needed for the client to check account status or custom CPMs. Sensitive data should not be stored here.
       allow get: if true;
       
-      // List: Only admins can list all users.
-      allow list: if isAdmin();
+  // List: Any authenticated user can list users (necesario para mostrar referidos en el perfil).
+  allow list: if isAuth();
 
       // Update: Admins can update any user. Users can only update their own profile, and cannot change their role.
       allow update: if isAdmin() || (isOwner(userId) && request.resource.data.role == resource.data.role);
