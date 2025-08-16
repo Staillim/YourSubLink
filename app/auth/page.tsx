@@ -503,12 +503,16 @@ function AuthForm() {
 }
 
 
+import { Suspense } from 'react';
+
 export default function AuthenticationPage() {
-    return (
-        <main className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4 sm:p-6">
-            <AuthForm />
-        </main>
-    )
+  return (
+    <main className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4 sm:p-6">
+      <Suspense fallback={<div>Cargando...</div>}>
+        <AuthForm />
+      </Suspense>
+    </main>
+  );
 }
 
     
