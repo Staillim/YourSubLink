@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -99,13 +98,13 @@ export default function PayoutsPage() {
             <div className="flex items-center justify-between">
                 <h1 className="text-lg font-semibold md:text-2xl">Payouts</h1>
             </div>
+            
             {/* Mensaje informativo sobre los pagos */}
             <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 p-4 mb-4 rounded">
                 <strong>Importante:</strong> Debido al creciente avance de la plataforma en cuanto a solicitudes, puedes solicitar tus pagos cada 15 días, especialmente los días <b>1-5</b> y del <b>15-20</b>. El mínimo de retiro se actualizó a <b>$20</b>.
             </div>
-            </div>
 
-             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Available Balance</CardTitle>
