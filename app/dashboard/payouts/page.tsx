@@ -101,7 +101,7 @@ export default function PayoutsPage() {
             
             {/* Mensaje informativo sobre los pagos */}
             <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 p-4 mb-4 rounded">
-                <strong>Importante:</strong> Debido al creciente avance de la plataforma en cuanto a solicitudes, puedes solicitar tus pagos cada 15 días, especialmente los días <b>1-5</b> y del <b>15-20</b>. El mínimo de retiro se actualizó a <b>$20</b>.
+                <strong className="text-green-600">Importante:</strong> Debido al creciente avance de la plataforma en cuanto a solicitudes, puedes solicitar tus pagos cada 15 días, especialmente los días <b className="text-green-600">1-5</b> y del <b className="text-green-600">15-20</b>. El mínimo de retiro se actualizó a <b className="text-green-600">$20</b>.
             </div>
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
