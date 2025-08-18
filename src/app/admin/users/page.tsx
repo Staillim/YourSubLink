@@ -313,7 +313,7 @@ export default function AdminUsersPage() {
                                     <div className="sm:hidden mt-2 space-y-2 text-xs">
                                         <div className="flex items-center gap-2">
                                             <span className="font-medium">Balance:</span>
-                                            <span className="font-bold">${(u.generatedEarnings - u.paidEarnings).toFixed(4)}</span>
+                                            <span className="font-bold">${(u.generatedEarnings - u.paidEarnings).toFixed(2)}</span>
                                         </div>
                                          <div className="flex items-center gap-2">
                                             <span className="font-medium">Status:</span>
@@ -331,18 +331,18 @@ export default function AdminUsersPage() {
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <DollarSign className="h-3 w-3 text-muted-foreground" />
-                                            <span>${u.generatedEarnings.toFixed(4)} generated</span>
+                                            <span>${u.generatedEarnings.toFixed(2)} generated</span>
                                         </div>
                                          <div className="flex items-center gap-2 text-green-500">
                                             <Wallet className="h-3 w-3" />
-                                            <span>${u.paidEarnings.toFixed(4)} paid</span>
+                                            <span>${u.paidEarnings.toFixed(2)} paid</span>
                                         </div>
                                     </div>
                                 </TableCell>
-                                <TableCell className="font-bold hidden sm:table-cell">${(u.generatedEarnings - u.paidEarnings).toFixed(4)}</TableCell>
+                                <TableCell className="font-bold hidden sm:table-cell">${(u.generatedEarnings - u.paidEarnings).toFixed(2)}</TableCell>
                                 <TableCell className="hidden md:table-cell">
                                     {u.customCpm ? (
-                                        <Badge variant="outline" className="border-blue-500 text-blue-500">${u.customCpm.toFixed(4)}</Badge>
+                                        <Badge variant="outline" className="border-blue-500 text-blue-500">${u.customCpm.toFixed(2)}</Badge>
                                     ) : (
                                         <span className="text-xs text-muted-foreground">Global</span>
                                     )}

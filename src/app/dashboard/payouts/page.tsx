@@ -125,7 +125,7 @@ export default function PayoutsPage() {
                         <DollarSign className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">${typeof availableBalance === 'number' ? availableBalance.toFixed(4) : '0.0000'}</div>
+                        <div className="text-2xl font-bold">${typeof availableBalance === 'number' ? availableBalance.toFixed(2) : '0.00'}</div>
                         <p className="text-xs text-muted-foreground">Ready for withdrawal</p>
                     </CardContent>
                 </Card>
@@ -135,7 +135,7 @@ export default function PayoutsPage() {
                         <Wallet className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">${typeof payoutsPending === 'number' ? payoutsPending.toFixed(4) : '0.0000'}</div>
+                        <div className="text-2xl font-bold">${typeof payoutsPending === 'number' ? payoutsPending.toFixed(2) : '0.00'}</div>
                         <p className="text-xs text-muted-foreground">Requested but not yet paid</p>
                     </CardContent>
                 </Card>
@@ -145,7 +145,7 @@ export default function PayoutsPage() {
                         <PiggyBank className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">${typeof paidEarnings === 'number' ? paidEarnings.toFixed(4) : '0.0000'}</div>
+                        <div className="text-2xl font-bold">${typeof paidEarnings === 'number' ? paidEarnings.toFixed(2) : '0.00'}</div>
                         <p className="text-xs text-muted-foreground">Total earnings paid out to you</p>
                     </CardContent>
                 </Card>

@@ -143,7 +143,7 @@ export default function AnalyticsPage() {
                       <DollarSign className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                      <div className="text-2xl font-bold">${totalEarnings.toFixed(4)}</div>
+                      <div className="text-2xl font-bold">${totalEarnings.toFixed(2)}</div>
                       <p className="text-xs text-muted-foreground">Based on total monetizable clicks</p>
                   </CardContent>
               </Card>
@@ -163,11 +163,11 @@ export default function AnalyticsPage() {
                        <DollarSign className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                      <div className="text-2xl font-bold">${typeof activeCpm === 'number' ? activeCpm.toFixed(4) : '0.0000'}</div>
+                      <div className="text-2xl font-bold">${typeof activeCpm === 'number' ? activeCpm.toFixed(2) : '0.00'}</div>
                       {hasCustomCpm ? (
                         <div className="text-xs text-muted-foreground flex items-center gap-1">
                            <Star className="h-3 w-3 text-yellow-500"/>
-                           <span>Your custom rate (Global: ${typeof globalActiveCpm === 'number' ? globalActiveCpm.toFixed(4) : '0.0000'})</span>
+                           <span>Your custom rate (Global: ${typeof globalActiveCpm === 'number' ? globalActiveCpm.toFixed(2) : '0.00'})</span>
                         </div>
                       ) : (
                         <p className="text-xs text-muted-foreground">Current global rate per 1000 views</p>
@@ -196,9 +196,9 @@ export default function AnalyticsPage() {
                   axisLine={false}
                   tickFormatter={(value) => value.slice(0, 3)}
                 />
-                <YAxis tickFormatter={(value) => `$${Number(value).toFixed(4)}`} />
+                <YAxis tickFormatter={(value) => `$${Number(value).toFixed(2)}`} />
                 <ChartTooltip
-                  content={<ChartTooltipContent formatter={(value) => `$${Number(value).toFixed(4)}`} />}
+                  content={<ChartTooltipContent formatter={(value) => `$${Number(value).toFixed(2)}`} />}
                 />
                 <Bar dataKey="earnings" fill="var(--color-earnings)" radius={4} />
               </BarChart>

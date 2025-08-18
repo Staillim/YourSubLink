@@ -277,7 +277,7 @@ function DashboardPageComponent() {
                                 </div>
                                  <div className="flex items-center gap-1 text-muted-foreground">
                                     <DollarSign className="h-3 w-3" />
-                                    <span>${link.generatedEarnings.toFixed(4)}</span>
+                                    <span>${link.generatedEarnings.toFixed(2)}</span>
                                 </div>
                                 <div className="flex items-center gap-1 text-muted-foreground">
                                     <Calendar className="h-3 w-3" />
@@ -321,7 +321,7 @@ function DashboardPageComponent() {
                         </div>
                     </TableCell>
                     <TableCell className="hidden sm:table-cell">{link.clicks}</TableCell>
-                    <TableCell className="font-semibold text-green-500 hidden sm:table-cell">${link.generatedEarnings.toFixed(4)}</TableCell>
+                    <TableCell className="font-semibold text-green-500 hidden sm:table-cell">${link.generatedEarnings.toFixed(2)}</TableCell>
                     <TableCell className="hidden lg:table-cell text-muted-foreground">{link.date}</TableCell>
                     <TableCell className="text-right">
                         <DropdownMenu>

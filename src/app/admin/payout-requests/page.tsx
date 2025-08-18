@@ -24,7 +24,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
-import { MoreVertical, CheckCircle, XCircle, Loader2, Calendar, CreditCard } from 'lucide-react';
+                             <span className="font-semibold">${req.amount.toFixed(2)}</span>
 import { Skeleton } from '@/components/ui/skeleton';
 import {
     DropdownMenu,
@@ -168,7 +168,7 @@ export default function AdminPayoutRequestsPage() {
                       <div className="sm:hidden mt-2 space-y-2 text-xs">
                           <div className="flex items-center gap-2">
                               <span className="font-medium">Amount:</span>
-                              <span className="font-semibold">${req.amount.toFixed(4)}</span>
+                           <span className="font-semibold">${req.amount.toFixed(2)}</span>
                           </div>
                           <div className="flex items-center gap-2">
                               <span className="font-medium">Method:</span>
@@ -182,7 +182,7 @@ export default function AdminPayoutRequestsPage() {
                           </div>
                       </div>
                   </TableCell>
-                  <TableCell className="font-semibold hidden sm:table-cell">${req.amount.toFixed(4)}</TableCell>
+                  <TableCell className="font-semibold hidden sm:table-cell">${req.amount.toFixed(2)}</TableCell>
                   <TableCell className="capitalize hidden md:table-cell">{req.method}</TableCell>
                   <TableCell className="hidden lg:table-cell">{req.details}</TableCell>
                   <TableCell>
